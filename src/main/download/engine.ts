@@ -78,9 +78,12 @@ export class DownloadEngine {
           signal.throwIfAborted()
           const post = service.resolvePost ? await service.resolvePost(ctx, listed) : listed
 
-          if (options.skipExisting && isPostComplete(post)) {
-            this.progress.skipped += post.files.length
-            this.progress.total += post.files.length
+          if (options.skipExisting && isPostComplete(post, options.includeKinds)) {
+            const inScope = post.files.filter((f) =>
+              options.includeKinds.includes(f.kind)
+            ).length
+            this.progress.skipped += inScope
+            this.progress.total += inScope
             cb.onProgress({ ...this.progress })
             continue
           }
@@ -116,7 +119,7 @@ export class DownloadEngine {
       this.worker(serviceId, root, loc, post, queue, options, cb)
     )
     await Promise.all(workers)
-    refreshPostCompletion(post)
+    refreshPostCompletion(post, options.includeKinds)
   }
 
   private async worker(

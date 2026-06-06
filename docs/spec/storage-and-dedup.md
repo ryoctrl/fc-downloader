@@ -23,8 +23,14 @@
 `storage/db.ts`。MVP は **zero-dependency の JSON ストア**（ネイティブビルド不要、ADR 0003）。
 ディスクのフォルダ構成を **正** とし、台帳は索引 + 重複台帳として機能する。
 
-- 投稿レコード（`completed`: 既知ファイルが全取得済みかのフラグ）。
+- 投稿レコード（`completed`: その実行の対象種別（`includeKinds`）のファイルが全取得済みかのフラグ）。
 - ファイルレコード（`downloaded`: ファイル単位の取得済みフラグ）。
+
+> `completed` 判定は **常に実行時の `includeKinds` に対する部分集合** で行う。投稿が
+> 含む種別を除外した場合（例: video を外す）でも、その投稿が永久に未完了扱いになって
+> 投稿スキップの近道が無効化されることはない。逆に、images だけで取得した投稿を後から
+> video 込みで再実行した場合は、`isPostComplete` が実行時の `includeKinds` で都度判定する
+> ため、丸ごとスキップされず video が取得される。
 
 公開 API（`isPostComplete` / `isFileDownloaded` / `upsertPost` / `markFileDownloaded` /
 `refreshPostCompletion`）はリレーショナルストアを模した形に保ち、将来 SQLite へ
@@ -34,7 +40,7 @@
 
 ファイル取得前に、`options.skipExisting` が ON のとき以下の順で判定:
 
-1. `posts.completed = 1`（投稿全体が完了済み）→ 投稿ごとスキップ。
+1. `isPostComplete`（対象種別 `includeKinds` のファイルが全取得済み）→ 投稿ごとスキップ。
 2. `files.downloaded = 1`（当該ファイルが台帳上取得済み）→ スキップ。
 3. 実ファイルが既にディスクに存在 → 台帳を更新してスキップ。
 
