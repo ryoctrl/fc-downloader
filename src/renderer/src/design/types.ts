@@ -92,6 +92,8 @@ export interface AppActions {
   markDownloadDone: () => void
   cancelDownload: () => void
   setConcurrency: (n: number) => void
+  /** Open the OS folder picker and persist the chosen download root. */
+  pickSaveDir: () => void
   toggleSkipDefault: () => void
   setBrandLogo: (id: ServiceId, dataUrl: string) => void
   clearBrandLogo: (id: ServiceId) => void
