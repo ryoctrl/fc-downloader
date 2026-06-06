@@ -1,0 +1,24 @@
+node_modules/
+out/
+dist/
+release/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Local app data / downloads accidentally placed in repo
+/downloads/
+/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Env / secrets
+.env
+.env.local
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/

@@ -1,0 +1,137 @@
+/**
+ * Shared domain types used by both the main process and the renderer.
+ * Keep this file free of any Node/Electron/DOM-specific imports so it can be
+ * consumed from either side.
+ */
+
+/** Stable identifier for a supported support-site service. */
+export type ServiceId = 'fantia' | 'fanbox' | 'patreon' | 'cien'
+
+/** Static descriptor for a service, surfaced in the sidebar. */
+export interface ServiceDescriptor {
+  id: ServiceId
+  /** Human-readable name shown in the UI. */
+  name: string
+  /** URL the embedded WebView opens for login / browsing. */
+  homeUrl: string
+  /** Whether the user currently appears to be logged in (best-effort). */
+  loggedIn: boolean
+}
+
+/** A creator / author the user supports on a given service. */
+export interface Creator {
+  serviceId: ServiceId
+  /** Service-native id of the creator (e.g. Fantia fanclub id). */
+  creatorId: string
+  name: string
+  /** Optional avatar/thumbnail URL. */
+  iconUrl?: string
+}
+
+/** A single post (the unit of dedup and of a viewer folder). */
+export interface Post {
+  serviceId: ServiceId
+  creatorId: string
+  postId: string
+  title: string
+  /** ISO-8601 timestamp of when the post was published. */
+  postedAt: string
+  /** Derived from postedAt; used for the year/month folder layout. */
+  year: number
+  month: number
+  /** Files attached to / embedded in this post. */
+  files: PostFile[]
+}
+
+export type PostFileKind = 'image' | 'video' | 'audio' | 'file' | 'thumbnail'
+
+/** A downloadable artifact belonging to a post. */
+export interface PostFile {
+  /** Stable id within the post (service-native or derived). */
+  fileId: string
+  kind: PostFileKind
+  /** Original file name as offered by the service, if any. */
+  name: string
+  /** Remote URL to fetch. May require the service session cookies. */
+  url: string
+  /** Size in bytes if known ahead of time. */
+  sizeBytes?: number
+}
+
+/**
+ * Folder layout key. The on-disk path is:
+ *   <root>/<serviceId>/<creatorId>/<year>/<month(2)>/<postId>/
+ * This same tuple is the dedup key.
+ */
+export interface PostLocation {
+  serviceId: ServiceId
+  creatorId: string
+  year: number
+  month: number
+  postId: string
+}
+
+export type DownloadStatus =
+  | 'pending'
+  | 'downloading'
+  | 'completed'
+  | 'skipped' // already on disk (dedup hit)
+  | 'failed'
+  | 'canceled'
+
+/** One row in the download queue (per file). */
+export interface DownloadItem {
+  id: string
+  serviceId: ServiceId
+  creatorId: string
+  postId: string
+  fileId: string
+  fileName: string
+  status: DownloadStatus
+  bytesDownloaded: number
+  bytesTotal?: number
+  error?: string
+}
+
+/** Aggregate progress for a download run. */
+export interface DownloadProgress {
+  total: number
+  completed: number
+  skipped: number
+  failed: number
+  inFlight: number
+  /** Bytes across the whole run. */
+  bytesDownloaded: number
+  bytesTotal: number
+}
+
+/** User-tunable settings for a download run. */
+export interface DownloadOptions {
+  /** Restrict to specific creators; empty = all the user supports. */
+  creatorIds: string[]
+  /** Skip posts already fully recorded in the metadata DB. */
+  skipExisting: boolean
+  /** Max concurrent file downloads. */
+  concurrency: number
+  /** Which file kinds to include. */
+  includeKinds: PostFileKind[]
+}
+
+/** Persisted application-wide settings. */
+export interface AppSettings {
+  /** Root directory all downloads are written under. */
+  downloadRoot: string
+  defaultConcurrency: number
+}
+
+/** A node in the viewer tree (service -> creator -> year -> month -> post). */
+export interface ViewerNode {
+  key: string
+  label: string
+  kind: 'service' | 'creator' | 'year' | 'month' | 'post'
+  /** Absolute path on disk for leaf (post) nodes. */
+  path?: string
+  children?: ViewerNode[]
+  /** For post nodes: file count on disk. */
+  fileCount?: number
+}
