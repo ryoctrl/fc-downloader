@@ -1,0 +1,33 @@
+# electron-builder packaging config.
+# Build with: npm run dist  (runs typecheck + electron-vite build, then packages)
+# Output goes to ./release/ (gitignored).
+appId: app.fcdownloader
+productName: fc-downloader
+
+directories:
+  output: release
+  buildResources: build
+
+# electron-vite emits the app into out/; package only that + manifest.
+files:
+  - out/**
+  - package.json
+
+# No native modules (the metadata store is pure JS), so default asar packing is fine.
+
+win:
+  target:
+    - nsis # Setup installer
+    - portable # single self-contained .exe (no install needed — handy for testing)
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+# NOTE: builds are unsigned. Windows SmartScreen will warn on first run
+# ("More info" -> "Run anyway"). Code signing is a future task.
