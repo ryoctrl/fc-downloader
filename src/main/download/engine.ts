@@ -191,7 +191,8 @@ export class DownloadEngine {
 
   private async downloadFile(serviceId: ServiceId, file: PostFile, dest: string): Promise<number> {
     if (!file.url) throw new Error(`No URL resolved for file ${file.fileId}`)
-    const res = await requestFor(serviceId, file.url, { signal: this.abort.signal })
+    const headers = getService(serviceId).downloadHeaders
+    const res = await requestFor(serviceId, file.url, { signal: this.abort.signal, headers })
     if (res.status >= 400) throw new Error(`HTTP ${res.status} downloading ${file.url}`)
     // requestFor buffers the body; write the raw bytes to disk.
     const buf = res.buffer()

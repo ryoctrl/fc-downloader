@@ -58,5 +58,17 @@ UI・エンジン・ストレージ側の変更は不要。
 - 投稿列挙・詳細・ファイル URL 解決: 未確認（`/api/v1/posts/{id}` 想定）。
 - コンテンツ種別（photo_gallery / file / blog 等）→ `PostFileKind` のマッピングが必要。
 
-### Pixiv Fanbox / Patreon / ci-en
+### Pixiv Fanbox（アダプタ実装済み）
+- 実装: `src/main/services/fanbox/`（`index.ts` = ネットワーク、`normalize.ts` = 純粋変換 + テスト）。
+- ログイン: WebView で `https://www.fanbox.cc/`。Cookie は `FANBOXSESSID`。
+- API は `https://api.fanbox.cc`。**`Origin: https://www.fanbox.cc` ヘッダ必須**（`apiHeaders`）。
+- メディア CDN は **`Referer` 必須** → `Service.downloadHeaders` で全ファイル DL に付与（engine が適用）。
+- 認証判定: `GET /user.countUnreadMessages`（`VERIFY:`）。
+- 支援クリエイター列挙: `GET /plan.listSupporting`（creatorId で重複排除、`VERIFY:`）。
+- 投稿列挙: `GET /post.listCreator?creatorId=&limit=50` を `nextUrl` でページング、各 `post.info` で詳細取得（`VERIFY:`）。
+- 正規化: image / file / article（blocks + imageMap/fileMap、順序保持）に対応。拡張子で video/audio/file を判別。
+  body が null（権限なし）の投稿は skip。`normalize.test.ts` にフィクスチャテストあり。
+- 未確認点はコード中 `VERIFY:`。実アカウントでレスポンスを保存し、フィクスチャ化して確定する。
+
+### Patreon / ci-en
 - 未着手。`docs/roadmap.md` 参照。

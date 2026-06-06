@@ -28,6 +28,13 @@ export interface Service {
   readonly homeUrl: string
 
   /**
+   * Extra HTTP headers to send when downloading this service's files. Some
+   * sites serve media from a CDN that requires a Referer/Origin (e.g. Fanbox's
+   * pximg). Applied by the download engine to every file request.
+   */
+  readonly downloadHeaders?: Record<string, string>
+
+  /**
    * Best-effort check that the user is authenticated for this service, using
    * the current session cookies. Should be cheap (one lightweight request).
    */
