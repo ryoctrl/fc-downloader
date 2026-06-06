@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>fc-downloader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --sans:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  #root{height:100vh;}
+  button{font-family:inherit;}
+
+  [data-theme="light"]{
+    --bg:oklch(0.972 0.004 256);
+    --surface:oklch(1 0 0);
+    --surface-2:oklch(0.964 0.005 256);
+    --border:oklch(0.912 0.006 256);
+    --border-2:oklch(0.84 0.01 256);
+    --hairline:oklch(0.9 0.006 256 / 0.6);
+    --text:oklch(0.27 0.022 262);
+    --text-2:oklch(0.47 0.016 262);
+    --text-3:oklch(0.63 0.012 262);
+    --ok:oklch(0.6 0.13 155);
+    --warn:oklch(0.66 0.14 62);
+    --danger:oklch(0.57 0.19 25);
+    --fav:oklch(0.59 0.19 13);
+    --fav-tint:color-mix(in srgb, var(--fav) 11%, transparent);
+    --shadow-sm:0 1px 2px rgba(30,32,55,.05), 0 1px 3px rgba(30,32,55,.045);
+  }
+  [data-theme="dark"]{
+    --bg:oklch(0.168 0.012 262);
+    --surface:oklch(0.213 0.014 262);
+    --surface-2:oklch(0.262 0.016 262);
+    --border:oklch(0.3 0.014 262);
+    --border-2:oklch(0.38 0.016 262);
+    --hairline:oklch(0.4 0.012 262 / 0.4);
+    --text:oklch(0.95 0.006 262);
+    --text-2:oklch(0.74 0.012 262);
+    --text-3:oklch(0.56 0.014 262);
+    --ok:oklch(0.72 0.14 155);
+    --warn:oklch(0.78 0.13 72);
+    --danger:oklch(0.66 0.17 25);
+    --fav:oklch(0.7 0.16 14);
+    --fav-tint:color-mix(in srgb, var(--fav) 20%, transparent);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.22), 0 2px 8px rgba(0,0,0,.2);
+  }
+
+  /* interactions */
+  .fc-card{transition:transform .14s cubic-bezier(.3,.7,.4,1), box-shadow .14s, border-color .14s;}
+  .fc-card:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(18,20,40,.13);border-color:var(--border-2);}
+  .fc-row{transition:background .12s;}
+  .fc-row:hover,.fc-tree-row:hover,.fc-rail-item:hover{background:var(--surface-2);}
+  .fc-btn-solid:hover{background:var(--border)!important;}
+  .fc-btn-ghost:hover{background:var(--surface-2)!important;}
+  .fc-btn-primary:hover{filter:brightness(1.07);}
+  .fc-btn-danger:hover{background:var(--surface-2)!important;}
+  .fc-fav{transition:transform .12s;}
+  .fc-fav:hover{transform:scale(1.12);}
+
+  /* animations */
+  @keyframes fc-spin{to{transform:rotate(360deg);}}
+  .fc-spin{animation:fc-spin .8s linear infinite;}
+  @keyframes fc-pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+  .fc-pulse{animation:fc-pulse 1.3s ease-in-out infinite;}
+
+  /* scrollbars */
+  ::-webkit-scrollbar{width:11px;height:11px;}
+  ::-webkit-scrollbar-thumb{background:color-mix(in srgb, var(--text-3) 35%, transparent);border-radius:99px;border:3px solid transparent;background-clip:content-box;}
+  ::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb, var(--text-3) 55%, transparent);border:3px solid transparent;background-clip:content-box;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  *{scrollbar-width:thin;scrollbar-color:color-mix(in srgb, var(--text-3) 35%, transparent) transparent;}
+  input::placeholder{color:var(--text-3);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<template id="__bundler_thumbnail">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="22" fill="#2f6df0"/>
+    <path d="M50 30v28m0 0 9-9m-9 9-9-9M34 70h32" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</template>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="src/data.js"></script>
+<script type="text/babel" src="src/tweaks-panel.jsx"></script>
+<script type="text/babel" src="src/ui.jsx"></script>
+<script type="text/babel" src="src/screens-service.jsx"></script>
+<script type="text/babel" src="src/screens-progress.jsx"></script>
+<script type="text/babel" src="src/screens-viewer.jsx"></script>
+<script type="text/babel" src="src/screens-detail.jsx"></script>
+<script type="text/babel" src="src/screens-settings.jsx"></script>
+<script type="text/babel" src="src/app.jsx"></script>
+</body>
+</html>

@@ -1,36 +1,217 @@
-import { useEffect, useState } from 'react'
-import type { ServiceDescriptor } from '@shared/types'
-import { Sidebar } from './components/Sidebar'
-import { ServicePanel } from './components/ServicePanel'
-import { ViewerPanel } from './components/ViewerPanel'
-import { SettingsPanel } from './components/SettingsPanel'
+/* fc-downloader — app shell: prefs, state, routing, theme */
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import type { AppActions, AppState, Nav, Prefs, ServiceId } from './design/types'
+import { AppCtx } from './design/context'
+import { LANG } from './design/i18n'
+import { FC } from './design/data'
+import { TopBar } from './components/TopBar'
+import { Rail } from './components/Rail'
+import { ServiceScreen } from './screens/ServiceScreen'
+import { ProgressScreen } from './screens/ProgressScreen'
+import { LibraryScreen } from './screens/LibraryScreen'
+import { FavoritesScreen } from './screens/FavoritesScreen'
+import { PostDetail } from './screens/PostDetail'
+import { SettingsScreen } from './screens/SettingsScreen'
 
-export type View = { kind: 'service'; serviceId: string } | { kind: 'viewer' } | { kind: 'settings' }
+const PREFS_KEY = 'fc_prefs'
+const LOGO_KEY = 'fc_brand_logos'
 
-export function App(): JSX.Element {
-  const [services, setServices] = useState<ServiceDescriptor[]>([])
-  const [view, setView] = useState<View>({ kind: 'viewer' })
+const DEFAULT_PREFS: Prefs = {
+  theme: 'system',
+  accent: '#2f6df0',
+  density: 'comfy',
+  viewerView: 'grid',
+  lang: 'ja'
+}
 
+const ACCENT_HUE: Record<string, number> = {
+  '#2f6df0': 256,
+  '#6257f0': 285,
+  '#0e9aa0': 200,
+  '#7a8a99': 240
+}
+
+function loadJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? { ...fallback, ...JSON.parse(raw) } : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function useSystemDark(): boolean {
+  const mq = () => (window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null)
+  const [dark, setDark] = useState(() => {
+    const m = mq()
+    return m ? m.matches : false
+  })
   useEffect(() => {
-    void window.api['services:list']().then((list) => {
-      setServices(list)
-      if (list.length > 0) setView({ kind: 'service', serviceId: list[0].id })
-    })
+    const m = mq()
+    if (!m) return
+    const h = (e: MediaQueryListEvent) => setDark(e.matches)
+    m.addEventListener('change', h)
+    return () => m.removeEventListener('change', h)
   }, [])
+  return dark
+}
+
+export function App() {
+  const [prefs, setPrefs] = useState<Prefs>(() => loadJson(PREFS_KEY, DEFAULT_PREFS))
+  const setTweak = <K extends keyof Prefs>(key: K, value: Prefs[K]) =>
+    setPrefs((p) => {
+      const next = { ...p, [key]: value }
+      try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  const L = LANG[prefs.lang] || LANG.ja
+
+  const [nav, setNav] = useState<Nav>({ screen: 'service', serviceId: 'fantia' })
+  const [logins, setLogins] = useState<Record<string, boolean>>({
+    fantia: true,
+    fanbox: true,
+    patreon: false,
+    cien: false
+  })
+  const [favs, setFavs] = useState<Set<number>>(
+    () => new Set(FC.POSTS.filter((p) => p.fav).map((p) => p.id))
+  )
+  const [download, setDownload] = useState<AppState['download']>(null)
+  const [concurrency, setConcurrency] = useState(3)
+  const [skipDupDefault, setSkipDupDefault] = useState(true)
+  const [brandLogos, setBrandLogos] = useState<Record<string, string>>(() => loadJson(LOGO_KEY, {}))
+  const [, setRev] = useState(0)
+  const saveDir = '~/fc-downloads'
+  const sysDark = useSystemDark()
+  const resolvedTheme = prefs.theme === 'system' ? (sysDark ? 'dark' : 'light') : prefs.theme
+
+  const persistLogos = (next: Record<string, string>) => {
+    try {
+      localStorage.setItem(LOGO_KEY, JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const actions: AppActions = {
+    toggleFav: (id) =>
+      setFavs((s) => {
+        const n = new Set(s)
+        if (n.has(id)) n.delete(id)
+        else n.add(id)
+        return n
+      }),
+    setLogin: (id, v) => setLogins((s) => ({ ...s, [id]: v })),
+    startDownload: (svc, plan) => {
+      setDownload({
+        svcId: svc.id,
+        items: plan.items,
+        dup: plan.dup || 0,
+        done: false,
+        startedAt: Date.now()
+      })
+      setNav({ screen: 'progress' })
+    },
+    markDownloadDone: () =>
+      setDownload((d) => {
+        if (d && !d.done) {
+          d.items.forEach((p) => {
+            p.status = 'done'
+          })
+          setRev((r) => r + 1)
+          return { ...d, done: true }
+        }
+        return d
+      }),
+    cancelDownload: () => {
+      setDownload(null)
+      setNav({ screen: 'service', serviceId: 'fantia' })
+    },
+    setConcurrency,
+    toggleSkipDefault: () => setSkipDupDefault((v) => !v),
+    setBrandLogo: (id: ServiceId, dataUrl: string) =>
+      setBrandLogos((s) => {
+        const n = { ...s, [id]: dataUrl }
+        persistLogos(n)
+        return n
+      }),
+    clearBrandLogo: (id: ServiceId) =>
+      setBrandLogos((s) => {
+        const n = { ...s }
+        delete n[id]
+        persistLogos(n)
+        return n
+      })
+  }
+
+  const app = {
+    t: prefs,
+    setTweak,
+    L,
+    lang: prefs.lang,
+    nav,
+    go: setNav,
+    state: { logins, favs, download, saveDir, concurrency, skipDupDefault, brandLogos },
+    actions
+  }
+
+  const rootStyle = useMemo<CSSProperties>(
+    () =>
+      ({
+        '--accent': prefs.accent,
+        '--accent-tint': `color-mix(in srgb, ${prefs.accent} 13%, transparent)`,
+        '--accent-shadow': `color-mix(in srgb, ${prefs.accent} 34%, transparent)`,
+        '--accent-hue': ACCENT_HUE[prefs.accent] || 256
+      }) as CSSProperties,
+    [prefs.accent]
+  )
+
+  const screen = () => {
+    switch (nav.screen) {
+      case 'service':
+        return <ServiceScreen serviceId={nav.serviceId} />
+      case 'progress':
+        return <ProgressScreen />
+      case 'library':
+        return <LibraryScreen />
+      case 'favorites':
+        return <FavoritesScreen />
+      case 'post':
+        return <PostDetail />
+      case 'settings':
+        return <SettingsScreen />
+      default:
+        return <ServiceScreen serviceId="fantia" />
+    }
+  }
 
   return (
-    <div className="app">
-      <Sidebar services={services} view={view} onNavigate={setView} />
-      <main className="content">
-        {view.kind === 'service' && (
-          <ServicePanel
-            key={view.serviceId}
-            service={services.find((s) => s.id === view.serviceId)!}
-          />
-        )}
-        {view.kind === 'viewer' && <ViewerPanel />}
-        {view.kind === 'settings' && <SettingsPanel />}
-      </main>
-    </div>
+    <AppCtx.Provider value={app}>
+      <div
+        data-theme={resolvedTheme}
+        style={{
+          ...rootStyle,
+          colorScheme: resolvedTheme,
+          height: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'var(--bg)',
+          color: 'var(--text)',
+          overflow: 'hidden'
+        }}
+      >
+        <TopBar />
+        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          <Rail />
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {screen()}
+          </div>
+        </div>
+      </div>
+    </AppCtx.Provider>
   )
 }

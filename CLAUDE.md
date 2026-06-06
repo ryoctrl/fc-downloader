@@ -37,9 +37,15 @@ src/
     ipc/       Typed ipcMain handlers
     index.ts   App bootstrap
   preload/     contextBridge -> window.api (typed by shared/ipc.ts)
-  renderer/    React UI (sidebar, service panel w/ <webview>, viewer, settings)
+  renderer/    React UI (ported from the design handoff)
+    src/design/    design system: icons, primitives, context, i18n, types,
+                   data.ts (MOCK content — replaced by window.api in M2.5)
+    src/components/ TopBar, Rail (shell)
+    src/screens/   Service, Progress, Library, Favorites, PostDetail, Settings
+    src/App.tsx    prefs/state/routing/theme; src/theme.css  design tokens
   shared/      types.ts + ipc.ts  (no Node/DOM imports — used by both sides)
 docs/          Spec, ADRs, roadmap (source of truth for design)
+  design-handoff/  original Claude Design prototype = visual spec for the UI
 ```
 
 ## How everything connects
@@ -93,10 +99,12 @@ npm run dist       # package installers via electron-builder
 
 ## Current status & next steps
 
-MVP scaffold is complete and **verified to install, typecheck, lint, test (5
-passing), and build**. The only M1 item left is a manual GUI launch
-(`npm run dev`). The **Fantia adapter's network/parsing is stubbed** (endpoints
-marked `VERIFY:`). See
+MVP scaffold + the **full design UI** are implemented and **verified to
+install, typecheck, lint, test (5 passing), and build**. The renderer currently
+renders from a **mock data layer** (`src/renderer/src/design/data.ts`) — wiring
+it to the real backend is M2.5. The **Fantia adapter's network/parsing is
+stubbed** (endpoints marked `VERIFY:`). The remaining M1 item is a manual GUI
+launch (`npm run dev`). See
 [docs/roadmap.md](docs/roadmap.md) for the ordered task list. The immediate next
 task is making Fantia `listCreators` / `listPosts` / file-URL resolution real,
 backed by saved HTML/JSON fixtures and tests.

@@ -22,3 +22,8 @@
 ## 計画
 
 - [roadmap.md](roadmap.md) — 実装順のタスクリスト（自動開発の起点）
+
+## デザイン
+
+- [design-handoff/](design-handoff/) — Claude Design のプロトタイプ原本（UI の視覚仕様）。
+  実装は [spec/ui-design.md](spec/ui-design.md) を参照。

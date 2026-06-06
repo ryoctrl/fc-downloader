@@ -23,6 +23,17 @@
 - [x] vitest 初期テスト（`storage/layout` のパス/サニタイズ）を緑に
 - [ ] `npm run dev` で起動・サイドメニュー・WebView 表示を確認（GUI 手動確認）
 
+## M1.5 デザイン実装（完了）
+
+Claude Design ハンドオフ（`docs/design-handoff/`）を React+TS へ移植。
+
+- [x] デザインシステム移植（oklch トークン / light・dark / IBM Plex / `theme.css`）
+- [x] シェル（TopBar / Rail）+ 全6画面（service / progress / library / favorites / post / settings）
+- [x] 共通プリミティブ（Icon / Thumb / ServiceMark / StatusBadge / Btn）と i18n（ja/en）
+- [x] ServiceScreen は実 `<webview>`（partition）に置換
+- [x] typecheck / lint / build をクリーンに（[ui-design.md](spec/ui-design.md) に決定事項）
+- 注: コンテンツは `design/data.ts` の **モック**。M2 で実データへ置換する（下記）。
+
 ## M2. Fantia を実機能化（MVP の核心）
 
 - [ ] WebView ログイン → `checkAuth`（`/api/v1/me`）の実検証とフィクスチャ保存
@@ -32,12 +43,22 @@
 - [ ] 実ダウンロード E2E（少数投稿で取得→重複スキップ→再実行が冪等）
 - [ ] レート制御 / リトライ / バックオフ
 
+## M2.5 UI を実データへ接続（モック置換）
+
+`design/data.ts`（モック）と localStorage 依存を、実 IPC へ寄せる。
+
+- [ ] `design/data.ts` を `window.api`（services/creators/posts, viewer:tree）に置換
+- [ ] ProgressScreen を実イベント（`download:progress` / `download:item`）に接続
+- [ ] ServiceScreen の設定パネルを `download:start` + 実クリエイター一覧に接続
+- [ ] 保存先（saveDir）/ 同時数 / 重複スキップを `settings:*` IPC に永続化
+- [ ] フォントのローカル同梱（`@fontsource/ibm-plex-*`）で完全オフライン化
+
 ## M3. ビューワー強化
 
-- [ ] クリエイター選択 UI（一覧/検索/チェック）
-- [ ] サムネイルグリッド・画像/動画インラインプレビュー
+- [ ] サムネイル/プレビューの実ファイル表示（画像/動画インライン）
 - [ ] ダウンロード履歴・失敗一覧と再試行
-- [ ] タグ付け・絞り込み（db スキーマ拡張）
+- [ ] タグ付け・絞り込み（台帳スキーマ拡張）
+- [ ] bottom / overlay レイアウト、アクセント色設定（必要なら）
 
 ## M4. ダウンロード基盤の堅牢化
 
