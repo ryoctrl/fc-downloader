@@ -4,6 +4,7 @@ import type { AppActions, AppState, Nav, Prefs, ServiceId } from './design/types
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
 import { FC } from './design/data'
+import { bridge } from './bridge'
 import { TopBar } from './components/TopBar'
 import { Rail } from './components/Rail'
 import { ServiceScreen } from './screens/ServiceScreen'
@@ -81,12 +82,26 @@ export function App() {
     () => new Set(FC.POSTS.filter((p) => p.fav).map((p) => p.id))
   )
   const [download, setDownload] = useState<AppState['download']>(null)
-  const [concurrency, setConcurrency] = useState(3)
+  const [concurrency, setConcurrencyState] = useState(3)
   const [skipDupDefault, setSkipDupDefault] = useState(true)
   const [brandLogos, setBrandLogos] = useState<Record<string, string>>(() => loadJson(LOGO_KEY, {}))
   const [, setRev] = useState(0)
-  const saveDir = '~/fc-downloads'
+  const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const sysDark = useSystemDark()
+
+  // Load persisted settings from the main process (no-op without a backend).
+  useEffect(() => {
+    void bridge.getSettings().then((s) => {
+      if (!s) return
+      setSaveDir(s.downloadRoot)
+      setConcurrencyState(s.defaultConcurrency)
+    })
+  }, [])
+
+  const setConcurrency = (n: number): void => {
+    setConcurrencyState(n)
+    void bridge.updateSettings({ defaultConcurrency: n })
+  }
   const resolvedTheme = prefs.theme === 'system' ? (sysDark ? 'dark' : 'light') : prefs.theme
 
   const persistLogos = (next: Record<string, string>) => {
@@ -132,6 +147,13 @@ export function App() {
       setNav({ screen: 'service', serviceId: 'fantia' })
     },
     setConcurrency,
+    pickSaveDir: () => {
+      void bridge.pickDownloadRoot().then((dir) => {
+        if (!dir) return
+        setSaveDir(dir)
+        void bridge.updateSettings({ downloadRoot: dir })
+      })
+    },
     toggleSkipDefault: () => setSkipDupDefault((v) => !v),
     setBrandLogo: (id: ServiceId, dataUrl: string) =>
       setBrandLogos((s) => {

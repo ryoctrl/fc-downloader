@@ -259,7 +259,7 @@ export function SettingsScreen() {
             <span style={{ flex: 1, fontFamily: 'var(--mono)', fontSize: 12.5, color: 'var(--text)' }}>
               {state.saveDir}
             </span>
-            <Btn size="sm" variant="solid" icon="folder">
+            <Btn size="sm" variant="solid" icon="folder" onClick={() => actions.pickSaveDir()}>
               {L.browse}
             </Btn>
           </div>
