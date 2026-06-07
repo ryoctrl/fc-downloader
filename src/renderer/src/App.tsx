@@ -7,7 +7,6 @@ import { LANG } from './design/i18n'
 import { FC } from './design/data'
 import { toViewPost } from './design/library'
 import { bridge } from './bridge'
-import { TopBar } from './components/TopBar'
 import { Rail } from './components/Rail'
 import { ServiceScreen } from './screens/ServiceScreen'
 import { ProgressScreen } from './screens/ProgressScreen'
@@ -319,7 +318,6 @@ export function App() {
           overflow: 'hidden'
         }}
       >
-        <TopBar />
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <Rail />
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
