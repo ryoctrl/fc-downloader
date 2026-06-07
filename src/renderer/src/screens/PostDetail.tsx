@@ -1,6 +1,8 @@
-/* fc-downloader — post detail (real data) */
-import type { ReactNode } from 'react'
+/* fc-downloader — post detail with real media preview (fcfile:// files) */
+import { useEffect, useState, type ReactNode } from 'react'
+import type { LibraryFile } from '@shared/types'
 import { FC, fmtSize } from '../design/data'
+import type { Dict } from '../design/types'
 import type { ViewPost } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark, StatusBadge, Thumb } from '../design/primitives'
@@ -35,77 +37,128 @@ function MetaRow({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function preview(post: ViewPost): ReactNode {
-  if (post.type === 'video') {
-    return (
-      <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-        <Thumb hue={post.hue} type="video" radius={0} ratio="16 / 9" label={`MOV · id_${post.postId}`} />
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 99,
-              background: 'rgba(255,255,255,.85)',
-              display: 'grid',
-              placeItems: 'center',
-              paddingLeft: 5,
-              boxShadow: '0 8px 30px rgba(0,0,0,.25)'
-            }}
-          >
-            <Icon name="play" size={26} style={{ color: 'var(--text)' }} />
-          </div>
-        </div>
-      </div>
-    )
-  }
-  if (post.type === 'file' || post.type === 'audio') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {Array.from({ length: Math.max(1, post.files) }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '13px 16px',
-              borderRadius: 11,
-              background: 'var(--surface)',
-              border: '1px solid var(--border)'
-            }}
-          >
-            <Icon name={post.type === 'audio' ? 'play' : 'file'} size={20} style={{ color: 'var(--accent)' }} />
-            <div style={{ flex: 1, fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--text)' }}>
-              {post.type === 'audio' ? 'track' : 'file'}_{String(i + 1).padStart(2, '0')}
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-  const n = Math.min(post.files, 12)
+function FileRow({ file }: { file: LibraryFile }) {
+  const icon = file.kind === 'audio' ? 'play' : file.kind === 'video' ? 'play' : 'file'
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-      {Array.from({ length: Math.max(1, n) }).map((_, i) => (
-        <div key={i}>
-          <Thumb hue={post.hue} type="image" radius={10} ratio="3 / 4" label={`IMG_${String(i + 1).padStart(3, '0')}`} />
-        </div>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '12px 16px',
+        borderRadius: 11,
+        background: 'var(--surface)',
+        border: '1px solid var(--border)'
+      }}
+    >
+      <Icon name={icon} size={18} style={{ color: 'var(--accent)' }} />
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontFamily: 'var(--mono)',
+          fontSize: 12.5,
+          color: 'var(--text)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}
+      >
+        {file.name}
+      </div>
+      <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--text-3)', flexShrink: 0 }}>
+        {fmtSize(file.sizeBytes / (1024 * 1024))}
+      </span>
+    </div>
+  )
+}
+
+function Preview({
+  post,
+  files,
+  loaded,
+  L
+}: {
+  post: ViewPost
+  files: LibraryFile[]
+  loaded: boolean
+  L: Dict
+}) {
+  const images = files.filter((f) => f.kind === 'image')
+  const videos = files.filter((f) => f.kind === 'video')
+  const audios = files.filter((f) => f.kind === 'audio')
+  const others = files.filter((f) => f.kind === 'file')
+
+  if (files.length === 0) {
+    return (
+      <Thumb hue={post.hue} type={post.type} radius={12} ratio="16 / 9" label={loaded ? L.noFiles : L.loading} />
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {videos.map((v) => (
+        <video
+          key={v.url}
+          src={v.url}
+          controls
+          preload="metadata"
+          style={{ width: '100%', borderRadius: 12, background: '#000', boxShadow: 'var(--shadow-sm)' }}
+        />
       ))}
-      {post.files > n && (
+      {audios.map((a) => (
         <div
+          key={a.url}
           style={{
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: 10,
-            background: 'var(--surface-2)',
-            aspectRatio: '3 / 4',
-            color: 'var(--text-3)',
-            fontFamily: 'var(--mono)',
-            fontSize: 13
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 16px',
+            borderRadius: 11,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)'
           }}
         >
-          +{post.files - n}
+          <div
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontFamily: 'var(--mono)',
+              fontSize: 12.5,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {a.name}
+          </div>
+          <audio src={a.url} controls preload="metadata" style={{ height: 34 }} />
+        </div>
+      ))}
+      {images.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+          {images.map((img) => (
+            <img
+              key={img.url}
+              src={img.url}
+              alt={img.name}
+              loading="lazy"
+              style={{
+                width: '100%',
+                borderRadius: 10,
+                display: 'block',
+                background: 'var(--surface-2)',
+                boxShadow: 'inset 0 0 0 1px var(--hairline)'
+              }}
+            />
+          ))}
+        </div>
+      )}
+      {others.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {others.map((f) => (
+            <FileRow key={f.url} file={f} />
+          ))}
         </div>
       )}
     </div>
@@ -119,6 +172,26 @@ export function PostDetail() {
   const from = app.nav.screen === 'post' ? app.nav.from : undefined
   const idx = app.posts.findIndex((p) => p.key === key)
   const post = app.posts[idx]
+  const [files, setFiles] = useState<LibraryFile[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!post) return
+    setLoaded(false)
+    setFiles([])
+    let cancelled = false
+    void bridge.listFiles(post.dirPath).then((fs) => {
+      if (cancelled) return
+      setFiles(fs)
+      setLoaded(true)
+    })
+    return () => {
+      cancelled = true
+    }
+    // Only re-fetch when the post's folder changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post?.dirPath])
+
   if (!post) return null
   const svc = FC.serviceById(post.service)
   const fav = app.state.favs.has(post.key)
@@ -161,7 +234,9 @@ export function PostDetail() {
         </Btn>
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ flex: 1, overflow: 'auto', padding: '24px 26px', minWidth: 0 }}>{preview(post)}</div>
+        <div style={{ flex: 1, overflow: 'auto', padding: '24px 26px', minWidth: 0 }}>
+          <Preview post={post} files={files} loaded={loaded} L={L} />
+        </div>
         <div
           style={{
             width: 332,

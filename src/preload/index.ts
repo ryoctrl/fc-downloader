@@ -15,7 +15,8 @@ const invokeChannels: IpcChannel[] = [
   'settings:pickDownloadRoot',
   'viewer:tree',
   'viewer:openPath',
-  'posts:list'
+  'posts:list',
+  'posts:files'
 ]
 
 const api = {

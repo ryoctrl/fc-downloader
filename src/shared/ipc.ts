@@ -13,6 +13,7 @@ import type {
   DownloadItem,
   DownloadOptions,
   DownloadProgress,
+  LibraryFile,
   LibraryPost,
   ServiceDescriptor,
   ServiceId,
@@ -40,6 +41,7 @@ export interface IpcApi {
   'viewer:openPath': { args: [path: string]; result: void }
 
   'posts:list': { args: []; result: LibraryPost[] }
+  'posts:files': { args: [dirPath: string]; result: LibraryFile[] }
 }
 
 export type IpcChannel = keyof IpcApi

@@ -10,6 +10,7 @@ import type {
   AppSettings,
   Creator,
   DownloadOptions,
+  LibraryFile,
   LibraryPost,
   ServiceId,
   ViewerNode
@@ -57,5 +58,7 @@ export const bridge = {
   // viewer / library
   viewerTree: (): Promise<ViewerNode[]> => api?.['viewer:tree']() ?? Promise.resolve([]),
   openPath: (path: string): Promise<void> => api?.['viewer:openPath'](path) ?? Promise.resolve(),
-  listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([])
+  listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([]),
+  listFiles: (dirPath: string): Promise<LibraryFile[]> =>
+    api?.['posts:files'](dirPath) ?? Promise.resolve([])
 }
