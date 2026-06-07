@@ -76,6 +76,9 @@ function BrowserPane({
   const [draft, setDraft] = useState<string | null>(null)
   const [canBack, setCanBack] = useState(false)
   const [canFwd, setCanFwd] = useState(false)
+  // Keep the latest recheck callback without re-running the listener effect.
+  const onRecheckRef = useRef(onRecheck)
+  onRecheckRef.current = onRecheck
 
   useEffect(() => {
     const el = ref.current
@@ -90,9 +93,25 @@ function BrowserPane({
         /* webview not ready yet */
       }
     }
-    const events = ['did-navigate', 'did-navigate-in-page', 'did-stop-loading', 'dom-ready']
-    events.forEach((e) => el.addEventListener(e, sync))
-    return () => events.forEach((e) => el.removeEventListener(e, sync))
+    // When the user logs in, the page navigates; auto re-check auth (debounced)
+    // so login state updates without pressing the re-check button manually.
+    let recheckTimer: ReturnType<typeof setTimeout> | undefined
+    const onNavigate = (): void => {
+      sync()
+      if (recheckTimer) clearTimeout(recheckTimer)
+      recheckTimer = setTimeout(() => onRecheckRef.current(), 1200)
+    }
+    el.addEventListener('did-navigate', onNavigate)
+    el.addEventListener('did-navigate-in-page', sync)
+    el.addEventListener('did-stop-loading', sync)
+    el.addEventListener('dom-ready', sync)
+    return () => {
+      if (recheckTimer) clearTimeout(recheckTimer)
+      el.removeEventListener('did-navigate', onNavigate)
+      el.removeEventListener('did-navigate-in-page', sync)
+      el.removeEventListener('did-stop-loading', sync)
+      el.removeEventListener('dom-ready', sync)
+    }
   }, [])
 
   const drive = (fn: (el: WebviewEl) => void): void => {
