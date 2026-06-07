@@ -20,7 +20,7 @@
     "test:watch": "vitest",
     "gen:icons": "node scripts/gen-icons.mjs",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder --publish never"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",
