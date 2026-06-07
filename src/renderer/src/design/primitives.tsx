@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { PostFileKind } from '@shared/types'
 import type { DesignService, Dict, PostStatus } from './types'
 import { Icon } from './icons'
-import { useApp } from './context'
+import { serviceLogo } from './logos'
 
 // ── striped placeholder thumbnail (no hand-drawn art) ──
 export function Thumb({
@@ -83,7 +83,7 @@ export function Thumb({
   )
 }
 
-// ── service badge: user-supplied logo if present, else monogram ──
+// ── service badge: bundled brand logo if available, else monogram ──
 export function ServiceMark({
   svc,
   size = 34,
@@ -95,8 +95,7 @@ export function ServiceMark({
   active?: boolean
   logo?: string | null
 }) {
-  const app = useApp()
-  const src = logo !== undefined ? logo : app.state.brandLogos[svc.id] || null
+  const src = logo !== undefined ? logo : serviceLogo(svc.id) || null
   const radius = size * 0.28
   if (src) {
     return (

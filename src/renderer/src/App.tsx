@@ -17,7 +17,6 @@ import { PostDetail } from './screens/PostDetail'
 import { SettingsScreen } from './screens/SettingsScreen'
 
 const PREFS_KEY = 'fc_prefs'
-const LOGO_KEY = 'fc_brand_logos'
 const FAVS_KEY = 'fc_favs'
 
 function loadFavs(): Set<string> {
@@ -111,7 +110,6 @@ export function App() {
   const optionsRef = useRef<Record<string, DownloadOptions>>({})
   const [concurrency, setConcurrencyState] = useState(3)
   const [skipDupDefault, setSkipDupDefault] = useState(true)
-  const [brandLogos, setBrandLogos] = useState<Record<string, string>>(() => loadJson(LOGO_KEY, {}))
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const sysDark = useSystemDark()
 
@@ -160,14 +158,6 @@ export function App() {
     void bridge.updateSettings({ defaultConcurrency: n })
   }
   const resolvedTheme = prefs.theme === 'system' ? (sysDark ? 'dark' : 'light') : prefs.theme
-
-  const persistLogos = (next: Record<string, string>) => {
-    try {
-      localStorage.setItem(LOGO_KEY, JSON.stringify(next))
-    } catch {
-      /* ignore */
-    }
-  }
 
   const reloadPosts = (): void => {
     void bridge.listPosts().then(setRawPosts)
@@ -233,20 +223,7 @@ export function App() {
         void bridge.updateSettings({ downloadRoot: dir })
       })
     },
-    toggleSkipDefault: () => setSkipDupDefault((v) => !v),
-    setBrandLogo: (id: ServiceId, dataUrl: string) =>
-      setBrandLogos((s) => {
-        const n = { ...s, [id]: dataUrl }
-        persistLogos(n)
-        return n
-      }),
-    clearBrandLogo: (id: ServiceId) =>
-      setBrandLogos((s) => {
-        const n = { ...s }
-        delete n[id]
-        persistLogos(n)
-        return n
-      })
+    toggleSkipDefault: () => setSkipDupDefault((v) => !v)
   }
 
   const app = {
@@ -265,8 +242,7 @@ export function App() {
       queued,
       saveDir,
       concurrency,
-      skipDupDefault,
-      brandLogos
+      skipDupDefault
     },
     actions,
     posts

@@ -86,7 +86,6 @@ export interface AppState {
   saveDir: string
   concurrency: number
   skipDupDefault: boolean
-  brandLogos: Record<string, string>
 }
 
 export interface AppActions {
@@ -111,8 +110,6 @@ export interface AppActions {
   /** Open the OS folder picker and persist the chosen download root. */
   pickSaveDir: () => void
   toggleSkipDefault: () => void
-  setBrandLogo: (id: ServiceId, dataUrl: string) => void
-  clearBrandLogo: (id: ServiceId) => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */
