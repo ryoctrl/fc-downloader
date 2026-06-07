@@ -1,26 +1,27 @@
 /* fc-downloader — shared UI primitives: Thumb, ServiceMark, StatusDot, Btn */
 import type { CSSProperties, ReactNode } from 'react'
-import type { DesignService, Dict, Post, PostStatus } from './types'
+import type { PostFileKind } from '@shared/types'
+import type { DesignService, Dict, PostStatus } from './types'
 import { Icon } from './icons'
 import { useApp } from './context'
 
 // ── striped placeholder thumbnail (no hand-drawn art) ──
 export function Thumb({
-  post,
+  hue = 220,
+  type = 'image',
   label,
   radius = 8,
   ratio
 }: {
-  post?: Post
+  hue?: number
+  type?: PostFileKind
   label?: string
   radius?: number
   ratio?: string
 }) {
-  const hue = post ? post.hue : 220
-  const type = post ? post.type : 'image'
   const cap =
     label ||
-    (post ? `${type === 'video' ? 'MOV' : type === 'file' ? 'ZIP' : 'IMG'} · ${post.id}` : 'asset')
+    (type === 'video' ? 'MOV' : type === 'file' ? 'ZIP' : type === 'audio' ? 'AUD' : 'IMG')
   const stripe = `repeating-linear-gradient(135deg, oklch(0.62 0.10 ${hue} / 0.16) 0 7px, transparent 7px 14px)`
   const base = `linear-gradient(150deg, oklch(0.70 0.09 ${hue} / 0.22), oklch(0.58 0.11 ${hue} / 0.30))`
   return (

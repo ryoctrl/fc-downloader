@@ -1,9 +1,11 @@
-/* fc-downloader — post detail */
+/* fc-downloader — post detail (real data) */
 import type { ReactNode } from 'react'
 import { FC, fmtSize } from '../design/data'
+import type { ViewPost } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark, StatusBadge, Thumb } from '../design/primitives'
 import { useApp } from '../design/context'
+import { bridge } from '../bridge'
 
 function MetaRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -33,122 +35,96 @@ function MetaRow({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-export function PostDetail() {
-  const app = useApp()
-  const L = app.L
-  const postId = app.nav.screen === 'post' ? app.nav.postId : -1
-  const from = app.nav.screen === 'post' ? app.nav.from : undefined
-  const post = FC.POSTS.find((p) => p.id === postId)
-  if (!post) return null
-  const svc = FC.serviceById(post.service)
-  const fav = app.state.favs.has(post.id)
-  const idx = FC.POSTS.findIndex((p) => p.id === post.id)
-  const prev = FC.POSTS[idx - 1]
-  const next = FC.POSTS[idx + 1]
-  const back = () =>
-    app.go(from === 'favorites' ? { screen: 'favorites' } : { screen: 'library' })
-
-  const preview = (): ReactNode => {
-    if (post.type === 'video') {
-      return (
-        <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-          <Thumb post={post} radius={0} ratio="16 / 9" label={`MOV · id_${post.id}`} />
-          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-            <div
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 99,
-                background: 'rgba(255,255,255,.85)',
-                display: 'grid',
-                placeItems: 'center',
-                paddingLeft: 5,
-                boxShadow: '0 8px 30px rgba(0,0,0,.25)',
-                cursor: 'pointer'
-              }}
-            >
-              <Icon name="play" size={26} style={{ color: 'var(--text)' }} />
-            </div>
-          </div>
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              padding: '20px 16px 12px',
-              background: 'linear-gradient(transparent, rgba(0,0,0,.5))',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10
-            }}
-          >
-            <Icon name="play" size={16} style={{ color: '#fff' }} />
-            <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'rgba(255,255,255,.3)' }}>
-              <div style={{ width: '30%', height: '100%', borderRadius: 99, background: '#fff' }} />
-            </div>
-            <span style={{ color: '#fff', fontSize: 11, fontFamily: 'var(--mono)' }}>03:12 / 10:48</span>
-          </div>
-        </div>
-      )
-    }
-    if (post.type === 'file') {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {Array.from({ length: post.files }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '13px 16px',
-                borderRadius: 11,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)'
-              }}
-            >
-              <Icon name="file" size={20} style={{ color: 'var(--accent)' }} />
-              <div style={{ flex: 1, fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--text)' }}>
-                {['linework', 'psd_pack', 'settei', 'bonus'][i % 4]}_{String(i + 1).padStart(2, '0')}.
-                {['psd', 'zip', 'clip', 'pdf'][i % 4]}
-              </div>
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--text-3)' }}>
-                {fmtSize(Math.round(post.sizeMB / post.files))}
-              </span>
-              <Icon name="download" size={16} style={{ color: 'var(--text-3)' }} />
-            </div>
-          ))}
-        </div>
-      )
-    }
-    const n = Math.min(post.files, 12)
+function preview(post: ViewPost): ReactNode {
+  if (post.type === 'video') {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-        {Array.from({ length: n }).map((_, i) => (
-          <div key={i}>
-            <Thumb post={post} radius={10} ratio="3 / 4" label={`IMG_${String(i + 1).padStart(3, '0')}`} />
-          </div>
-        ))}
-        {post.files > n && (
+      <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+        <Thumb hue={post.hue} type="video" radius={0} ratio="16 / 9" label={`MOV · id_${post.postId}`} />
+        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
           <div
             style={{
+              width: 64,
+              height: 64,
+              borderRadius: 99,
+              background: 'rgba(255,255,255,.85)',
               display: 'grid',
               placeItems: 'center',
-              borderRadius: 10,
-              background: 'var(--surface-2)',
-              aspectRatio: '3 / 4',
-              color: 'var(--text-3)',
-              fontFamily: 'var(--mono)',
-              fontSize: 13
+              paddingLeft: 5,
+              boxShadow: '0 8px 30px rgba(0,0,0,.25)'
             }}
           >
-            +{post.files - n}
+            <Icon name="play" size={26} style={{ color: 'var(--text)' }} />
           </div>
-        )}
+        </div>
       </div>
     )
   }
+  if (post.type === 'file' || post.type === 'audio') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {Array.from({ length: Math.max(1, post.files) }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '13px 16px',
+              borderRadius: 11,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)'
+            }}
+          >
+            <Icon name={post.type === 'audio' ? 'play' : 'file'} size={20} style={{ color: 'var(--accent)' }} />
+            <div style={{ flex: 1, fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--text)' }}>
+              {post.type === 'audio' ? 'track' : 'file'}_{String(i + 1).padStart(2, '0')}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  const n = Math.min(post.files, 12)
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+      {Array.from({ length: Math.max(1, n) }).map((_, i) => (
+        <div key={i}>
+          <Thumb hue={post.hue} type="image" radius={10} ratio="3 / 4" label={`IMG_${String(i + 1).padStart(3, '0')}`} />
+        </div>
+      ))}
+      {post.files > n && (
+        <div
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: 10,
+            background: 'var(--surface-2)',
+            aspectRatio: '3 / 4',
+            color: 'var(--text-3)',
+            fontFamily: 'var(--mono)',
+            fontSize: 13
+          }}
+        >
+          +{post.files - n}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function PostDetail() {
+  const app = useApp()
+  const L = app.L
+  const key = app.nav.screen === 'post' ? app.nav.postKey : ''
+  const from = app.nav.screen === 'post' ? app.nav.from : undefined
+  const idx = app.posts.findIndex((p) => p.key === key)
+  const post = app.posts[idx]
+  if (!post) return null
+  const svc = FC.serviceById(post.service)
+  const fav = app.state.favs.has(post.key)
+  const prev = app.posts[idx - 1]
+  const next = app.posts[idx + 1]
+  const back = () => app.go(from === 'favorites' ? { screen: 'favorites' } : { screen: 'library' })
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -169,7 +145,7 @@ export function PostDetail() {
           size="sm"
           variant="ghost"
           icon="arrowL"
-          onClick={() => prev && app.go({ screen: 'post', postId: prev.id, from })}
+          onClick={() => prev && app.go({ screen: 'post', postKey: prev.key, from })}
           style={{ opacity: prev ? 1 : 0.35 }}
         >
           {L.prev}
@@ -177,7 +153,7 @@ export function PostDetail() {
         <Btn
           size="sm"
           variant="ghost"
-          onClick={() => next && app.go({ screen: 'post', postId: next.id, from })}
+          onClick={() => next && app.go({ screen: 'post', postKey: next.key, from })}
           style={{ opacity: next ? 1 : 0.35 }}
         >
           {L.next}
@@ -185,7 +161,7 @@ export function PostDetail() {
         </Btn>
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ flex: 1, overflow: 'auto', padding: '24px 26px', minWidth: 0 }}>{preview()}</div>
+        <div style={{ flex: 1, overflow: 'auto', padding: '24px 26px', minWidth: 0 }}>{preview(post)}</div>
         <div
           style={{
             width: 332,
@@ -211,7 +187,7 @@ export function PostDetail() {
           </div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
             <button
-              onClick={() => app.actions.toggleFav(post.id)}
+              onClick={() => app.actions.toggleFav(post.key)}
               style={{
                 flex: 1,
                 display: 'flex',
@@ -232,38 +208,19 @@ export function PostDetail() {
               <Icon name="heart" size={16} fill={fav} />
               {fav ? L.favorited : L.favorite}
             </button>
-            <Btn variant="solid" icon="folder" style={{ padding: '10px 13px' }} title={L.openFolder} />
+            <Btn
+              variant="solid"
+              icon="folder"
+              style={{ padding: '10px 13px' }}
+              title={L.openFolder}
+              onClick={() => bridge.openPath(post.dirPath)}
+            />
           </div>
-          {post.status !== 'done' && (
-            <button
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                padding: '12px',
-                borderRadius: 11,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 13.5,
-                fontWeight: 700,
-                fontFamily: 'inherit',
-                background: 'var(--accent)',
-                color: '#fff',
-                marginBottom: 20,
-                boxShadow: '0 3px 12px var(--accent-shadow)'
-              }}
-            >
-              <Icon name="download" size={17} strokeWidth={2.2} />
-              {L.downloadThis}
-            </button>
-          )}
           <MetaRow label={L.posted}>{post.date}</MetaRow>
           <MetaRow label={L.type}>{post.type}</MetaRow>
           <MetaRow label={L.filesUnit}>{post.files}</MetaRow>
           <MetaRow label={L.size}>{fmtSize(post.sizeMB)}</MetaRow>
-          <MetaRow label="ID">id_{post.id}</MetaRow>
+          <MetaRow label="ID">id_{post.postId}</MetaRow>
           <div
             style={{
               margin: '18px 0 8px',
@@ -288,36 +245,7 @@ export function PostDetail() {
               wordBreak: 'break-all'
             }}
           >
-            {post.service}/{post.creator}/<br />
-            {post.year}/{String(post.month).padStart(2, '0')}/id_{post.id}/
-          </div>
-          <div
-            style={{
-              margin: '18px 0 8px',
-              fontSize: 10.5,
-              fontWeight: 700,
-              letterSpacing: '.06em',
-              textTransform: 'uppercase',
-              color: 'var(--text-3)'
-            }}
-          >
-            {L.tags}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-            {post.tags.map((t) => (
-              <span
-                key={t}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 99,
-                  background: 'var(--surface-2)',
-                  fontSize: 11.5,
-                  color: 'var(--text-2)'
-                }}
-              >
-                #{t}
-              </span>
-            ))}
+            {post.dirPath}
           </div>
         </div>
       </div>

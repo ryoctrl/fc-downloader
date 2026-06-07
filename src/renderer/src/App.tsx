@@ -1,9 +1,11 @@
 /* fc-downloader — app shell: prefs, state, routing, theme */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import type { LibraryPost } from '@shared/types'
 import type { AppActions, AppState, Nav, Prefs, ServiceId } from './design/types'
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
 import { FC } from './design/data'
+import { toViewPost } from './design/library'
 import { bridge } from './bridge'
 import { TopBar } from './components/TopBar'
 import { Rail } from './components/Rail'
@@ -16,6 +18,24 @@ import { SettingsScreen } from './screens/SettingsScreen'
 
 const PREFS_KEY = 'fc_prefs'
 const LOGO_KEY = 'fc_brand_logos'
+const FAVS_KEY = 'fc_favs'
+
+function loadFavs(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAVS_KEY)
+    return new Set(raw ? (JSON.parse(raw) as string[]) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function persistFavs(favs: Set<string>): void {
+  try {
+    localStorage.setItem(FAVS_KEY, JSON.stringify([...favs]))
+  } catch {
+    /* ignore */
+  }
+}
 
 const DEFAULT_PREFS: Prefs = {
   theme: 'system',
@@ -74,9 +94,9 @@ export function App() {
   const [nav, setNav] = useState<Nav>({ screen: 'service', serviceId: 'fantia' })
   // Real login state per service, populated from services:checkAuth.
   const [logins, setLogins] = useState<Record<string, boolean>>({})
-  const [favs, setFavs] = useState<Set<number>>(
-    () => new Set(FC.POSTS.filter((p) => p.fav).map((p) => p.id))
-  )
+  const [favs, setFavs] = useState<Set<string>>(loadFavs)
+  const [rawPosts, setRawPosts] = useState<LibraryPost[]>([])
+  const posts = useMemo(() => rawPosts.map(toViewPost), [rawPosts])
   const [download, setDownload] = useState<AppState['download']>(null)
   const [concurrency, setConcurrencyState] = useState(3)
   const [skipDupDefault, setSkipDupDefault] = useState(true)
@@ -91,6 +111,11 @@ export function App() {
       setSaveDir(s.downloadRoot)
       setConcurrencyState(s.defaultConcurrency)
     })
+  }, [])
+
+  // Load the real downloaded posts from the metadata ledger on startup.
+  useEffect(() => {
+    void bridge.listPosts().then(setRawPosts)
   }, [])
 
   // Determine real login state per service on startup, and react to changes
@@ -119,14 +144,20 @@ export function App() {
     }
   }
 
+  const reloadPosts = (): void => {
+    void bridge.listPosts().then(setRawPosts)
+  }
+
   const actions: AppActions = {
-    toggleFav: (id) =>
+    toggleFav: (key) =>
       setFavs((s) => {
         const n = new Set(s)
-        if (n.has(id)) n.delete(id)
-        else n.add(id)
+        if (n.has(key)) n.delete(key)
+        else n.add(key)
+        persistFavs(n)
         return n
       }),
+    reloadPosts,
     recheckAuth: (id) => {
       void bridge.checkAuth(id).then((ok) => setLogins((s) => ({ ...s, [id]: ok })))
     },
@@ -138,7 +169,10 @@ export function App() {
       void bridge.startDownload(svc.id, options)
       setNav({ screen: 'progress' })
     },
-    markDownloadDone: () => setDownload((d) => (d && !d.done ? { ...d, done: true } : d)),
+    markDownloadDone: () => {
+      setDownload((d) => (d && !d.done ? { ...d, done: true } : d))
+      reloadPosts() // newly downloaded content appears in the library
+    },
     cancelDownload: () => {
       void bridge.cancelDownload()
       const svcId = download?.svcId ?? 'fantia'
@@ -177,7 +211,8 @@ export function App() {
     nav,
     go: setNav,
     state: { logins, favs, download, saveDir, concurrency, skipDupDefault, brandLogos },
-    actions
+    actions,
+    posts
   }
 
   const rootStyle = useMemo<CSSProperties>(

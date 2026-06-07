@@ -1,5 +1,5 @@
 /* fc-downloader — top bar (plain cross-platform chrome) */
-import { FC, fmtSize } from '../design/data'
+import { fmtSize } from '../design/data'
 import { Icon } from '../design/icons'
 import { useApp } from '../design/context'
 
@@ -8,6 +8,7 @@ export function TopBar() {
   const L = app.L
   const dl = app.state.download
   const dlActive = dl && !dl.done
+  const totalMB = app.posts.reduce((s, p) => s + p.sizeMB, 0)
   return (
     <div
       style={{
@@ -95,7 +96,7 @@ export function TopBar() {
             }}
           >
             <Icon name="hdd" size={13} />
-            {fmtSize(FC.totals.sizeMB)}
+            {fmtSize(totalMB)}
           </div>
         )}
       </div>

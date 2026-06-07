@@ -1,5 +1,6 @@
 /* fc-downloader — renderer design-layer types (ported from the design handoff) */
 import type { DownloadOptions } from '@shared/types'
+import type { ViewPost } from './library'
 
 export type ServiceId = 'fantia' | 'fanbox' | 'patreon' | 'cien'
 
@@ -60,7 +61,7 @@ export type Nav =
   | { screen: 'progress' }
   | { screen: 'library'; svc?: ServiceId }
   | { screen: 'favorites' }
-  | { screen: 'post'; postId: number; from?: string }
+  | { screen: 'post'; postKey: string; from?: string }
   | { screen: 'settings' }
 
 /** A live download run, driven by real main-process events. */
@@ -72,7 +73,8 @@ export interface DownloadState {
 
 export interface AppState {
   logins: Record<string, boolean>
-  favs: Set<number>
+  /** Favorited post keys (serviceId/creatorId/postId), persisted locally. */
+  favs: Set<string>
   download: DownloadState | null
   saveDir: string
   concurrency: number
@@ -81,7 +83,10 @@ export interface AppState {
 }
 
 export interface AppActions {
-  toggleFav: (id: number) => void
+  /** Toggle favorite for a post key (serviceId/creatorId/postId). */
+  toggleFav: (key: string) => void
+  /** Re-fetch the downloaded posts from the metadata ledger (posts:list). */
+  reloadPosts: () => void
   /** Re-check the real login state for a service (services:checkAuth). */
   recheckAuth: (id: ServiceId) => void
   /** Clear a service's cookies/session (services:clearSession). */
@@ -112,4 +117,6 @@ export interface AppContextValue {
   go: (nav: Nav) => void
   state: AppState
   actions: AppActions
+  /** Downloaded posts (real data), mapped for the library views. */
+  posts: ViewPost[]
 }
