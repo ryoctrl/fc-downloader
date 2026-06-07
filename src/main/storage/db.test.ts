@@ -6,7 +6,9 @@ import type { Post } from '@shared/types'
 import {
   closeDb,
   initDb,
+  isFileDownloaded,
   isPostComplete,
+  listPosts,
   markFileDownloaded,
   refreshPostCompletion,
   upsertPost
@@ -81,5 +83,85 @@ describe('post completion is scoped to includeKinds', () => {
 
   it('returns false for an unknown post', () => {
     expect(isPostComplete(makePost(), ['image'])).toBe(false)
+  })
+})
+
+describe('listPosts', () => {
+  it('returns empty when nothing is recorded', () => {
+    expect(listPosts()).toEqual([])
+  })
+
+  it('maps a recorded post: file count, size, dominant kind, completion', () => {
+    const post: Post = {
+      serviceId: 'fanbox',
+      creatorId: 'aotsuki',
+      postId: '100',
+      title: 'gallery',
+      postedAt: '2025-06-01T00:00:00.000Z',
+      year: 2025,
+      month: 6,
+      files: [
+        { fileId: 'a', kind: 'image', name: 'a.png', url: 'x', sizeBytes: 100 },
+        { fileId: 'b', kind: 'image', name: 'b.png', url: 'x', sizeBytes: 200 }
+      ]
+    }
+    upsertPost(post, '/root/fanbox/aotsuki/2025/06/100')
+    markFileDownloaded(post, 'a', 'a.png', 100, 'image')
+    markFileDownloaded(post, 'b', 'b.png', 200, 'image')
+    refreshPostCompletion(post, ['image'])
+
+    const posts = listPosts()
+    expect(posts).toHaveLength(1)
+    expect(posts[0]).toMatchObject({
+      serviceId: 'fanbox',
+      creatorId: 'aotsuki',
+      postId: '100',
+      title: 'gallery',
+      year: 2025,
+      month: 6,
+      fileCount: 2,
+      sizeBytes: 300,
+      type: 'image',
+      completed: true
+    })
+    expect(isFileDownloaded('fanbox', 'aotsuki', '100', 'a')).toBe(true)
+  })
+
+  it('reports the dominant file kind', () => {
+    const post: Post = {
+      serviceId: 'fanbox',
+      creatorId: 'aotsuki',
+      postId: '200',
+      title: 'mix',
+      postedAt: '2025-06-02T00:00:00.000Z',
+      year: 2025,
+      month: 6,
+      files: [
+        { fileId: 'v', kind: 'video', name: 'v.mp4', url: 'x' },
+        { fileId: 'a1', kind: 'audio', name: 'a1.mp3', url: 'x' },
+        { fileId: 'a2', kind: 'audio', name: 'a2.mp3', url: 'x' }
+      ]
+    }
+    upsertPost(post, '/root/200')
+    markFileDownloaded(post, 'v', 'v.mp4', undefined, 'video')
+    markFileDownloaded(post, 'a1', 'a1.mp3', undefined, 'audio')
+    markFileDownloaded(post, 'a2', 'a2.mp3', undefined, 'audio')
+    expect(listPosts()[0].type).toBe('audio')
+  })
+
+  it('sorts newest first by postedAt', () => {
+    const mk = (postId: string, postedAt: string): Post => ({
+      serviceId: 'fanbox',
+      creatorId: 'aotsuki',
+      postId,
+      title: 't',
+      postedAt,
+      year: 2025,
+      month: 1,
+      files: []
+    })
+    upsertPost(mk('1', '2024-01-01T00:00:00.000Z'), '/root/1')
+    upsertPost(mk('2', '2026-01-01T00:00:00.000Z'), '/root/2')
+    expect(listPosts().map((p) => p.postId)).toEqual(['2', '1'])
   })
 })

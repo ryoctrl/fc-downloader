@@ -124,6 +124,31 @@ export interface AppSettings {
   defaultConcurrency: number
 }
 
+/**
+ * A downloaded post as recorded in the metadata ledger, enriched for the
+ * library viewer. This is the real-data replacement for the mock post shape.
+ */
+export interface LibraryPost {
+  serviceId: ServiceId
+  creatorId: string
+  postId: string
+  title: string
+  /** ISO-8601 publish timestamp. */
+  postedAt: string
+  year: number
+  month: number
+  /** Absolute directory on disk. */
+  dirPath: string
+  /** Number of files recorded on disk for this post. */
+  fileCount: number
+  /** Sum of known file sizes, in bytes. */
+  sizeBytes: number
+  /** Dominant file kind (for icons / filtering). */
+  type: PostFileKind
+  /** Whether the post's in-scope files are all downloaded. */
+  completed: boolean
+}
+
 /** A node in the viewer tree (service -> creator -> year -> month -> post). */
 export interface ViewerNode {
   key: string
