@@ -13,6 +13,7 @@ import type {
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
 import { FC } from './design/data'
+import { Icon } from './design/icons'
 import { toViewPost } from './design/library'
 import { bridge } from './bridge'
 import { Rail } from './components/Rail'
@@ -112,6 +113,11 @@ export function App() {
   const [nav, setNav] = useState<Nav>({ screen: 'service', serviceId: 'fantia' })
   // Real login state per service, populated from services:checkAuth.
   const [logins, setLogins] = useState<Record<string, boolean>>({})
+  // Services whose session was detected as expired (were logged in, now not) —
+  // surfaced as a re-login prompt. Cleared on re-login or explicit logout.
+  const [reloginNeeded, setReloginNeeded] = useState<Set<ServiceId>>(new Set())
+  const loginsRef = useRef(logins)
+  loginsRef.current = logins
   const [creators, setCreators] = useState<Record<string, Creator[]>>({})
   const [creatorsLoading, setCreatorsLoading] = useState<Record<string, boolean>>({})
   const [favs, setFavs] = useState<Set<string>>(loadFavs)
@@ -204,16 +210,57 @@ export function App() {
     for (const svc of FC.SERVICES) {
       void bridge.checkAuth(svc.id).then((ok) => setLogins((s) => ({ ...s, [svc.id]: ok })))
     }
-    const off = bridge.onAuthChanged(({ serviceId, loggedIn }) =>
+    const off = bridge.onAuthChanged(({ serviceId, loggedIn }) => {
       setLogins((s) => ({ ...s, [serviceId]: loggedIn }))
-    )
+      // Re-login clears the prompt. (Expiry is only ever flagged by the passive
+      // focus re-check below, never here — so an explicit logout won't prompt.)
+      if (loggedIn) {
+        setReloginNeeded((r) => {
+          if (!r.has(serviceId)) return r
+          const n = new Set(r)
+          n.delete(serviceId)
+          return n
+        })
+      }
+    })
     return off
+  }, [])
+
+  // Logout detection (event-driven, no polling): when the window regains focus
+  // after being away, re-check the services that were logged in. If a session
+  // silently expired, flag it so the user can re-login.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const onFocus = (): void => {
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        for (const svc of FC.SERVICES) {
+          if (!loginsRef.current[svc.id]) continue // only verify previously logged-in
+          void bridge.checkAuth(svc.id).then((ok) => {
+            setLogins((s) => ({ ...s, [svc.id]: ok }))
+            if (!ok) setReloginNeeded((r) => new Set(r).add(svc.id))
+          })
+        }
+      }, 600)
+    }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (timer) clearTimeout(timer)
+    }
   }, [])
 
   const setConcurrency = (n: number): void => {
     setConcurrencyState(n)
     void bridge.updateSettings({ defaultConcurrency: n })
   }
+  const dismissRelogin = (id: ServiceId): void =>
+    setReloginNeeded((r) => {
+      const n = new Set(r)
+      n.delete(id)
+      return n
+    })
   const resolvedTheme = prefs.theme === 'system' ? (sysDark ? 'dark' : 'light') : prefs.theme
 
   // Navigating to a service screen mounts a <webview>, whose attach un-snaps the
@@ -268,6 +315,13 @@ export function App() {
       void bridge.clearSession(id).then(() => {
         setLogins((s) => ({ ...s, [id]: false }))
         setCreators((s) => ({ ...s, [id]: [] }))
+        // Explicit logout: never prompt to re-login for it.
+        setReloginNeeded((r) => {
+          if (!r.has(id)) return r
+          const n = new Set(r)
+          n.delete(id)
+          return n
+        })
       })
     },
     loadCreators: (id, force) => {
@@ -424,6 +478,60 @@ export function App() {
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <Rail />
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {reloginNeeded.size > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  padding: '8px 16px',
+                  background: 'color-mix(in srgb, var(--warn) 14%, transparent)',
+                  borderBottom: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontSize: 12.5
+                }}
+              >
+                <Icon name="bell" size={15} style={{ color: 'var(--warn)', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600 }}>{L.sessionExpired}</span>
+                {[...reloginNeeded].map((id) => (
+                  <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <button
+                      onClick={() => setNav({ screen: 'service', serviceId: id })}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        padding: '3px 10px',
+                        borderRadius: 99,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: 'var(--warn)',
+                        color: '#fff',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      {FC.serviceById(id).name} · {L.relogin}
+                    </button>
+                    <button
+                      onClick={() => dismissRelogin(id)}
+                      title={L.dismiss}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--text-3)',
+                        display: 'flex'
+                      }}
+                    >
+                      <Icon name="x" size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             {screen()}
           </div>
         </div>
