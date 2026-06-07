@@ -4,9 +4,6 @@
  * remaining files with bounded concurrency, emitting progress events.
  */
 import { mkdir, stat } from 'node:fs/promises'
-import { createWriteStream } from 'node:fs'
-import { pipeline } from 'node:stream/promises'
-import { Readable } from 'node:stream'
 import type {
   DownloadOptions,
   DownloadProgress,
@@ -16,7 +13,7 @@ import type {
 } from '@shared/types'
 import { getService } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
-import { requestFor } from '@main/session/manager'
+import { downloadToFile } from '@main/session/manager'
 import { filePath, postDir, toLocationParts } from '@main/storage/layout'
 import {
   isFileDownloaded,
@@ -25,6 +22,7 @@ import {
   refreshPostCompletion,
   upsertPost
 } from '@main/storage/db'
+import { MAX_RETRIES, backoffDelayMs, isRetriableError, sleep } from './retry'
 
 export interface DownloadCallbacks {
   onProgress(progress: DownloadProgress): void
@@ -192,15 +190,25 @@ export class DownloadEngine {
     }
   }
 
+  /**
+   * Stream a file to disk, retrying transient failures with exponential
+   * backoff. Aborts (cancellation) and permanent HTTP errors are not retried.
+   */
   private async downloadFile(serviceId: ServiceId, file: PostFile, dest: string): Promise<number> {
     if (!file.url) throw new Error(`No URL resolved for file ${file.fileId}`)
     const headers = getService(serviceId).downloadHeaders
-    const res = await requestFor(serviceId, file.url, { signal: this.abort.signal, headers })
-    if (res.status >= 400) throw new Error(`HTTP ${res.status} downloading ${file.url}`)
-    // requestFor buffers the body; write the raw bytes to disk.
-    const buf = res.buffer()
-    await pipeline(Readable.from(buf), createWriteStream(dest))
-    return buf.byteLength
+    const signal = this.abort.signal
+    let attempt = 0
+    for (;;) {
+      signal.throwIfAborted()
+      try {
+        return await downloadToFile(serviceId, file.url, dest, { signal, headers })
+      } catch (err) {
+        if (!isRetriableError(err) || attempt >= MAX_RETRIES) throw err
+        attempt += 1
+        await sleep(backoffDelayMs(attempt), signal)
+      }
+    }
   }
 }
 
