@@ -64,6 +64,13 @@ export type Nav =
   | { screen: 'post'; postKey: string; from?: string }
   | { screen: 'settings' }
 
+/** Daily auto-download schedule (runs while the app is open). */
+export interface ScheduleConfig {
+  enabled: boolean
+  /** Local time of day, "HH:MM". */
+  time: string
+}
+
 /** Persisted, cross-service download-form selections (restored on launch). */
 export interface DownloadPrefs {
   image: boolean
@@ -103,6 +110,8 @@ export interface AppState {
    *  services are hidden from the rail and excluded from bulk/scheduled runs;
    *  the login session is kept. */
   enabledServices: Record<string, boolean>
+  /** Daily auto-download schedule. */
+  schedule: ScheduleConfig
 }
 
 export interface AppActions {
@@ -136,6 +145,8 @@ export interface AppActions {
   /** Queue a download for every enabled + logged-in service, using each
    *  service's saved settings (creator selection + file types + skip). */
   startBulkDownload: () => void
+  /** Update + persist the daily auto-download schedule. */
+  setSchedule: (patch: Partial<ScheduleConfig>) => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */

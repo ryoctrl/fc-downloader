@@ -260,6 +260,32 @@ export function SettingsScreen() {
           </div>
         </SettingsCard>
 
+        <SettingsCard title={L.schedule} desc={L.scheduleDesc}>
+          <Setting label={L.scheduleEnabled} hint={L.scheduleEnabledHint}>
+            <Toggle
+              on={state.schedule.enabled}
+              onClick={() => actions.setSchedule({ enabled: !state.schedule.enabled })}
+            />
+          </Setting>
+          <Setting label={L.scheduleTime} hint={L.scheduleTimeHint} last>
+            <input
+              type="time"
+              value={state.schedule.time}
+              onChange={(e) => actions.setSchedule({ time: e.target.value })}
+              style={{
+                fontFamily: 'var(--mono)',
+                fontSize: 13,
+                padding: '6px 10px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: 'var(--surface-2)',
+                color: 'var(--text)',
+                colorScheme: 'inherit'
+              }}
+            />
+          </Setting>
+        </SettingsCard>
+
         <SettingsCard title={L.storage} desc={L.storageDesc}>
           <div
             style={{
