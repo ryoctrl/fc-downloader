@@ -89,6 +89,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     failed: 0,
     inFlight: 0,
     postsCompleted: 0,
+    postsTotal: 0,
     bytesDownloaded: 0,
     bytesTotal: 0
   })

@@ -104,6 +104,25 @@ export const fanboxService: Service = {
     }
   },
 
+  async countPosts(ctx: ServiceContext, creatorId: string): Promise<number> {
+    // Sum the page-list lengths (post summaries) WITHOUT fetching post.info per
+    // post — the same pages listPosts walks, just counted.
+    const pag = await ctx.fetchJson<{ body?: string[] }>(
+      `${API}/post.paginateCreator?creatorId=${encodeURIComponent(creatorId)}`,
+      { headers: apiHeaders }
+    )
+    const pageUrls = pag.body ?? []
+    let n = 0
+    for (const pageUrl of pageUrls) {
+      ctx.signal.throwIfAborted()
+      const page = await ctx.fetchJson<{ body?: Array<{ id: string }> }>(pageUrl, {
+        headers: apiHeaders
+      })
+      n += (page.body ?? []).length
+    }
+    return n
+  },
+
   async resolvePost(_ctx: ServiceContext, post: Post): Promise<Post> {
     // listPosts already fetches full detail per post.
     return post

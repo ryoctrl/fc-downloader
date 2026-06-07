@@ -77,6 +77,27 @@ export class DownloadEngine {
       const creators =
         options.creatorIds.length > 0 ? options.creatorIds : allCreators.map((c) => c.creatorId)
 
+      // Count posts up front (cheap, ids only) so progress is determinate. If
+      // any creator can't be counted, leave the total at 0 (indeterminate bar).
+      if (service.countPosts) {
+        let total = 0
+        let countable = true
+        for (const creatorId of creators) {
+          signal.throwIfAborted()
+          try {
+            total += await service.countPosts(ctx, creatorId)
+          } catch (err) {
+            ctx.log('warn', `countPosts failed for ${creatorId}; progress will be indeterminate`, err)
+            countable = false
+            break
+          }
+          this.progress.postsTotal = total
+          cb.onProgress({ ...this.progress })
+        }
+        this.progress.postsTotal = countable ? total : 0
+        cb.onProgress({ ...this.progress })
+      }
+
       for (const creatorId of creators) {
         signal.throwIfAborted()
         // Fetch the creator's avatar once per run so the library can show it.
@@ -261,6 +282,7 @@ function blankProgress(): DownloadProgress {
     failed: 0,
     inFlight: 0,
     postsCompleted: 0,
+    postsTotal: 0,
     bytesDownloaded: 0,
     bytesTotal: 0
   }

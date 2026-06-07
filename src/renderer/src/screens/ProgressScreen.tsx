@@ -97,10 +97,15 @@ export function ProgressScreen() {
     failed: 0,
     inFlight: 0,
     postsCompleted: 0,
+    postsTotal: 0,
     bytesDownloaded: 0,
     bytesTotal: 0
   }
   const processed = p.completed + p.skipped + p.failed
+  // Determinate progress once the up-front post count is known.
+  const hasTotal = p.postsTotal > 0
+  const postPct = hasTotal ? Math.min(100, (p.postsCompleted / p.postsTotal) * 100) : 0
+  const pct = done ? 100 : postPct
 
   const stat = (label: string, value: string, color?: string): ReactNode => (
     <div style={{ flex: 1 }}>
@@ -156,9 +161,10 @@ export function ProgressScreen() {
               gap: 4
             }}
           >
-            {done ? (
+            {done || hasTotal ? (
               <>
-                100<span style={{ fontSize: 20 }}>%</span>
+                {Math.round(pct)}
+                <span style={{ fontSize: 20 }}>%</span>
               </>
             ) : (
               <>
@@ -168,8 +174,8 @@ export function ProgressScreen() {
             )}
           </div>
         </div>
-        {/* The file total is discovered as the run streams, so a determinate %
-            would regress; show an indeterminate bar while running. */}
+        {/* Determinate once the up-front post count is known; otherwise the file
+            total is discovered as the run streams, so show an indeterminate bar. */}
         <div
           style={{
             position: 'relative',
@@ -179,8 +185,16 @@ export function ProgressScreen() {
             overflow: 'hidden'
           }}
         >
-          {done ? (
-            <div style={{ height: '100%', width: '100%', borderRadius: 99, background: 'var(--ok)' }} />
+          {done || hasTotal ? (
+            <div
+              style={{
+                height: '100%',
+                width: pct + '%',
+                borderRadius: 99,
+                background: done ? 'var(--ok)' : 'var(--accent)',
+                transition: 'width .2s linear'
+              }}
+            />
           ) : (
             <div
               className="fc-indeterminate"
@@ -196,7 +210,7 @@ export function ProgressScreen() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 22 }}>
-          {stat(L.postsUnit, `${p.postsCompleted}`, 'var(--accent)')}
+          {stat(L.postsUnit, hasTotal ? `${p.postsCompleted}/${p.postsTotal}` : `${p.postsCompleted}`, 'var(--accent)')}
           {stat(L.filesUnit, `${processed}/${p.total}`)}
           {stat(L.doneShort, `${p.completed}`, 'var(--ok)')}
           {stat(L.skipped, `${p.skipped}`)}

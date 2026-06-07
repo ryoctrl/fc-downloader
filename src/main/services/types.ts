@@ -50,6 +50,14 @@ export interface Service {
   listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post>
 
   /**
+   * Cheaply count a creator's posts WITHOUT fetching per-post detail, so the
+   * download engine can show a determinate progress total up front. Should only
+   * walk the listing pages (post ids), not resolve each post. Optional: when
+   * absent the engine falls back to an indeterminate progress bar.
+   */
+  countPosts?(ctx: ServiceContext, creatorId: string): Promise<number>
+
+  /**
    * Optionally resolve a single post's full file list. Some sites only return
    * partial file metadata in the listing and need a per-post detail fetch.
    * If listPosts already returns complete files, this can just echo the input.

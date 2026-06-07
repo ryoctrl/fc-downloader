@@ -103,6 +103,20 @@ export const cienService: Service = {
     }
   },
 
+  async countPosts(ctx: ServiceContext, creatorId: string): Promise<number> {
+    // Walk the same article-listing pages as listPosts, counting article ids
+    // (no per-article detail fetch).
+    const seen = new Set<string>()
+    for (let page = 1; page <= 200; page++) {
+      ctx.signal.throwIfAborted()
+      const html = await ctx.fetchText(`${BASE}/creator/${creatorId}/article?page=${page}`)
+      const fresh = parseArticleIds(html).filter((id) => !seen.has(id))
+      if (fresh.length === 0) return seen.size
+      fresh.forEach((id) => seen.add(id))
+    }
+    return seen.size
+  },
+
   async resolvePost(_ctx: ServiceContext, post: Post): Promise<Post> {
     // listPosts already fetches each article's full media.
     return post
