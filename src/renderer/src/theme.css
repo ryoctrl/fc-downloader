@@ -119,6 +119,19 @@ button {
   animation: fc-pulse 1.3s ease-in-out infinite;
 }
 
+/* indeterminate progress bar (total unknown while a run streams) */
+@keyframes fc-indeterminate {
+  0% {
+    left: -35%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+.fc-indeterminate {
+  animation: fc-indeterminate 1.25s ease-in-out infinite;
+}
+
 /* scrollbars */
 ::-webkit-scrollbar {
   width: 11px;
