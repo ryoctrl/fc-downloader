@@ -4,7 +4,7 @@
  * remaining files with bounded concurrency, emitting progress events.
  */
 import { mkdir, stat } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
 import type {
   DownloadOptions,
   DownloadProgress,
@@ -16,7 +16,7 @@ import { getService } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
 import { downloadToFile } from '@main/session/manager'
 import { dedupeFileNames, postDir, sanitizeFileName, toLocationParts } from '@main/storage/layout'
-import { fcfileUrl } from '@main/storage/files'
+import { ensureCreatorAvatar } from './avatar'
 import {
   isFileDownloaded,
   isPostComplete,
@@ -80,14 +80,17 @@ export class DownloadEngine {
       for (const creatorId of creators) {
         signal.throwIfAborted()
         // Fetch the creator's avatar once per run so the library can show it.
-        const avatarUrl = await this.ensureAvatar(
-          ctx,
+        const avatarUrl = await ensureCreatorAvatar(
           serviceId,
           root,
           creatorId,
           iconById.get(creatorId),
-          service.downloadHeaders
-        )
+          service.downloadHeaders,
+          signal
+        ).catch((err) => {
+          ctx.log('debug', `avatar download failed for ${creatorId}`, err)
+          return undefined
+        })
         for await (const listed of service.listPosts(ctx, creatorId)) {
           signal.throwIfAborted()
           const post = service.resolvePost ? await service.resolvePost(ctx, listed) : listed
@@ -245,36 +248,6 @@ export class DownloadEngine {
     }
   }
 
-  /**
-   * Download a creator's avatar once into `<root>/<serviceId>/<creatorId>/` and
-   * return a fcfile:// URL the viewer can render. Best-effort: returns undefined
-   * if there's no avatar URL or the fetch fails (avatars are cosmetic). Reuses
-   * an already-saved avatar instead of re-downloading.
-   */
-  private async ensureAvatar(
-    ctx: ReturnType<typeof createServiceContext>,
-    serviceId: ServiceId,
-    root: string,
-    creatorId: string,
-    iconUrl: string | undefined,
-    headers: Record<string, string> | undefined
-  ): Promise<string | undefined> {
-    if (!iconUrl) return undefined
-    const cleanUrl = iconUrl.split('?')[0]
-    const ext = (cleanUrl.match(/\.([a-zA-Z0-9]{2,4})$/)?.[1] ?? 'jpg').toLowerCase()
-    const dir = join(root, serviceId, creatorId)
-    const dest = join(dir, `_avatar.${ext}`)
-    const url = fcfileUrl(relative(root, dest))
-    if (await exists(dest)) return url
-    try {
-      await mkdir(dir, { recursive: true })
-      await downloadToFile(serviceId, iconUrl, dest, { signal: this.abort.signal, headers })
-      return url
-    } catch (err) {
-      ctx.log('debug', `avatar download failed for ${creatorId}`, err)
-      return undefined
-    }
-  }
 }
 
 function blankProgress(): DownloadProgress {

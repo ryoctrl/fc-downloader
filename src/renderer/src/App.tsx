@@ -122,9 +122,18 @@ export function App() {
     })
   }, [])
 
-  // Load the real downloaded posts from the metadata ledger on startup.
+  // Load the real downloaded posts from the metadata ledger on startup, then
+  // best-effort backfill avatars for creators downloaded before the avatar
+  // feature existed (needs the persisted login session; no-op otherwise).
   useEffect(() => {
-    void bridge.listPosts().then(setRawPosts)
+    void bridge.listPosts().then((posts) => {
+      setRawPosts(posts)
+      if (posts.some((p) => !p.creatorIconUrl)) {
+        void bridge.backfillAvatars().then((n) => {
+          if (n > 0) void bridge.listPosts().then(setRawPosts)
+        })
+      }
+    })
   }, [])
 
   // Mirror the backend download queue: switch the active run as it advances.

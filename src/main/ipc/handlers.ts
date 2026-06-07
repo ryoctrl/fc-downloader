@@ -13,9 +13,10 @@ import { createServiceContext } from '@main/services/context'
 import { clearSession } from '@main/session/manager'
 import { getSettings, updateSettings } from '@main/storage/settings'
 import { buildViewerTree } from '@main/storage/viewer'
-import { listPosts } from '@main/storage/db'
+import { creatorsMissingIcon, listPosts, setCreatorIcon } from '@main/storage/db'
 import { listPostFiles } from '@main/storage/files'
 import { DownloadEngine } from '@main/download/engine'
+import { ensureCreatorAvatar } from '@main/download/avatar'
 
 const engine = new DownloadEngine()
 let recentItems: DownloadItem[] = []
@@ -169,4 +170,48 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
 
   handle('posts:list', async () => listPosts())
   handle('posts:files', async (dirPath) => listPostFiles(dirPath))
+
+  handle('library:backfillAvatars', async () => {
+    const missing = creatorsMissingIcon()
+    if (missing.length === 0) return 0
+    const root = getSettings().downloadRoot
+    // Group missing creators by service so listCreators is fetched once each.
+    const byService = new Map<ServiceId, Set<string>>()
+    for (const m of missing) {
+      const set = byService.get(m.serviceId) ?? new Set()
+      set.add(m.creatorId)
+      byService.set(m.serviceId, set)
+    }
+    let updated = 0
+    for (const [serviceId, creatorIds] of byService) {
+      const svc = listServices().find((s) => s.id === serviceId)
+      if (!svc) continue
+      const ac = new AbortController()
+      const ctx = createServiceContext(serviceId, ac.signal)
+      // Resolve live icon URLs (needs login; returns [] otherwise — best effort).
+      const creators = await svc.listCreators(ctx).catch(() => [])
+      const iconById = new Map(creators.map((c) => [c.creatorId, c.iconUrl]))
+      for (const creatorId of creatorIds) {
+        const iconUrl = iconById.get(creatorId)
+        if (!iconUrl) continue
+        try {
+          const url = await ensureCreatorAvatar(
+            serviceId,
+            root,
+            creatorId,
+            iconUrl,
+            svc.downloadHeaders,
+            ac.signal
+          )
+          if (url) {
+            setCreatorIcon(serviceId, creatorId, url)
+            updated++
+          }
+        } catch (err) {
+          console.warn(`[avatar] backfill failed for ${serviceId}/${creatorId}`, err)
+        }
+      }
+    }
+    return updated
+  })
 }

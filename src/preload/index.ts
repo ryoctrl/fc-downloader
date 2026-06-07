@@ -16,7 +16,8 @@ const invokeChannels: IpcChannel[] = [
   'viewer:tree',
   'viewer:openPath',
   'posts:list',
-  'posts:files'
+  'posts:files',
+  'library:backfillAvatars'
 ]
 
 const api = {

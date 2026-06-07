@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Post } from '@shared/types'
 import {
   closeDb,
+  creatorsMissingIcon,
   initDb,
   isFileDownloaded,
   isPostComplete,
   listPosts,
   markFileDownloaded,
   refreshPostCompletion,
+  setCreatorIcon,
   upsertPost
 } from './db'
 import { initSettings } from './settings'
@@ -200,6 +202,32 @@ describe('listPosts', () => {
     upsertPost(base, '/root/302', '蒼月アート')
     upsertPost(base, '/root/302') // re-upsert without a name must not clobber it
     expect(listPosts()[0].creatorName).toBe('蒼月アート')
+  })
+
+  it('backfills creator avatars: lists missing creators and sets the icon on all their posts', () => {
+    const mk = (serviceId: 'fanbox' | 'fantia', creatorId: string, postId: string): Post => ({
+      serviceId,
+      creatorId,
+      postId,
+      title: 't',
+      postedAt: '2025-06-01T00:00:00.000Z',
+      year: 2025,
+      month: 6,
+      files: []
+    })
+    upsertPost(mk('fanbox', 'a', '1'), '/r/1')
+    upsertPost(mk('fanbox', 'a', '2'), '/r/2')
+    upsertPost(mk('fantia', 'b', '3'), '/r/3', 'B', 'fcfile://fc/has-icon.jpg')
+
+    // Only creators without an icon are reported, de-duplicated by creator.
+    expect(creatorsMissingIcon()).toEqual([{ serviceId: 'fanbox', creatorId: 'a' }])
+
+    setCreatorIcon('fanbox', 'a', 'fcfile://fc/fanbox/a/_avatar.jpg')
+    const icons = new Map(listPosts().map((p) => [p.postId, p.creatorIconUrl]))
+    expect(icons.get('1')).toBe('fcfile://fc/fanbox/a/_avatar.jpg')
+    expect(icons.get('2')).toBe('fcfile://fc/fanbox/a/_avatar.jpg') // applied to all of a's posts
+    expect(icons.get('3')).toBe('fcfile://fc/has-icon.jpg') // other creator untouched
+    expect(creatorsMissingIcon()).toEqual([]) // nothing missing now
   })
 
   it('sorts newest first by postedAt', () => {

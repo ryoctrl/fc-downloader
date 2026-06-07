@@ -62,5 +62,7 @@ export const bridge = {
   openPath: (path: string): Promise<void> => api?.['viewer:openPath'](path) ?? Promise.resolve(),
   listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([]),
   listFiles: (dirPath: string): Promise<LibraryFile[]> =>
-    api?.['posts:files'](dirPath) ?? Promise.resolve([])
+    api?.['posts:files'](dirPath) ?? Promise.resolve([]),
+  backfillAvatars: (): Promise<number> =>
+    api?.['library:backfillAvatars']() ?? Promise.resolve(0)
 }
