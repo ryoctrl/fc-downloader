@@ -13,7 +13,12 @@ import { createServiceContext } from '@main/services/context'
 import { clearSession } from '@main/session/manager'
 import { getSettings, updateSettings } from '@main/storage/settings'
 import { buildViewerTree } from '@main/storage/viewer'
-import { creatorsMissingIcon, listPosts, setCreatorIcon } from '@main/storage/db'
+import {
+  creatorsMissingIcon,
+  listPosts,
+  reconcileWithDisk,
+  setCreatorIcon
+} from '@main/storage/db'
 import { listPostFiles } from '@main/storage/files'
 import { DownloadEngine } from '@main/download/engine'
 import { ensureCreatorAvatar } from '@main/download/avatar'
@@ -176,6 +181,8 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
 
   handle('posts:list', async () => listPosts())
   handle('posts:files', async (dirPath) => listPostFiles(dirPath))
+
+  handle('library:reconcile', async () => reconcileWithDisk())
 
   handle('library:backfillAvatars', async () => {
     const missing = creatorsMissingIcon()

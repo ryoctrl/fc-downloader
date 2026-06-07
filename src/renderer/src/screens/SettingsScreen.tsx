@@ -1,10 +1,11 @@
 /* fc-downloader — settings: cookies/account, storage, general */
-import { type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { FC, fmtSize } from '../design/data'
 import { countsForService } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
+import { bridge } from '../bridge'
 
 function SettingsCard({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
   return (
@@ -129,6 +130,24 @@ export function SettingsScreen() {
   const totalUsed = app.posts.reduce((s, p) => s + p.sizeMB, 0)
   // No real disk-capacity probe yet; show usage relative to a nominal 512 GB.
   const diskTotal = 512 * 1024
+
+  const [verifying, setVerifying] = useState(false)
+  const [verifyResult, setVerifyResult] = useState<string | null>(null)
+  const runVerify = async (): Promise<void> => {
+    setVerifying(true)
+    setVerifyResult(null)
+    try {
+      const r = await bridge.reconcileLibrary()
+      actions.reloadPosts()
+      setVerifyResult(
+        r.removedFiles === 0
+          ? L.verifyClean
+          : `${L.verifyRepaired}: -${r.removedFiles} ${L.filesUnit} / -${r.removedPosts} ${L.postsUnit}`
+      )
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   return (
     <div style={{ height: '100%', overflow: 'auto' }}>
@@ -274,6 +293,34 @@ export function SettingsScreen() {
                 </span>
               </div>
             ))}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginTop: 18,
+              paddingTop: 16,
+              borderTop: '1px solid var(--border)'
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{L.verifyLibrary}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
+                {verifyResult ?? L.verifyLibraryHint}
+              </div>
+            </div>
+            <Btn
+              size="sm"
+              variant="solid"
+              icon="refresh"
+              onClick={() => {
+                if (!verifying) void runVerify()
+              }}
+            >
+              {verifying ? L.verifying : L.verifyRun}
+            </Btn>
           </div>
         </SettingsCard>
 
