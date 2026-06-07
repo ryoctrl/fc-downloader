@@ -1,0 +1,42 @@
+name: Release
+
+# Build the Windows installer + portable and publish a (draft) GitHub release
+# when a v* tag is pushed. Runs on a clean windows-latest runner, which has no
+# Smart App Control, so electron-builder's makensis isn't blocked (local builds
+# on a SAC-enforced machine fail with `spawn UNKNOWN`).
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build installer + portable
+        run: npm run dist
+
+      - name: Publish draft release with artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            release/*.exe \
+            dist-assets/Unblock-and-run.bat \
+            --title "fc-downloader $GITHUB_REF_NAME" \
+            --draft \
+            --notes-file dist-assets/release-notes.md
