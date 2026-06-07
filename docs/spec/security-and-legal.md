@@ -30,3 +30,20 @@
 - WebView の `webPreferences`（`nodeIntegration` 無効・`sanitize`）の明示設定。
 - ダウンロードファイルの拡張子/MIME 検証。
 - 保存先のディスク容量チェックと書き込み権限確認。
+
+## リスク事項: コード署名なし（配布時の課題・後日対応）
+
+現状の配布ビルド（`npm run dist`）は **未署名**。影響と対応方針を残す。
+
+- **影響**: Windows の **Smart App Control (SAC)** が有効な環境では未署名 exe の実行が**ブロック**される
+  （SmartScreen も初回警告）。開発機での動作確認は `npm run dev`（評判のある electron.exe 経由で SAC を通る）か、
+  自己責任で SAC を一時無効化（※一度オフにすると Windows 初期化まで戻せない）で代替可能。
+- **配布するなら署名が必要**だが容易ではない:
+  - 2023-06 以降、コード署名証明書の秘密鍵は **ハードウェアトークン or クラウド HSM 保管が必須**。
+  - OV/EV 証明書は基本 **法人前提**（実在確認）。費用は OV ~¥3–6万/年、EV ~¥5–10万/年。
+  - **署名しても SAC を即通過できるとは限らない**（Microsoft の評判グラフに載るまで時間がかかる。EV が有利）。
+- **現実的な選択肢**: 個人配布なら **Certum 個人/OSS 証明書**（HW トークン、個人取得可・安め）、
+  OSS なら **SignPath（無料）/ Azure Trusted Signing**（安価だが利用資格に制限）。
+- **方針**: 本アプリは個人利用・私的バックアップ目的のため**当面は署名しない**。配布要件が出たら
+  証明書の用意 →（容易な）electron-builder の署名設定追加、の順で対応する。`electron-builder.yml` の
+  `win.signtoolOptions`/`win.certificateFile` 等で組み込める。
