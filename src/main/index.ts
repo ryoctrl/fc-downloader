@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
 import { registerIpcHandlers } from './ipc/handlers'
 import { initDb, closeDb } from './storage/db'
-import { initSettings } from './storage/settings'
+import { getSettings, initSettings, updateSettings } from './storage/settings'
 import { registerFcfileHandler, registerFcfileScheme } from './protocol/fcfile'
 
 // Privileged-scheme registration must happen before the app is ready.
@@ -11,11 +11,15 @@ registerFcfileScheme()
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
+  // Restore the last window size/position so it never reverts to a default size.
+  const saved = getSettings().windowBounds
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 940,
-    minHeight: 600,
+    width: saved?.width ?? 1280,
+    height: saved?.height ?? 800,
+    x: saved?.x,
+    y: saved?.y,
+    minWidth: 640,
+    minHeight: 480,
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -29,6 +33,21 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+
+  // Persist size/position (debounced) so it's restored on the next launch.
+  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  const saveBounds = (): void => {
+    if (!mainWindow || mainWindow.isMinimized() || mainWindow.isMaximized()) return
+    const b = mainWindow.getBounds()
+    updateSettings({ windowBounds: { width: b.width, height: b.height, x: b.x, y: b.y } })
+  }
+  const scheduleSaveBounds = (): void => {
+    if (saveTimer) clearTimeout(saveTimer)
+    saveTimer = setTimeout(saveBounds, 500)
+  }
+  mainWindow.on('resize', scheduleSaveBounds)
+  mainWindow.on('move', scheduleSaveBounds)
+  mainWindow.on('close', saveBounds)
 
   // Open target=_blank links in the system browser, not new Electron windows.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
