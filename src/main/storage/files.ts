@@ -102,6 +102,8 @@ export async function listPostFiles(dirPath: string): Promise<LibraryFile[]> {
   const out: LibraryFile[] = []
   for (const e of entries) {
     if (!e.isFile()) continue
+    // Skip in-progress / crash-leftover partial downloads (see downloadToFile).
+    if (e.name.endsWith('.part')) continue
     const full = join(dirPath, e.name)
     let sizeBytes = 0
     try {

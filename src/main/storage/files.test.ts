@@ -1,6 +1,9 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { fcfileUrl, isWithinRoot, kindForName, mimeForName } from './files'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { fcfileUrl, isWithinRoot, kindForName, listPostFiles, mimeForName } from './files'
+import { initSettings } from './settings'
 
 describe('kindForName', () => {
   it('classifies by extension, case-insensitive', () => {
@@ -40,5 +43,29 @@ describe('fcfileUrl', () => {
       'fcfile://fc/fanbox/aotsuki/2025/06/100/a.png'
     )
     expect(fcfileUrl('fanbox\\x\\a b.png')).toBe('fcfile://fc/fanbox/x/a%20b.png')
+  })
+})
+
+describe('listPostFiles', () => {
+  let root = ''
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'fc-files-'))
+    initSettings(root, root)
+  })
+  afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+  it('lists completed files but skips in-progress .part downloads', async () => {
+    const dir = join(root, 'fanbox', 'c', '2025', '06', '1')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'a.png'), 'img')
+    writeFileSync(join(dir, 'b.mp3'), 'snd')
+    writeFileSync(join(dir, 'big.zip.part'), 'partial') // crash leftover
+
+    const files = await listPostFiles(dir)
+    expect(files.map((f) => f.name)).toEqual(['a.png', 'b.mp3'])
+  })
+
+  it('refuses directories outside the download root', async () => {
+    expect(await listPostFiles(join(root, '..', 'elsewhere'))).toEqual([])
   })
 })
