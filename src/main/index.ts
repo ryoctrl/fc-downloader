@@ -45,7 +45,8 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   const userData = app.getPath('userData')
-  const defaultDownloadRoot = join(app.getPath('downloads'), 'fc-downloader')
+  // Default under Documents (not the noisy Downloads folder).
+  const defaultDownloadRoot = join(app.getPath('documents'), 'fc-downloader')
   initDb(userData)
   initSettings(userData, defaultDownloadRoot)
   registerFcfileHandler() // after settings: the handler reads the download root
