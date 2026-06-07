@@ -7,6 +7,7 @@
  * requests for that service reuse them automatically.
  */
 import { createWriteStream } from 'node:fs'
+import { rename, unlink } from 'node:fs/promises'
 import { net, session, type Session } from 'electron'
 import type { ServiceId } from '@shared/types'
 import { awaitPoliteSlot } from './throttle'
@@ -113,10 +114,13 @@ interface NetResponse {
 }
 
 /**
- * Stream a URL straight to `destPath` using the service's session (cookies
- * applied), without buffering the whole body in memory. Resolves with the
- * number of bytes written. Throws an Error carrying a numeric `.status` on HTTP
- * errors, or an AbortError if the signal fires.
+ * Stream a URL to `destPath` using the service's session (cookies applied),
+ * without buffering the whole body in memory. The write is atomic: bytes go to
+ * a sibling `<destPath>.part` which is renamed onto `destPath` only after the
+ * full body is received, so a failed/cancelled download never leaves a partial
+ * file that skip-existing would treat as complete. Resolves with the number of
+ * bytes written. Throws an Error carrying a numeric `.status` on HTTP errors,
+ * or an AbortError if the signal fires; in both cases the `.part` is removed.
  */
 export async function downloadToFile(
   serviceId: ServiceId,
@@ -134,15 +138,31 @@ export async function downloadToFile(
     }
 
     let settled = false
+    // Stream to a sibling `.part` file and atomically rename on success, so an
+    // interrupted download (crash/cancel/network drop) never leaves a partial
+    // file at destPath that skip-existing would later mistake for complete.
+    const tmpPath = `${destPath}.part`
+    const cleanupTmp = (): void => {
+      void unlink(tmpPath).catch(() => {
+        /* best-effort; ENOENT etc. are fine */
+      })
+    }
     const fail = (err: Error): void => {
       if (settled) return
       settled = true
+      cleanupTmp()
       reject(err)
     }
     const succeed = (bytes: number): void => {
       if (settled) return
       settled = true
-      resolve(bytes)
+      rename(tmpPath, destPath).then(
+        () => resolve(bytes),
+        (e: Error) => {
+          cleanupTmp()
+          reject(e)
+        }
+      )
     }
 
     if (init.signal) {
@@ -164,7 +184,7 @@ export async function downloadToFile(
         fail(err)
         return
       }
-      const out = createWriteStream(destPath)
+      const out = createWriteStream(tmpPath)
       let bytes = 0
       out.on('error', (e) => {
         request.abort()
