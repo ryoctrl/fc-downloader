@@ -190,6 +190,13 @@ export function App() {
   }
   const resolvedTheme = prefs.theme === 'system' ? (sysDark ? 'dark' : 'light') : prefs.theme
 
+  // Navigating to a service screen mounts a <webview>, whose attach un-snaps the
+  // window on Windows. Capture the bounds first so main can restore them.
+  const go = (n: Nav): void => {
+    if (n.screen === 'service') void bridge.pinWindowBounds()
+    setNav(n)
+  }
+
   const reloadPosts = (): void => {
     void bridge.listPosts().then(setRawPosts)
   }
@@ -244,7 +251,7 @@ export function App() {
       const svcId = download?.svcId ?? 'fantia'
       setDownload(null)
       setQueued([])
-      setNav({ screen: 'service', serviceId: svcId })
+      go({ screen: 'service', serviceId: svcId })
     },
     setConcurrency,
     pickSaveDir: () => {
@@ -272,7 +279,7 @@ export function App() {
     L,
     lang: prefs.lang,
     nav,
-    go: setNav,
+    go,
     state: {
       logins,
       creators,

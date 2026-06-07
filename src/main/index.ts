@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { registerIpcHandlers } from './ipc/handlers'
 import { initDb, closeDb } from './storage/db'
 import { getSettings, initSettings, updateSettings } from './storage/settings'
@@ -9,6 +9,14 @@ import { registerFcfileHandler, registerFcfileScheme } from './protocol/fcfile'
 registerFcfileScheme()
 
 let mainWindow: BrowserWindow | null = null
+
+// Attaching a <webview> drops the window out of a Windows "snapped" (Aero Snap
+// half-screen) state, resetting its size/position. When the renderer is about
+// to mount a service <webview> it calls window:pinBounds; for a short window
+// after that we restore the captured bounds instead of saving the un-snapped
+// ones, so a snapped layout survives navigating to a service screen.
+let pinnedBounds: { x: number; y: number; width: number; height: number } | null = null
+let pinUntil = 0
 
 function createWindow(): void {
   // Restore the last window size/position so it never reverts to a default size.
@@ -48,8 +56,26 @@ function createWindow(): void {
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(saveBounds, 500)
   }
-  mainWindow.on('resize', scheduleSaveBounds)
-  mainWindow.on('move', scheduleSaveBounds)
+  const onBoundsChanged = (): void => {
+    if (!mainWindow) return
+    // During the post-navigation pin window, a bounds change is the webview
+    // attach un-snapping us — restore the pinned bounds instead of saving.
+    if (pinnedBounds && Date.now() < pinUntil) {
+      const b = mainWindow.getBounds()
+      if (
+        b.x !== pinnedBounds.x ||
+        b.y !== pinnedBounds.y ||
+        b.width !== pinnedBounds.width ||
+        b.height !== pinnedBounds.height
+      ) {
+        mainWindow.setBounds(pinnedBounds)
+      }
+      return
+    }
+    scheduleSaveBounds()
+  }
+  mainWindow.on('resize', onBoundsChanged)
+  mainWindow.on('move', onBoundsChanged)
   mainWindow.on('close', saveBounds)
 
   // Open target=_blank links in the system browser, not new Electron windows.
@@ -73,6 +99,15 @@ app.whenReady().then(() => {
   initSettings(userData, defaultDownloadRoot)
   registerFcfileHandler() // after settings: the handler reads the download root
   registerIpcHandlers(() => mainWindow)
+
+  // Capture the current (possibly snapped) bounds just before the renderer
+  // mounts a service <webview>, so onBoundsChanged can restore them if the
+  // attach un-snaps the window.
+  ipcMain.handle('window:pinBounds', () => {
+    if (!mainWindow || mainWindow.isMaximized() || mainWindow.isMinimized()) return
+    pinnedBounds = mainWindow.getBounds()
+    pinUntil = Date.now() + 1500
+  })
 
   createWindow()
 
