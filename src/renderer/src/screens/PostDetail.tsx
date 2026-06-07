@@ -145,6 +145,7 @@ function Preview({
               src={img.url}
               alt={img.name}
               loading="lazy"
+              decoding="async"
               onClick={() => onImageClick(i)}
               style={{
                 width: '100%',

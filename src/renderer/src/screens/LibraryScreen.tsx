@@ -98,6 +98,7 @@ function CreatorAvatar({ iconUrl }: { iconUrl?: string }) {
         src={iconUrl}
         alt=""
         loading="lazy"
+        decoding="async"
         style={{
           width: 18,
           height: 18,
@@ -312,6 +313,7 @@ function Cover({ post, radius, ratio }: { post: ViewPost; radius: number; ratio:
         src={post.coverUrl}
         alt=""
         loading="lazy"
+        decoding="async"
         style={{
           width: '100%',
           aspectRatio: ratio,

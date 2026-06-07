@@ -62,6 +62,10 @@ export function registerFcfileHandler(): void {
     }
 
     const type = mimeForName(full)
+    // Downloaded files are immutable (a given path's bytes never change — dedup
+    // skips re-downloads), so let the renderer cache them. Without this every
+    // library re-navigation re-streams and re-decodes full-res images.
+    const cacheControl = 'private, max-age=86400, immutable'
     const range = parseRange(request.headers.get('range'), size)
     if (range) {
       const { start, end } = range
@@ -72,14 +76,20 @@ export function registerFcfileHandler(): void {
           'Content-Type': type,
           'Content-Length': String(end - start + 1),
           'Content-Range': `bytes ${start}-${end}/${size}`,
-          'Accept-Ranges': 'bytes'
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': cacheControl
         }
       })
     }
     const body = Readable.toWeb(createReadStream(full)) as ReadableStream
     return new Response(body, {
       status: 200,
-      headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' }
+      headers: {
+        'Content-Type': type,
+        'Content-Length': String(size),
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': cacheControl
+      }
     })
   })
 }
