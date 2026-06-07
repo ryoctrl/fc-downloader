@@ -18,6 +18,7 @@ import { SettingsScreen } from './screens/SettingsScreen'
 const PREFS_KEY = 'fc_prefs'
 const FAVS_KEY = 'fc_favs'
 const DL_PREFS_KEY = 'fc_dl_prefs'
+const CREATOR_SEL_KEY = 'fc_creator_sel'
 
 const DEFAULT_DL_PREFS: DownloadPrefs = { image: true, video: true, file: true, skipDup: true }
 
@@ -113,6 +114,9 @@ export function App() {
   const [concurrency, setConcurrencyState] = useState(3)
   const [downloadPrefs, setDownloadPrefsState] = useState<DownloadPrefs>(() =>
     loadJson(DL_PREFS_KEY, DEFAULT_DL_PREFS)
+  )
+  const [creatorSel, setCreatorSelState] = useState<Record<string, string[]>>(() =>
+    loadJson(CREATOR_SEL_KEY, {})
   )
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const sysDark = useSystemDark()
@@ -270,6 +274,16 @@ export function App() {
           /* ignore */
         }
         return next
+      }),
+    setCreatorSel: (serviceId, ids) =>
+      setCreatorSelState((s) => {
+        const next = { ...s, [serviceId]: ids }
+        try {
+          localStorage.setItem(CREATOR_SEL_KEY, JSON.stringify(next))
+        } catch {
+          /* ignore */
+        }
+        return next
       })
   }
 
@@ -289,7 +303,8 @@ export function App() {
       queued,
       saveDir,
       concurrency,
-      downloadPrefs
+      downloadPrefs,
+      creatorSel
     },
     actions,
     posts

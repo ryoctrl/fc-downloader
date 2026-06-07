@@ -380,7 +380,18 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
   const prefs = app.state.downloadPrefs
   const types: Record<PostType, boolean> = { image: prefs.image, video: prefs.video, file: prefs.file }
   const skipDup = prefs.skipDup
-  const [sel, setSel] = useState<Set<string>>(new Set())
+
+  // Creator selection is persisted per service (survives switches/launches).
+  // Absent saved state = all selected by default; saved state is intersected
+  // with the current creators so stale ids are ignored.
+  const savedSel = app.state.creatorSel[svc.id]
+  const sel = useMemo<Set<string>>(() => {
+    const all = creators.map((c) => c.creatorId)
+    if (!savedSel) return new Set(all)
+    const present = new Set(all)
+    return new Set(savedSel.filter((id) => present.has(id)))
+  }, [savedSel, creators])
+  const persistSel = (next: Set<string>): void => app.actions.setCreatorSel(svc.id, [...next])
 
   // Trigger a (cached) load when logged in.
   useEffect(() => {
@@ -388,18 +399,12 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [svc.id, loggedIn])
 
-  // Default-select all whenever the creator list (re)loads.
-  useEffect(() => {
-    setSel(new Set(creators.map((c) => c.creatorId)))
-  }, [creators])
-
-  const toggleSel = (id: string) =>
-    setSel((s) => {
-      const n = new Set(s)
-      if (n.has(id)) n.delete(id)
-      else n.add(id)
-      return n
-    })
+  const toggleSel = (id: string): void => {
+    const n = new Set(sel)
+    if (n.has(id)) n.delete(id)
+    else n.add(id)
+    persistSel(n)
+  }
   const allSel = creators.length > 0 && sel.size === creators.length
   const anyType = types.image || types.video || types.file
   const canStart = loggedIn && anyType && sel.size > 0
@@ -474,7 +479,7 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
                 {creators.length > 0 && (
                   <span
                     onClick={() =>
-                      setSel(allSel ? new Set() : new Set(creators.map((c) => c.creatorId)))
+                      persistSel(allSel ? new Set() : new Set(creators.map((c) => c.creatorId)))
                     }
                     style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
                   >
