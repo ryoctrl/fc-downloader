@@ -315,7 +315,10 @@ export function SettingsScreen() {
             </div>
           </Setting>
           <Setting label={L.skipDuplicates} hint={L.skipDupHint} last>
-            <Toggle on={state.skipDupDefault} onClick={() => actions.toggleSkipDefault()} />
+            <Toggle
+              on={state.downloadPrefs.skipDup}
+              onClick={() => actions.setDownloadPrefs({ skipDup: !state.downloadPrefs.skipDup })}
+            />
           </Setting>
         </SettingsCard>
 

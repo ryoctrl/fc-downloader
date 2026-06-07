@@ -212,9 +212,11 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
     [app.state.creators, svc.id]
   )
   const loadingCreators = !!app.state.creatorsLoading[svc.id]
-  const [types, setTypes] = useState<Record<PostType, boolean>>({ image: true, video: true, file: true })
+  // File-type + skip selections persist across services and launches.
+  const prefs = app.state.downloadPrefs
+  const types: Record<PostType, boolean> = { image: prefs.image, video: prefs.video, file: prefs.file }
+  const skipDup = prefs.skipDup
   const [sel, setSel] = useState<Set<string>>(new Set())
-  const [skipDup, setSkipDup] = useState(app.state.skipDupDefault)
 
   // Trigger a (cached) load when logged in.
   useEffect(() => {
@@ -379,7 +381,7 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
             {typeRow.map(([k, lbl, ic]) => (
               <div
                 key={k}
-                onClick={() => setTypes((t) => ({ ...t, [k]: !t[k] }))}
+                onClick={() => app.actions.setDownloadPrefs({ [k]: !types[k] })}
                 style={{
                   flex: 1,
                   display: 'flex',
@@ -406,59 +408,11 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <OptToggle
               on={skipDup}
-              onClick={() => setSkipDup(!skipDup)}
+              onClick={() => app.actions.setDownloadPrefs({ skipDup: !skipDup })}
               icon="refresh"
               label={L.skipDuplicates}
               hint={L.skipDupHint}
             />
-            <div
-              style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 4px' }}
-              title={L.folderByDate}
-            >
-              <Icon name="folder" size={16} style={{ color: 'var(--text-3)' }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-2)' }}>
-                  {L.folderByDate}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-                  service / user / YYYY / MM / id
-                </div>
-              </div>
-              <Icon name="check" size={15} style={{ color: 'var(--ok)' }} />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <SectionLabel
-            action={
-              <span
-                onClick={() => app.actions.pickSaveDir()}
-                style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                {L.change}
-              </span>
-            }
-          >
-            {L.saveLocation}
-          </SectionLabel>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 12px',
-              background: 'var(--surface-2)',
-              borderRadius: 9,
-              fontFamily: 'var(--mono)',
-              fontSize: 11.5,
-              color: 'var(--text-2)'
-            }}
-          >
-            <Icon name="hdd" size={14} style={{ color: 'var(--text-3)' }} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {app.state.saveDir}/{svc.id}
-            </span>
           </div>
         </div>
       </div>

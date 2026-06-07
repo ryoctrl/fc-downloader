@@ -1,7 +1,7 @@
 /* fc-downloader — app shell: prefs, state, routing, theme */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Creator, DownloadOptions, LibraryPost } from '@shared/types'
-import type { AppActions, AppState, Nav, Prefs, ServiceId } from './design/types'
+import type { AppActions, AppState, DownloadPrefs, Nav, Prefs, ServiceId } from './design/types'
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
 import { FC } from './design/data'
@@ -18,6 +18,9 @@ import { SettingsScreen } from './screens/SettingsScreen'
 
 const PREFS_KEY = 'fc_prefs'
 const FAVS_KEY = 'fc_favs'
+const DL_PREFS_KEY = 'fc_dl_prefs'
+
+const DEFAULT_DL_PREFS: DownloadPrefs = { image: true, video: true, file: true, skipDup: true }
 
 function loadFavs(): Set<string> {
   try {
@@ -109,7 +112,9 @@ export function App() {
   const [queued, setQueued] = useState<ServiceId[]>([])
   const optionsRef = useRef<Record<string, DownloadOptions>>({})
   const [concurrency, setConcurrencyState] = useState(3)
-  const [skipDupDefault, setSkipDupDefault] = useState(true)
+  const [downloadPrefs, setDownloadPrefsState] = useState<DownloadPrefs>(() =>
+    loadJson(DL_PREFS_KEY, DEFAULT_DL_PREFS)
+  )
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const sysDark = useSystemDark()
 
@@ -232,7 +237,16 @@ export function App() {
         void bridge.updateSettings({ downloadRoot: dir })
       })
     },
-    toggleSkipDefault: () => setSkipDupDefault((v) => !v)
+    setDownloadPrefs: (patch) =>
+      setDownloadPrefsState((p) => {
+        const next = { ...p, ...patch }
+        try {
+          localStorage.setItem(DL_PREFS_KEY, JSON.stringify(next))
+        } catch {
+          /* ignore */
+        }
+        return next
+      })
   }
 
   const app = {
@@ -251,7 +265,7 @@ export function App() {
       queued,
       saveDir,
       concurrency,
-      skipDupDefault
+      downloadPrefs
     },
     actions,
     posts
