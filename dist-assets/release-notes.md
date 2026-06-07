@@ -3,13 +3,19 @@
 
 ## ダウンロード
 
+### Windows
 - **インストーラ版** `fc-downloader-*-x64.exe` — 通常のセットアップ（インストール先選択可）
 - **ポータブル版** `fc-downloader-*-portable.exe` — インストール不要の単体 exe
 
+### macOS
+- **`fc-downloader-*-universal.dmg`** — Intel / Apple Silicon 両対応のユニバーサルバイナリ。
+  マウントして `fc-downloader.app` を「アプリケーション」へドラッグ。
+
 ## ⚠️ 起動時の警告（未署名ビルド）
 
-コード署名がないため、初回起動時に Windows の警告が出ます。
+コード署名がないため、初回起動時に OS の警告が出ます。
 
+**Windows**
 - **SmartScreen**（「Windows によって PC が保護されました」）
   →「詳細情報」→「実行」、または exe を右クリック →「プロパティ」→「**許可する（Unblock）**」。
   ポータブル版は同梱の **`Unblock-and-run.bat`** を exe と同じフォルダで実行すると、
@@ -18,7 +24,17 @@
   → 署名/評判をカーネルで評価するため `.bat` 等では回避できません。
   SAC を無効化するか署名済みビルドが必要です。
 
-詳細は [README](https://github.com/ryoctrl/fc-downloader#インストールwindows) と
+**macOS**（Gatekeeper）
+- 「壊れているため開けません」等が出る場合、ターミナルで検疫属性を除去します：
+  ```sh
+  xattr -dr com.apple.quarantine "/Applications/fc-downloader.app"
+  ```
+- Apple Silicon でなお起動しない場合はアドホック署名を付与：
+  ```sh
+  codesign --force --deep --sign - "/Applications/fc-downloader.app"
+  ```
+
+詳細は [README](https://github.com/ryoctrl/fc-downloader#インストール) と
 [security-and-legal.md](https://github.com/ryoctrl/fc-downloader/blob/main/docs/spec/security-and-legal.md) を参照。
 
 > 個人利用・私的バックアップ目的のツールです。各サイトの利用規約を遵守し、

@@ -22,6 +22,15 @@ win:
     - portable # single self-contained .exe (no install needed — handy for testing)
   artifactName: ${productName}-${version}-${arch}.${ext}
 
+mac:
+  icon: build/icon.icns
+  category: public.app-category.utilities
+  target:
+    # Universal binary (x64 + arm64) so one .dmg runs on Intel and Apple Silicon.
+    - target: dmg
+      arch: universal
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
 nsis:
   oneClick: false
   perMachine: false
@@ -30,5 +39,10 @@ nsis:
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
 
-# NOTE: builds are unsigned. Windows SmartScreen will warn on first run
-# ("More info" -> "Run anyway"). Code signing is a future task.
+# NOTE: builds are unsigned.
+#  - Windows: SmartScreen warns on first run ("More info" -> "Run anyway"); Smart
+#    App Control (if enforced) blocks them (turn it off or sign).
+#  - macOS: Gatekeeper blocks unsigned apps. After copying to /Applications run
+#    `xattr -dr com.apple.quarantine "/Applications/fc-downloader.app"` (Apple
+#    Silicon may also need `codesign --force --deep -s - <app>`).
+# Code signing is a future task (see docs/spec/security-and-legal.md).

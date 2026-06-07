@@ -1,21 +1,35 @@
 name: Release
 
-# Build the Windows installer + portable and publish a (draft) GitHub release
-# when a v* tag is pushed. Runs on a clean windows-latest runner, which has no
-# Smart App Control, so electron-builder's makensis isn't blocked (local builds
-# on a SAC-enforced machine fail with `spawn UNKNOWN`).
+# Build the Windows + macOS distributables and publish a DRAFT GitHub release.
+#
+# Triggered manually (workflow_dispatch with a version input) or by pushing a v*
+# tag. Builds run on clean GitHub runners (windows-latest / macos-latest) — the
+# Windows runner has no Smart App Control, so electron-builder's makensis isn't
+# blocked (local builds on a SAC-enforced machine fail with `spawn UNKNOWN`).
+#
+# Builds are UNSIGNED (no signing cert). The release stays a draft so the
+# artifacts can be smoke-tested before publishing.
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tag to release, e.g. v1.0.0 (created at the current commit if it does not exist)'
+        required: true
 
 permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,17 +40,52 @@ jobs:
 
       - run: npm ci
 
-      - name: Build installer + portable
+      - name: Build distributables (unsigned)
         run: npm run dist
+        env:
+          # No signing certificate available — build unsigned, don't probe the
+          # keychain (would hang/fail on the macOS runner).
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Publish draft release with artifacts
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-out
+          find release -maxdepth 1 -type f \
+            \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' \) \
+            -exec cp {} dist-out/ \;
+          ls -la dist-out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          path: dist-out/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish draft release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            release/*.exe \
+          echo "Releasing $TAG"
+          # Re-runnable: drop a pre-existing release for this tag (keep the tag).
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" \
+            artifacts/* \
             dist-assets/Unblock-and-run.bat \
-            --title "fc-downloader $GITHUB_REF_NAME" \
+            --target "${{ github.sha }}" \
+            --title "fc-downloader $TAG" \
             --draft \
             --notes-file dist-assets/release-notes.md
