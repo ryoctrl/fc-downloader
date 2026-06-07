@@ -3,6 +3,10 @@ import { app, BrowserWindow, shell } from 'electron'
 import { registerIpcHandlers } from './ipc/handlers'
 import { initDb, closeDb } from './storage/db'
 import { initSettings } from './storage/settings'
+import { registerFcfileHandler, registerFcfileScheme } from './protocol/fcfile'
+
+// Privileged-scheme registration must happen before the app is ready.
+registerFcfileScheme()
 
 let mainWindow: BrowserWindow | null = null
 
@@ -44,6 +48,7 @@ app.whenReady().then(() => {
   const defaultDownloadRoot = join(app.getPath('downloads'), 'fc-downloader')
   initDb(userData)
   initSettings(userData, defaultDownloadRoot)
+  registerFcfileHandler() // after settings: the handler reads the download root
   registerIpcHandlers(() => mainWindow)
 
   createWindow()

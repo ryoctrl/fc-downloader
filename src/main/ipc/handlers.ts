@@ -8,6 +8,7 @@ import { clearSession } from '@main/session/manager'
 import { getSettings, updateSettings } from '@main/storage/settings'
 import { buildViewerTree } from '@main/storage/viewer'
 import { listPosts } from '@main/storage/db'
+import { listPostFiles } from '@main/storage/files'
 import { DownloadEngine } from '@main/download/engine'
 
 const engine = new DownloadEngine()
@@ -132,4 +133,5 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   })
 
   handle('posts:list', async () => listPosts())
+  handle('posts:files', async (dirPath) => listPostFiles(dirPath))
 }

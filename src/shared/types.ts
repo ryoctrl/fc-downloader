@@ -149,6 +149,15 @@ export interface LibraryPost {
   completed: boolean
 }
 
+/** A real file inside a downloaded post's folder, for the media viewer. */
+export interface LibraryFile {
+  name: string
+  /** A fcfile:// URL the renderer can load in <img>/<video>/<audio>. */
+  url: string
+  kind: PostFileKind
+  sizeBytes: number
+}
+
 /** A node in the viewer tree (service -> creator -> year -> month -> post). */
 export interface ViewerNode {
   key: string
