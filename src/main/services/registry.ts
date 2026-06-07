@@ -4,6 +4,7 @@ import type { Service } from './types'
 import { fantiaService } from './fantia'
 import { fanboxService } from './fanbox'
 import { patreonService } from './patreon'
+import { cienService } from './cien'
 
 const services = new Map<ServiceId, Service>()
 
@@ -11,11 +12,12 @@ function register(service: Service): void {
   services.set(service.id, service)
 }
 
-// Register implemented services here. The cien adapter will be added as it is
-// implemented (see docs/roadmap.md).
+// Register implemented services here. All four MVP services are implemented;
+// see docs/roadmap.md for live-verification status per adapter.
 register(fantiaService)
 register(fanboxService)
 register(patreonService)
+register(cienService)
 
 export function getService(id: ServiceId): Service {
   const svc = services.get(id)

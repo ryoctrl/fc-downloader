@@ -102,16 +102,22 @@ npm run dist       # package installers via electron-builder
 The app is wired end-to-end on **real data** (the mock layer is gone): real
 per-service login state, real download (streaming + retry/backoff), a real
 library/viewer from the metadata ledger with `fcfile://` media preview + image
-lightbox, speed/ETA, creator names, failed-retry, offline-bundled fonts, and an
-app icon. **Pixiv Fanbox is verified against the live API** (checkAuth →
-list creators → posts → image download), see `scripts/probe-fanbox.cjs`.
+lightbox, speed/ETA, creator names + avatars, bundled service logos, failed-retry,
+offline-bundled fonts, an app icon, and a per-service politeness throttle
+(`session/throttle.ts`). All four MVP adapters are implemented and registered.
+
+**Live-API verification** (each via `scripts/probe-<svc>.cjs`):
+- **Fanbox, Fantia, ci-en** — verified end-to-end (checkAuth → list creators →
+  posts → real file download returning HTTP 200).
+- **Patreon** — `checkAuth` + the `current_user` membership/pledge shape verified;
+  the campaign-posts + media path is `VERIFY:` (the probe account had no active
+  pledge, so it couldn't be exercised against real data).
 
 Gotcha fixed (don't regress): the per-service `<webview>` is keyed by
 `serviceId` in `App.tsx` so switching services remounts it with the correct
 `persist:<id>` partition — the `partition` attribute is immutable after attach,
 so without the key all logins leak into one partition.
 
-Remaining: **Fantia** is structured like Fanbox but its endpoints are still
-`VERIFY:` (needs a logged-in Fantia probe to confirm); ci-en/Patreon adapters;
+Remaining: verify Patreon posts/media against an account with an active pledge;
 minor polish (range-resume, filename collision, download history). External
 blockers: code signing (Smart App Control). See [docs/roadmap.md](docs/roadmap.md).
