@@ -1,7 +1,15 @@
 /* fc-downloader — app shell: prefs, state, routing, theme */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import type { Creator, DownloadOptions, LibraryPost } from '@shared/types'
-import type { AppActions, AppState, DownloadPrefs, Nav, Prefs, ServiceId } from './design/types'
+import type { Creator, DownloadOptions, LibraryPost, PostFileKind } from '@shared/types'
+import type {
+  AppActions,
+  AppState,
+  DesignService,
+  DownloadPrefs,
+  Nav,
+  Prefs,
+  ServiceId
+} from './design/types'
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
 import { FC } from './design/data'
@@ -219,6 +227,30 @@ export function App() {
     void bridge.listPosts().then(setRawPosts)
   }
 
+  // Build download options for a service from its saved settings. Returns null
+  // when nothing would download (no file kinds, or an explicitly empty creator
+  // selection). An absent creator selection means "all" (creatorIds: []).
+  const buildDownloadOptions = (svcId: ServiceId): DownloadOptions | null => {
+    const includeKinds: PostFileKind[] = []
+    if (downloadPrefs.image) includeKinds.push('image')
+    if (downloadPrefs.video) includeKinds.push('video')
+    if (downloadPrefs.file) includeKinds.push('file', 'audio')
+    if (includeKinds.length === 0) return null
+    const saved = creatorSel[svcId]
+    if (saved && saved.length === 0) return null
+    return { creatorIds: saved ?? [], skipExisting: downloadPrefs.skipDup, concurrency, includeKinds }
+  }
+
+  // Enqueue a single service's run (main-process queue serializes services).
+  const doStartDownload = (svc: DesignService, options: DownloadOptions): void => {
+    optionsRef.current[svc.id] = options
+    // Optimistic: show it now if nothing is running; otherwise it queues.
+    setDownload((d) =>
+      !d || d.done ? { svcId: svc.id, options, startedAt: Date.now(), done: false } : d
+    )
+    void bridge.startDownload(svc.id, options)
+  }
+
   const actions: AppActions = {
     toggleFav: (key) =>
       setFavs((s) => {
@@ -248,13 +280,19 @@ export function App() {
         .finally(() => setCreatorsLoading((s) => ({ ...s, [id]: false })))
     },
     startDownload: (svc, options) => {
-      optionsRef.current[svc.id] = options
-      // Optimistic: show it now if nothing is running; otherwise it queues.
-      setDownload((d) =>
-        !d || d.done ? { svcId: svc.id, options, startedAt: Date.now(), done: false } : d
-      )
-      void bridge.startDownload(svc.id, options)
-      setNav({ screen: 'progress' })
+      doStartDownload(svc, options)
+      go({ screen: 'progress' })
+    },
+    startBulkDownload: () => {
+      let started = false
+      for (const svc of FC.SERVICES) {
+        if (enabledServices[svc.id] === false || !logins[svc.id]) continue
+        const opts = buildDownloadOptions(svc.id)
+        if (!opts) continue
+        doStartDownload(svc, opts)
+        started = true
+      }
+      if (started) go({ screen: 'progress' })
     },
     retryDownload: () => {
       if (!download) return

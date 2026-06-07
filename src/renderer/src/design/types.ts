@@ -133,6 +133,9 @@ export interface AppActions {
   /** Enable/disable a service (hide from rail + exclude from bulk/scheduled;
    *  keeps the login session). Persisted. */
   setServiceEnabled: (serviceId: ServiceId, enabled: boolean) => void
+  /** Queue a download for every enabled + logged-in service, using each
+   *  service's saved settings (creator selection + file types + skip). */
+  startBulkDownload: () => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */
