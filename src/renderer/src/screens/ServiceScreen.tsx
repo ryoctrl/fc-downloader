@@ -1,86 +1,231 @@
 /* fc-downloader — Service screen: embedded WebView + download settings panel */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PostFileKind } from '@shared/types'
-import type { DesignService, PostType } from '../design/types'
+import type { DesignService, Dict, PostType } from '../design/types'
 import { FC } from '../design/data'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
 
-function UrlBar({ svc, loggedIn }: { svc: DesignService; loggedIn: boolean }) {
+/** The subset of Electron's <webview> element API the toolbar drives. */
+interface WebviewEl extends HTMLElement {
+  src: string
+  canGoBack(): boolean
+  canGoForward(): boolean
+  goBack(): void
+  goForward(): void
+  reload(): void
+  loadURL(url: string): Promise<void>
+  getURL(): string
+}
+
+function NavButton({
+  icon,
+  disabled,
+  onClick,
+  title
+}: {
+  icon: string
+  disabled?: boolean
+  onClick: () => void
+  title: string
+}) {
   return (
-    <div
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '7px 10px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)'
+        display: 'grid',
+        placeItems: 'center',
+        width: 28,
+        height: 28,
+        borderRadius: 7,
+        border: 'none',
+        background: 'transparent',
+        cursor: disabled ? 'default' : 'pointer',
+        color: disabled ? 'var(--text-3)' : 'var(--text-2)',
+        opacity: disabled ? 0.4 : 1
       }}
     >
-      <div style={{ display: 'flex', gap: 4, color: 'var(--text-3)' }}>
-        <Icon name="arrowL" size={16} />
-        <Icon name="arrowR" size={16} />
-        <Icon name="refresh" size={15} />
-      </div>
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 7,
-          padding: '5px 11px',
-          background: 'var(--surface-2)',
-          borderRadius: 8,
-          fontFamily: 'var(--mono)',
-          fontSize: 12,
-          color: 'var(--text-2)'
-        }}
-      >
-        <Icon name="lock" size={12} style={{ color: 'var(--ok)' }} />
-        https://{svc.note}/{loggedIn ? '' : 'login'}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 5,
-          fontSize: 11,
-          fontWeight: 500,
-          color: loggedIn ? 'var(--ok)' : 'var(--text-3)',
-          fontFamily: 'var(--mono)',
-          padding: '3px 8px',
-          borderRadius: 99,
-          background: 'var(--surface-2)'
-        }}
-      >
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: 99,
-            background: loggedIn ? 'var(--ok)' : 'var(--text-3)'
-          }}
-        />
-        WebView
-      </div>
-    </div>
+      <Icon name={icon} size={16} />
+    </button>
   )
 }
 
 /**
- * Real Electron <webview> for login/browsing. Uses the per-service session
- * partition so cookies set here are reused by the main-process downloader.
+ * Embedded Electron <webview> with a single, functional browser toolbar that
+ * also merges the service header: real back/forward/reload, a live editable URL
+ * bar, the login-status chip, and a re-check action. The per-service session
+ * partition means cookies set here are reused by the main-process downloader.
  */
-function ServiceWebView({ svc }: { svc: DesignService }) {
+function BrowserPane({
+  svc,
+  loggedIn,
+  onRecheck,
+  L
+}: {
+  svc: DesignService
+  loggedIn: boolean
+  onRecheck: () => void
+  L: Dict
+}) {
+  const ref = useRef<WebviewEl | null>(null)
+  const home = `https://${svc.note}/`
+  const [url, setUrl] = useState(home)
+  const [draft, setDraft] = useState<string | null>(null)
+  const [canBack, setCanBack] = useState(false)
+  const [canFwd, setCanFwd] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const sync = (): void => {
+      try {
+        const u = el.getURL()
+        if (u) setUrl(u)
+        setCanBack(el.canGoBack())
+        setCanFwd(el.canGoForward())
+      } catch {
+        /* webview not ready yet */
+      }
+    }
+    const events = ['did-navigate', 'did-navigate-in-page', 'did-stop-loading', 'dom-ready']
+    events.forEach((e) => el.addEventListener(e, sync))
+    return () => events.forEach((e) => el.removeEventListener(e, sync))
+  }, [])
+
+  const drive = (fn: (el: WebviewEl) => void): void => {
+    const el = ref.current
+    if (!el) return
+    try {
+      fn(el)
+    } catch {
+      /* ignore (webview not ready) */
+    }
+  }
+  const submit = (value: string): void => {
+    let u = value.trim()
+    if (!u) return
+    if (!/^https?:\/\//i.test(u)) u = `https://${u}`
+    drive((el) => void el.loadURL(u))
+    setDraft(null)
+  }
+
   return (
-    <webview
-      src={`https://${svc.note}/`}
-      partition={`persist:${svc.id}`}
-      allowpopups={true}
-      style={{ flex: 1, width: '100%', border: 'none', background: 'var(--surface)' }}
-    />
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minWidth: 0,
+        minHeight: 0,
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        overflow: 'hidden',
+        background: 'var(--surface)',
+        boxShadow: 'var(--shadow-sm)'
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '7px 10px',
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--surface)'
+        }}
+      >
+        <ServiceMark svc={svc} size={22} active={loggedIn} />
+        <div style={{ display: 'flex', gap: 1 }}>
+          <NavButton icon="arrowL" title={L.back} disabled={!canBack} onClick={() => drive((el) => el.goBack())} />
+          <NavButton icon="arrowR" title={L.next} disabled={!canFwd} onClick={() => drive((el) => el.goForward())} />
+          <NavButton icon="refresh" title={L.refresh} onClick={() => drive((el) => el.reload())} />
+        </div>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '4px 11px',
+            background: 'var(--surface-2)',
+            borderRadius: 8
+          }}
+        >
+          <Icon
+            name={url.startsWith('https://') ? 'lock' : 'globe'}
+            size={12}
+            style={{ color: url.startsWith('https://') ? 'var(--ok)' : 'var(--text-3)', flexShrink: 0 }}
+          />
+          <input
+            value={draft ?? url}
+            spellCheck={false}
+            onChange={(e) => setDraft(e.target.value)}
+            onFocus={(e) => {
+              setDraft(url)
+              e.target.select()
+            }}
+            onBlur={() => setDraft(null)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                submit(draft ?? url)
+                ;(e.target as HTMLInputElement).blur()
+              } else if (e.key === 'Escape') {
+                setDraft(null)
+                ;(e.target as HTMLInputElement).blur()
+              }
+            }}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontFamily: 'var(--mono)',
+              fontSize: 12,
+              color: 'var(--text-2)'
+            }}
+          />
+        </div>
+        <span
+          title={loggedIn ? L.loggedIn : L.notLoggedIn}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            fontSize: 11,
+            fontWeight: 500,
+            color: loggedIn ? 'var(--ok)' : 'var(--text-3)',
+            padding: '3px 8px',
+            borderRadius: 99,
+            background: 'var(--surface-2)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 99,
+              background: loggedIn ? 'var(--ok)' : 'var(--text-3)'
+            }}
+          />
+          {loggedIn ? L.loggedIn : L.notLoggedIn}
+        </span>
+        <Btn size="sm" variant="ghost" icon="refresh" onClick={onRecheck} title={L.recheck} />
+      </div>
+      <webview
+        ref={(el) => {
+          ref.current = el as unknown as WebviewEl | null
+        }}
+        src={home}
+        partition={`persist:${svc.id}`}
+        allowpopups={true}
+        style={{ flex: 1, width: '100%', border: 'none', background: 'var(--surface)' }}
+      />
+    </div>
   )
 }
 
@@ -455,63 +600,13 @@ export function ServiceScreen({ serviceId }: { serviceId: DesignService['id'] })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '10px 18px',
-          borderBottom: '1px solid var(--border)',
-          background: 'var(--surface)'
-        }}
-      >
-        <ServiceMark svc={svc} size={26} active={loggedIn} />
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{svc.name}</div>
-        <div style={{ flex: 1 }} />
-        <span
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 11.5,
-            fontWeight: 500,
-            color: loggedIn ? 'var(--ok)' : 'var(--text-3)',
-            fontFamily: 'var(--mono)'
-          }}
-        >
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: 99,
-              background: loggedIn ? 'var(--ok)' : 'var(--text-3)'
-            }}
-          />
-          {loggedIn ? L.loggedIn : L.notLoggedIn}
-        </span>
-        <Btn size="sm" variant="ghost" icon="refresh" onClick={() => app.actions.recheckAuth(serviceId)}>
-          {L.recheck}
-        </Btn>
-      </div>
-
       <div style={{ flex: 1, display: 'flex', minHeight: 0, padding: 16, gap: 14 }}>
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: 0,
-            minHeight: 0,
-            border: '1px solid var(--border)',
-            borderRadius: 12,
-            overflow: 'hidden',
-            background: 'var(--surface)',
-            boxShadow: 'var(--shadow-sm)'
-          }}
-        >
-          <UrlBar svc={svc} loggedIn={loggedIn} />
-          <ServiceWebView svc={svc} />
-        </div>
+        <BrowserPane
+          svc={svc}
+          loggedIn={loggedIn}
+          L={L}
+          onRecheck={() => app.actions.recheckAuth(serviceId)}
+        />
         <div
           style={{
             width: 366,
