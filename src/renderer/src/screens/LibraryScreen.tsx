@@ -90,6 +90,28 @@ function TreeRow({
   )
 }
 
+/** Creator avatar for the tree: real image if saved on disk, else a folder. */
+function CreatorAvatar({ iconUrl }: { iconUrl?: string }) {
+  if (iconUrl) {
+    return (
+      <img
+        src={iconUrl}
+        alt=""
+        loading="lazy"
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: 99,
+          objectFit: 'cover',
+          flexShrink: 0,
+          background: 'var(--surface-2)'
+        }}
+      />
+    )
+  }
+  return <Icon name="folder" size={15} style={{ flexShrink: 0 }} />
+}
+
 function LibraryTree({
   posts,
   node,
@@ -171,12 +193,14 @@ function LibraryTree({
                   const copen = exp.has(ck)
                   const cPosts = sPosts.filter((p) => p.creator === cr)
                   const years = uniq(cPosts.map((p) => p.year)).sort((a, b) => b - a)
+                  const crName = cPosts[0]?.creatorName ?? cr
+                  const crIcon = cPosts[0]?.creatorIconUrl
                   return (
                     <div key={cr}>
                       <TreeRow
                         depth={1}
-                        icon="folder"
-                        label={cr}
+                        mark={<CreatorAvatar iconUrl={crIcon} />}
+                        label={crName === cr ? cr : `${crName} (${cr})`}
                         count={cPosts.length}
                         expandable
                         open={copen}

@@ -133,6 +133,8 @@ export interface LibraryPost {
   creatorId: string
   /** Display name (falls back to creatorId if unknown). */
   creatorName: string
+  /** fcfile:// URL of the creator's avatar saved on disk, if any. */
+  creatorIconUrl?: string
   postId: string
   title: string
   /** ISO-8601 publish timestamp. */
