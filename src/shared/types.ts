@@ -127,6 +127,8 @@ export interface AppSettings {
   /** Root directory all downloads are written under. */
   downloadRoot: string
   defaultConcurrency: number
+  /** Last window size/position, restored on launch. */
+  windowBounds?: { width: number; height: number; x?: number; y?: number }
 }
 
 /**
