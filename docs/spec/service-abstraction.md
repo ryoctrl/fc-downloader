@@ -51,12 +51,15 @@ UI・エンジン・ストレージ側の変更は不要。
 
 ## サイト別メモ（埋めていく）
 
-### Fantia（MVP）
-- ログイン: WebView で `https://fantia.jp/`。
+### Fantia（アダプタ構造実装済み・API は VERIFY）
+- 実装: `src/main/services/fantia/`（`index.ts` = ネットワーク、`normalize.ts` = 純粋変換 + テスト）。Fanbox と同等構成。
+- ログイン: WebView で `https://fantia.jp/`。メディア DL は **Referer 必須** → `downloadHeaders`。
 - 認証判定: `GET /api/v1/me`（`VERIFY:`）。
-- 支援中ファンクラブ列挙: 未確認（`/mypage/users/following` のスクレイピング想定）。
-- 投稿列挙・詳細・ファイル URL 解決: 未確認（`/api/v1/posts/{id}` 想定）。
-- コンテンツ種別（photo_gallery / file / blog 等）→ `PostFileKind` のマッピングが必要。
+- 支援中ファンクラブ列挙: `GET /api/v1/me/fanclubs`（JSON 想定、`VERIFY:`。HTML の場合はスクレイピングへ）。
+- 投稿列挙: `GET /api/v1/fanclubs/{id}/posts?page=N` をページング → 各 `GET /api/v1/posts/{id}`（`VERIFY:`）。
+- 正規化: `post_contents` の `photo_gallery`（画像）/`file`（拡張子→kind）を抽出。`blog`/`product`/`url` は無視。
+  相対 URL は `https://fantia.jp` で絶対化。`normalize.test.ts` にフィクスチャテストあり。
+- **実地検証は要ログインアカウント（外部依存）**。未検証のうちは listCreators/listPosts は空に縮退する。
 
 ### Pixiv Fanbox（アダプタ実装済み）
 - 実装: `src/main/services/fanbox/`（`index.ts` = ネットワーク、`normalize.ts` = 純粋変換 + テスト）。
