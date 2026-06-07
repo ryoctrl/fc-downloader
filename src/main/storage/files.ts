@@ -72,14 +72,21 @@ export function isWithinRoot(root: string, full: string): boolean {
   return f === r || f.startsWith(r.endsWith(sep) ? r : r + sep)
 }
 
-/** Build a fcfile:// URL from a path relative to the download root. */
+/**
+ * Build a fcfile:// URL from a path relative to the download root.
+ *
+ * A fixed host (`fc`) is used so the first path segment (e.g. the serviceId)
+ * is NOT consumed as the URL authority by the standard-scheme parser — with
+ * `fcfile:///fanbox/...` Chromium treats `fanbox` as the host and drops it from
+ * the pathname. With `fcfile://fc/...` the whole path stays in `pathname`.
+ */
 export function fcfileUrl(relPath: string): string {
   const encoded = relPath
     .split(/[\\/]/)
     .filter(Boolean)
     .map(encodeURIComponent)
     .join('/')
-  return `fcfile:///${encoded}`
+  return `fcfile://fc/${encoded}`
 }
 
 /** List the real files in a post's directory (must be within the root). */

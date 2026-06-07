@@ -35,10 +35,10 @@ describe('isWithinRoot', () => {
 })
 
 describe('fcfileUrl', () => {
-  it('builds a root-relative, percent-encoded url with forward slashes', () => {
+  it('builds a fixed-host, percent-encoded url with forward slashes', () => {
     expect(fcfileUrl('fanbox/aotsuki/2025/06/100/a.png')).toBe(
-      'fcfile:///fanbox/aotsuki/2025/06/100/a.png'
+      'fcfile://fc/fanbox/aotsuki/2025/06/100/a.png'
     )
-    expect(fcfileUrl('fanbox\\x\\a b.png')).toBe('fcfile:///fanbox/x/a%20b.png')
+    expect(fcfileUrl('fanbox\\x\\a b.png')).toBe('fcfile://fc/fanbox/x/a%20b.png')
   })
 })
