@@ -1,6 +1,6 @@
 /* fc-downloader — app shell: prefs, state, routing, theme */
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import type { Creator, LibraryPost } from '@shared/types'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import type { Creator, DownloadOptions, LibraryPost } from '@shared/types'
 import type { AppActions, AppState, Nav, Prefs, ServiceId } from './design/types'
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
@@ -43,6 +43,13 @@ const DEFAULT_PREFS: Prefs = {
   density: 'comfy',
   viewerView: 'grid',
   lang: 'ja'
+}
+
+const EMPTY_OPTIONS: DownloadOptions = {
+  creatorIds: [],
+  skipExisting: true,
+  concurrency: 3,
+  includeKinds: ['image', 'video', 'audio', 'file']
 }
 
 const ACCENT_HUE: Record<string, number> = {
@@ -100,6 +107,8 @@ export function App() {
   const [rawPosts, setRawPosts] = useState<LibraryPost[]>([])
   const posts = useMemo(() => rawPosts.map(toViewPost), [rawPosts])
   const [download, setDownload] = useState<AppState['download']>(null)
+  const [queued, setQueued] = useState<ServiceId[]>([])
+  const optionsRef = useRef<Record<string, DownloadOptions>>({})
   const [concurrency, setConcurrencyState] = useState(3)
   const [skipDupDefault, setSkipDupDefault] = useState(true)
   const [brandLogos, setBrandLogos] = useState<Record<string, string>>(() => loadJson(LOGO_KEY, {}))
@@ -118,6 +127,20 @@ export function App() {
   // Load the real downloaded posts from the metadata ledger on startup.
   useEffect(() => {
     void bridge.listPosts().then(setRawPosts)
+  }, [])
+
+  // Mirror the backend download queue: switch the active run as it advances.
+  useEffect(() => {
+    const off = bridge.onDownloadQueue(({ active, queued: q }) => {
+      setQueued(q)
+      if (!active) return
+      setDownload((d) =>
+        !d || d.svcId !== active || d.done
+          ? { svcId: active, options: optionsRef.current[active] ?? d?.options ?? EMPTY_OPTIONS, startedAt: Date.now(), done: false }
+          : d
+      )
+    })
+    return off
   }, [])
 
   // Determine real login state per service on startup, and react to changes
@@ -179,15 +202,17 @@ export function App() {
         .finally(() => setCreatorsLoading((s) => ({ ...s, [id]: false })))
     },
     startDownload: (svc, options) => {
-      setDownload({ svcId: svc.id, options, startedAt: Date.now(), done: false })
+      optionsRef.current[svc.id] = options
+      // Optimistic: show it now if nothing is running; otherwise it queues.
+      setDownload((d) =>
+        !d || d.done ? { svcId: svc.id, options, startedAt: Date.now(), done: false } : d
+      )
       void bridge.startDownload(svc.id, options)
       setNav({ screen: 'progress' })
     },
     retryDownload: () => {
       if (!download) return
-      const svc = FC.serviceById(download.svcId)
-      setDownload({ svcId: svc.id, options: download.options, startedAt: Date.now(), done: false })
-      void bridge.startDownload(svc.id, download.options)
+      void bridge.startDownload(download.svcId, download.options)
     },
     markDownloadDone: () => {
       setDownload((d) => (d && !d.done ? { ...d, done: true } : d))
@@ -197,6 +222,7 @@ export function App() {
       void bridge.cancelDownload()
       const svcId = download?.svcId ?? 'fantia'
       setDownload(null)
+      setQueued([])
       setNav({ screen: 'service', serviceId: svcId })
     },
     setConcurrency,
@@ -236,6 +262,7 @@ export function App() {
       creatorsLoading,
       favs,
       download,
+      queued,
       saveDir,
       concurrency,
       skipDupDefault,

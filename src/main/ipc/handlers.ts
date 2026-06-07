@@ -1,7 +1,13 @@
 /** Registers all IPC handlers and wires download events back to the renderer. */
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcApi, IpcChannel, IpcEventChannel, IpcEvents } from '@shared/ipc'
-import type { DownloadItem, DownloadProgress, ServiceDescriptor } from '@shared/types'
+import type {
+  DownloadItem,
+  DownloadOptions,
+  DownloadProgress,
+  ServiceDescriptor,
+  ServiceId
+} from '@shared/types'
 import { listServices } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
 import { clearSession } from '@main/session/manager'
@@ -65,39 +71,56 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     return svc.listCreators(ctx)
   })
 
-  handle('download:start', async (serviceId, options) => {
-    const { downloadRoot } = getSettings()
-    recentItems = []
-    let lastProgress: DownloadProgress = {
-      total: 0,
-      completed: 0,
-      skipped: 0,
-      failed: 0,
-      inFlight: 0,
-      bytesDownloaded: 0,
-      bytesTotal: 0
+  // Sequential download queue: one service runs at a time; starting another
+  // while one is active enqueues it (so the running download is never cut off).
+  const queue: { serviceId: ServiceId; options: DownloadOptions }[] = []
+  let active: ServiceId | null = null
+
+  const emitQueue = (): void => {
+    const win = getWindow()
+    if (win) emit(win, 'download:queue', { active, queued: queue.map((q) => q.serviceId) })
+  }
+
+  const blankProgress = (): DownloadProgress => ({
+    total: 0,
+    completed: 0,
+    skipped: 0,
+    failed: 0,
+    inFlight: 0,
+    bytesDownloaded: 0,
+    bytesTotal: 0
+  })
+
+  const processNext = (): void => {
+    const item = queue.shift()
+    if (!item) {
+      active = null
+      emitQueue()
+      return
     }
-    // Fire-and-forget: the invoke resolves immediately; progress/done are pushed
-    // as events. A `download:done` event is emitted once the run settles.
+    active = item.serviceId
+    emitQueue()
+    recentItems = []
+    let lastProgress = blankProgress()
     void engine
-      .run(serviceId, downloadRoot, options, {
+      .run(item.serviceId, getSettings().downloadRoot, item.options, {
         onProgress: (progress) => {
           lastProgress = progress
           const win = getWindow()
           if (win) emit(win, 'download:progress', progress)
         },
-        onItem: (item) => {
+        onItem: (it) => {
           const win = getWindow()
           const dlItem: DownloadItem = {
-            id: `${item.postId}:${item.fileId}`,
-            serviceId: item.serviceId,
+            id: `${it.postId}:${it.fileId}`,
+            serviceId: it.serviceId,
             creatorId: '',
-            postId: item.postId,
-            fileId: item.fileId,
-            fileName: item.fileName,
-            status: item.status,
+            postId: it.postId,
+            fileId: it.fileId,
+            fileName: it.fileName,
+            status: it.status,
             bytesDownloaded: 0,
-            error: item.error
+            error: it.error
           }
           recentItems.push(dlItem)
           if (win) emit(win, 'download:item', dlItem)
@@ -107,11 +130,23 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
       .finally(() => {
         const win = getWindow()
         if (win) emit(win, 'download:done', lastProgress)
+        processNext()
       })
+  }
+
+  handle('download:start', async (serviceId, options) => {
+    queue.push({ serviceId, options })
+    emitQueue()
+    if (!active) processNext()
   })
 
   handle('download:cancel', async () => {
-    engine.cancel()
+    queue.length = 0
+    if (engine.isRunning()) engine.cancel()
+    else {
+      active = null
+      emitQueue()
+    }
   })
 
   handle('download:status', async () => recentItems)
