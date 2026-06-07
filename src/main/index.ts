@@ -22,6 +22,9 @@ function createWindow(): void {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
+    // Dev: show the app icon on the window/taskbar (packaged builds use the exe
+    // icon from electron-builder, where build/ isn't bundled).
+    icon: process.env.ELECTRON_RENDERER_URL ? join(__dirname, '../../build/icon.png') : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

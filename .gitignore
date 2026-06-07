@@ -25,3 +25,6 @@ Thumbs.db
 
 # Claude Code local runtime (locks, local settings)
 .claude/
+
+# Icon/design input artifacts (not source)
+fc-downloader.zip
