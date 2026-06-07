@@ -26,6 +26,8 @@ export interface ViewPost {
   sizeMB: number
   status: ViewStatus
   hue: number
+  /** fcfile:// URL of a real cover image, if the post has one. */
+  coverUrl?: string
   /** Absolute folder on disk. */
   dirPath: string
 }
@@ -59,6 +61,7 @@ export function toViewPost(lp: LibraryPost): ViewPost {
     sizeMB: lp.sizeBytes / (1024 * 1024),
     status: lp.completed ? 'done' : 'partial',
     hue: hashHue(svc.hue, lp.postId),
+    coverUrl: lp.coverUrl,
     dirPath: lp.dirPath
   }
 }

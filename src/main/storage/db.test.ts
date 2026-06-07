@@ -13,12 +13,14 @@ import {
   refreshPostCompletion,
   upsertPost
 } from './db'
+import { initSettings } from './settings'
 
 let dir = ''
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'fc-db-'))
   initDb(dir)
+  initSettings(dir, join(dir, 'downloads')) // listPosts reads the download root
 })
 
 afterEach(() => {
