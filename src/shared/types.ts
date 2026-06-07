@@ -105,6 +105,9 @@ export interface DownloadProgress {
   /** Posts fully processed so far (monotonic; the file total is discovered as
    * the run streams, so this is the stable per-post counter for the UI). */
   postsCompleted: number
+  /** Total posts to process, counted up front. 0 when unknown (the service
+   * can't be cheaply counted), in which case the UI shows an indeterminate bar. */
+  postsTotal: number
   /** Bytes across the whole run. */
   bytesDownloaded: number
   bytesTotal: number

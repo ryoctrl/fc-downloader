@@ -112,6 +112,24 @@ export const fantiaService: Service = {
     }
   },
 
+  async countPosts(ctx: ServiceContext, creatorId: string): Promise<number> {
+    // Walk the same HTML listing pages as listPosts, counting /posts/<id> links
+    // (no per-post detail fetch).
+    const seen = new Set<string>()
+    const MAX_PAGES = 500
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      ctx.signal.throwIfAborted()
+      const html = await ctx.fetchText(
+        `${BASE}/fanclubs/${encodeURIComponent(creatorId)}/posts?page=${page}`
+      )
+      const ids = [...new Set([...html.matchAll(/\/posts\/(\d+)/g)].map((m) => m[1]))]
+      const fresh = ids.filter((id) => !seen.has(id))
+      if (fresh.length === 0) return seen.size
+      fresh.forEach((id) => seen.add(id))
+    }
+    return seen.size
+  },
+
   async resolvePost(_ctx: ServiceContext, post: Post): Promise<Post> {
     return post
   }
