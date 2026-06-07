@@ -1,10 +1,12 @@
 /* fc-downloader — Service screen: embedded WebView + download settings panel */
-import { useEffect, useMemo, useState } from 'react'
-import type { DesignService, Dict, PostType } from '../design/types'
-import { FC, fmtSize } from '../design/data'
+import { useEffect, useState } from 'react'
+import type { Creator, PostFileKind } from '@shared/types'
+import type { DesignService, PostType } from '../design/types'
+import { FC } from '../design/data'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
+import { bridge } from '../bridge'
 
 function UrlBar({ svc, loggedIn }: { svc: DesignService; loggedIn: boolean }) {
   return (
@@ -80,134 +82,6 @@ function ServiceWebView({ svc }: { svc: DesignService }) {
       allowpopups={true}
       style={{ flex: 1, width: '100%', border: 'none', background: 'var(--surface)' }}
     />
-  )
-}
-
-function MonthField({
-  label,
-  value,
-  onChange
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <span
-        style={{
-          fontSize: 10.5,
-          fontWeight: 600,
-          letterSpacing: '.04em',
-          textTransform: 'uppercase',
-          color: 'var(--text-3)'
-        }}
-      >
-        {label}
-      </span>
-      <input
-        type="month"
-        min="2023-01"
-        max="2026-05"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          padding: '8px 10px',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-          background: 'var(--surface-2)',
-          color: 'var(--text)',
-          fontFamily: 'var(--mono)',
-          fontSize: 12,
-          outline: 'none'
-        }}
-      />
-    </label>
-  )
-}
-
-function RangePicker({
-  since,
-  until,
-  setSince,
-  setUntil,
-  L
-}: {
-  since: string
-  until: string
-  setSince: (v: string) => void
-  setUntil: (v: string) => void
-  L: Dict
-}) {
-  return (
-    <div
-      style={{
-        marginTop: 10,
-        padding: '12px 13px',
-        borderRadius: 10,
-        background: 'var(--accent-tint)',
-        border: '1px solid var(--accent)'
-      }}
-    >
-      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-        <MonthField label={L.from} value={since} onChange={setSince} />
-        <span style={{ paddingBottom: 9, color: 'var(--text-3)' }}>–</span>
-        <MonthField label={L.to} value={until} onChange={setUntil} />
-      </div>
-    </div>
-  )
-}
-
-function ScopeRadio({
-  value,
-  onChange,
-  L
-}: {
-  value: string
-  onChange: (v: string) => void
-  L: Dict
-}) {
-  const opts: [string, string][] = [
-    ['all', L.allPosts],
-    ['new', L.newOnly],
-    ['range', L.dateRange]
-  ]
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {opts.map(([v, lbl]) => (
-        <label
-          key={v}
-          onClick={() => onChange(v)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '9px 12px',
-            cursor: 'pointer',
-            borderRadius: 9,
-            border: '1px solid ' + (value === v ? 'var(--accent)' : 'var(--border)'),
-            background: value === v ? 'var(--accent-tint)' : 'transparent'
-          }}
-        >
-          <span
-            style={{
-              width: 16,
-              height: 16,
-              borderRadius: 99,
-              flexShrink: 0,
-              border: '2px solid ' + (value === v ? 'var(--accent)' : 'var(--text-3)'),
-              display: 'grid',
-              placeItems: 'center'
-            }}
-          >
-            {value === v && (
-              <span style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--accent)' }} />
-            )}
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{lbl}</span>
-        </label>
-      ))}
-    </div>
   )
 }
 
@@ -333,40 +207,31 @@ function OptToggle({
 function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolean }) {
   const app = useApp()
   const L = app.L
-  const allPosts = useMemo(() => FC.POSTS.filter((p) => p.service === svc.id), [svc.id])
-  const creators = FC.CREATORS[svc.id] || []
-  const [scope, setScope] = useState('new')
+  const [creators, setCreators] = useState<Creator[]>([])
+  const [loadingCreators, setLoadingCreators] = useState(false)
   const [types, setTypes] = useState<Record<PostType, boolean>>({ image: true, video: true, file: true })
-  const [sel, setSel] = useState<Set<string>>(() => new Set(creators.map((c) => c.id)))
-  const [skipDup, setSkipDup] = useState(true)
-  const [foldering, setFoldering] = useState(true)
-  const [since, setSince] = useState('2025-01')
-  const [until, setUntil] = useState('2026-05')
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [skipDup, setSkipDup] = useState(app.state.skipDupDefault)
 
+  // Load the real creators the user supports for this service (requires login).
   useEffect(() => {
-    setSel(new Set(creators.map((c) => c.id)))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [svc.id])
-
-  const plan = useMemo(() => {
-    let ps = allPosts.filter((p) => sel.has(p.creator) && types[p.type])
-    if (scope === 'new') ps = ps.filter((p) => p.status !== 'done')
-    if (scope === 'range')
-      ps = ps.filter((p) => {
-        const ym = `${p.year}-${String(p.month).padStart(2, '0')}`
-        return ym >= since && ym <= until
-      })
-    const dup = skipDup ? ps.filter((p) => p.status === 'done').length : 0
-    const toGet = skipDup ? ps.filter((p) => p.status !== 'done') : ps
-    return {
-      total: ps.length,
-      dup,
-      posts: toGet.length,
-      files: toGet.reduce((s, p) => s + p.files, 0),
-      sizeMB: toGet.reduce((s, p) => s + p.sizeMB, 0),
-      items: toGet
+    let cancelled = false
+    if (!loggedIn) {
+      setCreators([])
+      setSel(new Set())
+      return
     }
-  }, [allPosts, sel, types, scope, skipDup, since, until])
+    setLoadingCreators(true)
+    void bridge.listCreators(svc.id).then((list) => {
+      if (cancelled) return
+      setCreators(list)
+      setSel(new Set(list.map((c) => c.creatorId)))
+      setLoadingCreators(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [svc.id, loggedIn])
 
   const toggleSel = (id: string) =>
     setSel((s) => {
@@ -375,7 +240,23 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
       else n.add(id)
       return n
     })
-  const allSel = sel.size === creators.length
+  const allSel = creators.length > 0 && sel.size === creators.length
+  const anyType = types.image || types.video || types.file
+  const canStart = loggedIn && anyType && sel.size > 0
+
+  const start = (): void => {
+    if (!canStart) return
+    const includeKinds: PostFileKind[] = []
+    if (types.image) includeKinds.push('image')
+    if (types.video) includeKinds.push('video')
+    if (types.file) includeKinds.push('file', 'audio')
+    app.actions.startDownload(svc, {
+      creatorIds: [...sel],
+      skipExisting: skipDup,
+      concurrency: app.state.concurrency,
+      includeKinds
+    })
+  }
 
   const typeRow: [PostType, string, string][] = [
     ['image', L.images, 'image'],
@@ -427,36 +308,42 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
         }}
       >
         <div>
-          <SectionLabel>{L.scope}</SectionLabel>
-          <ScopeRadio value={scope} onChange={setScope} L={L} />
-          {scope === 'range' && (
-            <RangePicker since={since} until={until} setSince={setSince} setUntil={setUntil} L={L} />
-          )}
-        </div>
-
-        <div>
           <SectionLabel
             action={
-              <span
-                onClick={() => setSel(allSel ? new Set() : new Set(creators.map((c) => c.id)))}
-                style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                {allSel ? L.deselectAll : L.selectAll}
-              </span>
+              creators.length > 0 ? (
+                <span
+                  onClick={() =>
+                    setSel(allSel ? new Set() : new Set(creators.map((c) => c.creatorId)))
+                  }
+                  style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  {allSel ? L.deselectAll : L.selectAll}
+                </span>
+              ) : undefined
             }
           >
-            {L.creators} · {sel.size}/{creators.length}
+            {L.creators}
+            {creators.length > 0 ? ` · ${sel.size}/${creators.length}` : ''}
           </SectionLabel>
           <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '4px 12px' }}>
-            {creators.map((c) => (
-              <Check
-                key={c.id}
-                on={sel.has(c.id)}
-                onClick={() => toggleSel(c.id)}
-                label={c.name}
-                count={allPosts.filter((p) => p.creator === c.id).length}
-              />
-            ))}
+            {!loggedIn ? (
+              <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>
+                {L.loginToSeeCreators}
+              </div>
+            ) : loadingCreators ? (
+              <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.loading}</div>
+            ) : creators.length === 0 ? (
+              <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.noCreators}</div>
+            ) : (
+              creators.map((c) => (
+                <Check
+                  key={c.creatorId}
+                  on={sel.has(c.creatorId)}
+                  onClick={() => toggleSel(c.creatorId)}
+                  label={c.name}
+                />
+              ))
+            )}
           </div>
         </div>
 
@@ -498,13 +385,21 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
               label={L.skipDuplicates}
               hint={L.skipDupHint}
             />
-            <OptToggle
-              on={foldering}
-              onClick={() => setFoldering(!foldering)}
-              icon="folder"
-              label={L.folderByDate}
-              hint="service / user / YYYY / MM / id"
-            />
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 4px' }}
+              title={L.folderByDate}
+            >
+              <Icon name="folder" size={16} style={{ color: 'var(--text-3)' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-2)' }}>
+                  {L.folderByDate}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+                  service / user / YYYY / MM / id
+                </div>
+              </div>
+              <Icon name="check" size={15} style={{ color: 'var(--ok)' }} />
+            </div>
           </div>
         </div>
 
@@ -540,44 +435,15 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
       </div>
 
       <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginBottom: 11,
-            fontSize: 12
-          }}
-        >
-          <span style={{ color: 'var(--text-3)' }}>{L.estimate}</span>
-          <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)', fontWeight: 600 }}>
-            {plan.posts} {L.postsUnit} · {plan.files} {L.filesUnit} · {fmtSize(plan.sizeMB)}
-          </span>
-        </div>
-        {skipDup && plan.dup > 0 && (
-          <div
-            style={{
-              fontSize: 11,
-              color: 'var(--text-3)',
-              marginBottom: 11,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}
-          >
-            <Icon name="check" size={12} style={{ color: 'var(--ok)' }} />
-            {plan.dup} {L.dupSkipped}
-          </div>
-        )}
         <button
-          onClick={() => loggedIn && plan.posts > 0 && app.actions.startDownload(svc, plan)}
-          disabled={!loggedIn || plan.posts === 0}
+          onClick={start}
+          disabled={!canStart}
           style={{
             width: '100%',
             padding: '13px',
             borderRadius: 11,
             border: 'none',
-            cursor: loggedIn && plan.posts ? 'pointer' : 'not-allowed',
+            cursor: canStart ? 'pointer' : 'not-allowed',
             fontSize: 14.5,
             fontWeight: 700,
             fontFamily: 'inherit',
@@ -585,9 +451,9 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
             alignItems: 'center',
             justifyContent: 'center',
             gap: 9,
-            background: loggedIn && plan.posts ? 'var(--accent)' : 'var(--surface-2)',
-            color: loggedIn && plan.posts ? '#fff' : 'var(--text-3)',
-            boxShadow: loggedIn && plan.posts ? '0 4px 16px var(--accent-shadow)' : 'none'
+            background: canStart ? 'var(--accent)' : 'var(--surface-2)',
+            color: canStart ? '#fff' : 'var(--text-3)',
+            boxShadow: canStart ? '0 4px 16px var(--accent-shadow)' : 'none'
           }}
         >
           <Icon name="download" size={18} strokeWidth={2.2} />

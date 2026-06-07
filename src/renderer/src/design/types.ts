@@ -1,4 +1,5 @@
 /* fc-downloader — renderer design-layer types (ported from the design handoff) */
+import type { DownloadOptions } from '@shared/types'
 
 export type ServiceId = 'fantia' | 'fanbox' | 'patreon' | 'cien'
 
@@ -62,17 +63,11 @@ export type Nav =
   | { screen: 'post'; postId: number; from?: string }
   | { screen: 'settings' }
 
-export interface DownloadPlan {
-  items: Post[]
-  dup?: number
-}
-
+/** A live download run, driven by real main-process events. */
 export interface DownloadState {
   svcId: ServiceId
-  items: Post[]
-  dup: number
-  done: boolean
   startedAt: number
+  done: boolean
 }
 
 export interface AppState {
@@ -91,7 +86,9 @@ export interface AppActions {
   recheckAuth: (id: ServiceId) => void
   /** Clear a service's cookies/session (services:clearSession). */
   clearSession: (id: ServiceId) => void
-  startDownload: (svc: DesignService, plan: DownloadPlan) => void
+  /** Kick off a real download run for a service with the given options. */
+  startDownload: (svc: DesignService, options: DownloadOptions) => void
+  /** Mark the active run as finished (called on the download:done event). */
   markDownloadDone: () => void
   cancelDownload: () => void
   setConcurrency: (n: number) => void

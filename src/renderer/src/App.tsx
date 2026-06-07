@@ -81,7 +81,6 @@ export function App() {
   const [concurrency, setConcurrencyState] = useState(3)
   const [skipDupDefault, setSkipDupDefault] = useState(true)
   const [brandLogos, setBrandLogos] = useState<Record<string, string>>(() => loadJson(LOGO_KEY, {}))
-  const [, setRev] = useState(0)
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const sysDark = useSystemDark()
 
@@ -134,30 +133,17 @@ export function App() {
     clearSession: (id) => {
       void bridge.clearSession(id).then(() => setLogins((s) => ({ ...s, [id]: false })))
     },
-    startDownload: (svc, plan) => {
-      setDownload({
-        svcId: svc.id,
-        items: plan.items,
-        dup: plan.dup || 0,
-        done: false,
-        startedAt: Date.now()
-      })
+    startDownload: (svc, options) => {
+      setDownload({ svcId: svc.id, startedAt: Date.now(), done: false })
+      void bridge.startDownload(svc.id, options)
       setNav({ screen: 'progress' })
     },
-    markDownloadDone: () =>
-      setDownload((d) => {
-        if (d && !d.done) {
-          d.items.forEach((p) => {
-            p.status = 'done'
-          })
-          setRev((r) => r + 1)
-          return { ...d, done: true }
-        }
-        return d
-      }),
+    markDownloadDone: () => setDownload((d) => (d && !d.done ? { ...d, done: true } : d)),
     cancelDownload: () => {
+      void bridge.cancelDownload()
+      const svcId = download?.svcId ?? 'fantia'
       setDownload(null)
-      setNav({ screen: 'service', serviceId: 'fantia' })
+      setNav({ screen: 'service', serviceId: svcId })
     },
     setConcurrency,
     pickSaveDir: () => {
