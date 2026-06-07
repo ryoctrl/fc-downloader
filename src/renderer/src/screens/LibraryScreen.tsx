@@ -1,5 +1,6 @@
 /* fc-downloader — file viewer (library): tree + grid/list + filters, real data */
 import { Fragment, useEffect, useMemo, useState, type ReactNode, type UIEvent } from 'react'
+import { THUMBNAIL_WIDTH } from '@shared/constants'
 import type { Dict, ServiceId, ViewMode } from '../design/types'
 import { FC, fmtSize } from '../design/data'
 import { libraryTotals, type ViewPost } from '../design/library'
@@ -306,23 +307,13 @@ function typeIcon(type: ViewPost['type']): string {
 }
 
 /** Real cover image if the post has one, else the striped placeholder. */
-function Cover({
-  post,
-  radius,
-  ratio,
-  thumbW = 480
-}: {
-  post: ViewPost
-  radius: number
-  ratio: string
-  /** Requested thumbnail width — the cover is downscaled server-side, never the
-   *  full-resolution original. */
-  thumbW?: number
-}) {
+function Cover({ post, radius, ratio }: { post: ViewPost; radius: number; ratio: string }) {
   if (post.coverUrl) {
     return (
       <img
-        src={`${post.coverUrl}?w=${thumbW}`}
+        // Single pre-generated thumbnail size (downscaled server-side, never the
+        // full-resolution original); CSS scales it for grid vs list.
+        src={`${post.coverUrl}?w=${THUMBNAIL_WIDTH}`}
         alt=""
         loading="lazy"
         decoding="async"
@@ -472,7 +463,7 @@ function PostRow({ post, onOpen }: { post: ViewPost; onOpen: () => void }) {
       }}
     >
       <div style={{ width: 44, flexShrink: 0 }}>
-        <Cover post={post} radius={7} ratio="1 / 1" thumbW={96} />
+        <Cover post={post} radius={7} ratio="1 / 1" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div

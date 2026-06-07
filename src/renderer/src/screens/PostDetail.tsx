@@ -1,6 +1,7 @@
 /* fc-downloader — post detail with real media preview (fcfile:// files) */
 import { useEffect, useState, type ReactNode } from 'react'
 import type { LibraryFile } from '@shared/types'
+import { THUMBNAIL_WIDTH } from '@shared/constants'
 import { FC, fmtSize } from '../design/data'
 import type { Dict } from '../design/types'
 import type { ViewPost } from '../design/library'
@@ -142,8 +143,8 @@ function Preview({
           {images.map((img, i) => (
             <img
               key={img.url}
-              // Grid previews use a downscaled thumbnail; the lightbox loads full-res.
-              src={`${img.url}?w=640`}
+              // Grid previews use the pre-generated thumbnail; the lightbox loads full-res.
+              src={`${img.url}?w=${THUMBNAIL_WIDTH}`}
               alt={img.name}
               loading="lazy"
               decoding="async"
