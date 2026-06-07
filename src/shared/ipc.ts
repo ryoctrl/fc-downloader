@@ -50,6 +50,12 @@ export interface IpcApi {
   /** Fetch avatars for already-downloaded creators that lack one. Returns the
    * number of creators updated (0 if none missing or not logged in). */
   'library:backfillAvatars': { args: []; result: number }
+  /** Reconcile the ledger with disk: drop records for files deleted outside the
+   * app, removing now-empty posts. Returns what changed. */
+  'library:reconcile': {
+    args: []
+    result: { removedPosts: number; updatedPosts: number; removedFiles: number }
+  }
 }
 
 export type IpcChannel = keyof IpcApi

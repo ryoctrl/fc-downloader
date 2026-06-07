@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -11,6 +11,7 @@ import {
   isPostComplete,
   listPosts,
   markFileDownloaded,
+  reconcileWithDisk,
   refreshPostCompletion,
   setCreatorIcon,
   upsertPost
@@ -228,6 +229,48 @@ describe('listPosts', () => {
     expect(icons.get('2')).toBe('fcfile://fc/fanbox/a/_avatar.jpg') // applied to all of a's posts
     expect(icons.get('3')).toBe('fcfile://fc/has-icon.jpg') // other creator untouched
     expect(creatorsMissingIcon()).toEqual([]) // nothing missing now
+  })
+
+  it('reconcileWithDisk drops missing files, removes emptied posts, keeps intact ones', async () => {
+    const base = (postId: string, files: Post['files']): Post => ({
+      serviceId: 'fanbox',
+      creatorId: 'c',
+      postId,
+      title: 't',
+      postedAt: '2025-06-01T00:00:00.000Z',
+      year: 2025,
+      month: 6,
+      files
+    })
+
+    // Post A: one file on disk, one recorded-but-deleted.
+    const dirA = join(dir, 'a')
+    mkdirSync(dirA, { recursive: true })
+    writeFileSync(join(dirA, 'keep.png'), 'x')
+    const postA = base('A', [
+      { fileId: 'k', kind: 'image', name: 'keep.png', url: 'x' },
+      { fileId: 'g', kind: 'image', name: 'gone.png', url: 'x' }
+    ])
+    upsertPost(postA, dirA)
+    markFileDownloaded(postA, 'k', 'keep.png', 1, 'image')
+    markFileDownloaded(postA, 'g', 'gone.png', 1, 'image') // never written -> missing
+
+    // Post B: its only file is gone -> whole post should be removed.
+    const dirB = join(dir, 'b')
+    mkdirSync(dirB, { recursive: true })
+    const postB = base('B', [{ fileId: 'x', kind: 'image', name: 'x.png', url: 'x' }])
+    upsertPost(postB, dirB)
+    markFileDownloaded(postB, 'x', 'x.png', 1, 'image') // never written -> missing
+
+    const r = await reconcileWithDisk()
+    expect(r).toEqual({ removedFiles: 2, removedPosts: 1, updatedPosts: 1 })
+
+    const posts = listPosts()
+    expect(posts.find((p) => p.postId === 'B')).toBeUndefined() // fully gone
+    const a = posts.find((p) => p.postId === 'A')
+    expect(a?.fileCount).toBe(1) // only keep.png remains
+    expect(a?.completed).toBe(false) // lost a file -> marked incomplete
+    expect(isFileDownloaded('fanbox', 'c', 'A', 'g')).toBe(false) // record dropped
   })
 
   it('sorts newest first by postedAt', () => {

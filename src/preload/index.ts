@@ -19,7 +19,8 @@ const invokeChannels: IpcChannel[] = [
   'window:pinBounds',
   'posts:list',
   'posts:files',
-  'library:backfillAvatars'
+  'library:backfillAvatars',
+  'library:reconcile'
 ]
 
 const api = {
