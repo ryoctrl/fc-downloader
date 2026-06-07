@@ -5,6 +5,8 @@ declare global {
   interface Window {
     api: RendererApi
   }
+  /** App version, injected from package.json at build time (electron.vite.config). */
+  const __APP_VERSION__: string
 }
 
 export {}
