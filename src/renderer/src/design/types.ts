@@ -96,6 +96,9 @@ export interface AppState {
   concurrency: number
   /** Persisted download-form selections (file types + skip-dup). */
   downloadPrefs: DownloadPrefs
+  /** Per-service selected creator ids (serviceId -> creatorIds). Absent = all
+   *  selected by default. Persisted so the choice survives service switches. */
+  creatorSel: Record<string, string[]>
 }
 
 export interface AppActions {
@@ -121,6 +124,8 @@ export interface AppActions {
   pickSaveDir: () => void
   /** Update + persist cross-service download-form selections. */
   setDownloadPrefs: (patch: Partial<DownloadPrefs>) => void
+  /** Set + persist the selected creator ids for a service. */
+  setCreatorSel: (serviceId: ServiceId, ids: string[]) => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */
