@@ -434,7 +434,7 @@ export function SettingsScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 12.5, color: 'var(--text-2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ color: 'var(--text-3)' }}>fc-downloader</span>
-              <span style={{ fontFamily: 'var(--mono)' }}>v0.4.0</span>
+              <span style={{ fontFamily: 'var(--mono)' }}>v{__APP_VERSION__}</span>
             </div>
             <div
               style={{
