@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pad2, postDir, sanitizeFileName, toLocationParts } from './layout'
+import { dedupeFileNames, pad2, postDir, sanitizeFileName, toLocationParts } from './layout'
 
 describe('toLocationParts', () => {
   it('derives year/month from an ISO timestamp', () => {
@@ -21,6 +21,38 @@ describe('sanitizeFileName', () => {
   })
   it('falls back to a name for empty input', () => {
     expect(sanitizeFileName('')).toBe('unnamed')
+  })
+})
+
+describe('dedupeFileNames', () => {
+  it('leaves already-distinct names untouched', () => {
+    expect(dedupeFileNames(['a.jpg', 'b.png'])).toEqual(['a.jpg', 'b.png'])
+  })
+
+  it('suffixes duplicates before the extension, keeping the first as-is', () => {
+    expect(dedupeFileNames(['a.jpg', 'a.jpg', 'a.jpg'])).toEqual(['a.jpg', 'a_2.jpg', 'a_3.jpg'])
+  })
+
+  it('treats names that sanitize to the same value as collisions', () => {
+    // both sanitize to "a_b.jpg" (':' and '?' and '/' all -> '_')
+    expect(dedupeFileNames(['a:b.jpg', 'a?b.jpg', 'a/b.jpg'])).toEqual([
+      'a_b.jpg',
+      'a_b_2.jpg',
+      'a_b_3.jpg'
+    ])
+  })
+
+  it('compares case-insensitively (Windows/macOS file systems)', () => {
+    expect(dedupeFileNames(['Photo.JPG', 'photo.jpg'])).toEqual(['Photo.JPG', 'photo_2.jpg'])
+  })
+
+  it('handles extensionless names', () => {
+    expect(dedupeFileNames(['readme', 'readme'])).toEqual(['readme', 'readme_2'])
+  })
+
+  it('produces names that are stable under a further sanitize pass', () => {
+    const out = dedupeFileNames(['x y.jpg', 'x y.jpg'])
+    expect(out.map(sanitizeFileName)).toEqual(out)
   })
 })
 
