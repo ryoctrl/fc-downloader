@@ -306,11 +306,23 @@ function typeIcon(type: ViewPost['type']): string {
 }
 
 /** Real cover image if the post has one, else the striped placeholder. */
-function Cover({ post, radius, ratio }: { post: ViewPost; radius: number; ratio: string }) {
+function Cover({
+  post,
+  radius,
+  ratio,
+  thumbW = 480
+}: {
+  post: ViewPost
+  radius: number
+  ratio: string
+  /** Requested thumbnail width — the cover is downscaled server-side, never the
+   *  full-resolution original. */
+  thumbW?: number
+}) {
   if (post.coverUrl) {
     return (
       <img
-        src={post.coverUrl}
+        src={`${post.coverUrl}?w=${thumbW}`}
         alt=""
         loading="lazy"
         decoding="async"
@@ -460,7 +472,7 @@ function PostRow({ post, onOpen }: { post: ViewPost; onOpen: () => void }) {
       }}
     >
       <div style={{ width: 44, flexShrink: 0 }}>
-        <Cover post={post} radius={7} ratio="1 / 1" />
+        <Cover post={post} radius={7} ratio="1 / 1" thumbW={96} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div

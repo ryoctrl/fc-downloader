@@ -13,7 +13,8 @@ import { join, normalize } from 'node:path'
 import { Readable } from 'node:stream'
 import { protocol } from 'electron'
 import { getSettings } from '@main/storage/settings'
-import { isWithinRoot, mimeForName } from '@main/storage/files'
+import { isWithinRoot, kindForName, mimeForName } from '@main/storage/files'
+import { getThumbnail } from '@main/storage/thumbnails'
 
 export const FCFILE_SCHEME = 'fcfile'
 
@@ -44,13 +45,39 @@ export function registerFcfileHandler(): void {
   protocol.handle(FCFILE_SCHEME, async (request) => {
     const root = getSettings().downloadRoot
     let rel: string
+    let thumbWidth = 0
     try {
-      rel = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '')
+      const url = new URL(request.url)
+      rel = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+      const w = parseInt(url.searchParams.get('w') ?? '', 10)
+      if (Number.isFinite(w) && w > 0) thumbWidth = w
     } catch {
       return new Response('Bad request', { status: 400 })
     }
     const full = normalize(join(root, rel))
     if (!isWithinRoot(root, full)) return new Response('Forbidden', { status: 403 })
+
+    // Downloaded files are immutable (a given path's bytes never change — dedup
+    // skips re-downloads), so let the renderer cache them. Without this every
+    // library re-navigation re-streams and re-decodes full-res images.
+    const cacheControl = 'private, max-age=86400, immutable'
+
+    // Thumbnail request (?w=N) for an image: serve a downscaled JPEG instead of
+    // the full-resolution original (huge originals otherwise jank the library).
+    if (thumbWidth > 0 && kindForName(full) === 'image') {
+      const buf = await getThumbnail(full, thumbWidth)
+      if (buf) {
+        return new Response(new Uint8Array(buf), {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': String(buf.length),
+            'Cache-Control': cacheControl
+          }
+        })
+      }
+      // fall through to serving the original on generation failure
+    }
 
     let size: number
     try {
@@ -62,10 +89,6 @@ export function registerFcfileHandler(): void {
     }
 
     const type = mimeForName(full)
-    // Downloaded files are immutable (a given path's bytes never change — dedup
-    // skips re-downloads), so let the renderer cache them. Without this every
-    // library re-navigation re-streams and re-decodes full-res images.
-    const cacheControl = 'private, max-age=86400, immutable'
     const range = parseRange(request.headers.get('range'), size)
     if (range) {
       const { start, end } = range

@@ -142,7 +142,8 @@ function Preview({
           {images.map((img, i) => (
             <img
               key={img.url}
-              src={img.url}
+              // Grid previews use a downscaled thumbnail; the lightbox loads full-res.
+              src={`${img.url}?w=640`}
               alt={img.name}
               loading="lazy"
               decoding="async"
