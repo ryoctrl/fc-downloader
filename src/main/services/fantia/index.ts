@@ -2,13 +2,18 @@
  * Fantia service adapter.
  *
  * Auth is via the user's interactive login in the embedded WebView; this
- * adapter reuses the resulting session cookies through ctx.fetchJson. Media is
- * served with a Fantia Referer requirement (see `downloadHeaders`).
+ * adapter reuses the resulting `_session_id` cookie. The endpoints/shapes below
+ * were verified against the live fantia.jp with a logged-in session
+ * (2026-06-08) — see scripts/probe-fantia.cjs.
  *
- * Fantia has no official public API — endpoint paths/shapes are based on the
- * site's internal XHR and are marked `VERIFY:`. Confirming them requires a real
- * logged-in account (an external dependency); until then listCreators/listPosts
- * degrade to empty results. See docs/spec/service-abstraction.md.
+ * Notable quirks (vs Fanbox):
+ * - `GET /api/v1/me` returns `{ current_user: { id, ... } }` (200) when logged
+ *   in, 401 otherwise.
+ * - The per-fanclub post listing is the **HTML** page
+ *   `/fanclubs/{id}/posts?page=N` (NO `X-Requested-With` header, else JSON 404);
+ *   we scrape `/posts/{id}` links from it.
+ * - `GET /api/v1/posts/{id}` requires an `X-CSRF-Token` header (taken from the
+ *   `<meta name="csrf-token">` on any HTML page) — without it, 403.
  */
 import type { Creator, Post } from '@shared/types'
 import type { Service, ServiceContext } from '../types'
@@ -16,19 +21,25 @@ import { normalizePost, type RawFantiaPostResponse } from './normalize'
 
 const BASE = 'https://fantia.jp'
 const API = `${BASE}/api/v1`
+const XHR = { 'X-Requested-With': 'XMLHttpRequest' }
+
+function extractCsrf(html: string): string {
+  const m = html.match(/<meta name="csrf-token" content="([^"]+)"/)
+  return m ? m[1] : ''
+}
 
 export const fantiaService: Service = {
   id: 'fantia',
   name: 'Fantia',
   homeUrl: `${BASE}/`,
-  // Fantia media is served from a CDN that requires a Fantia Referer.
   downloadHeaders: { Referer: `${BASE}/` },
 
   async checkAuth(ctx: ServiceContext): Promise<boolean> {
     try {
-      // VERIFY: /api/v1/me returns the current user (with id) when logged in.
-      const me = await ctx.fetchJson<{ id?: number } | null>(`${API}/me`)
-      return !!me && typeof me.id === 'number'
+      const me = await ctx.fetchJson<{ current_user?: { id?: number } }>(`${API}/me`, {
+        headers: XHR
+      })
+      return typeof me?.current_user?.id === 'number'
     } catch (err) {
       ctx.log('debug', 'checkAuth failed (treating as logged out)', err)
       return false
@@ -36,81 +47,81 @@ export const fantiaService: Service = {
   },
 
   async listCreators(ctx: ServiceContext): Promise<Creator[]> {
-    // VERIFY: endpoint listing the fanclubs the user supports. The JSON shape
-    // below is assumed; many Fantia mypage views are HTML and may need scraping.
+    let ids: number[]
     try {
-      const res = await ctx.fetchJson<{ fanclubs?: RawFanclub[] }>(`${API}/me/fanclubs`)
-      return (res.fanclubs ?? []).map((f) => ({
-        serviceId: 'fantia' as const,
-        creatorId: String(f.id),
-        name: f.creator_name ?? f.fanclub_name ?? String(f.id),
-        iconUrl: f.icon?.main
-      }))
+      const res = await ctx.fetchJson<{ fanclub_ids?: number[] }>(`${API}/me/fanclubs`, {
+        headers: XHR
+      })
+      ids = res.fanclub_ids ?? []
     } catch (err) {
-      ctx.log('error', 'listCreators failed', err)
+      ctx.log('error', 'listCreators (me/fanclubs) failed', err)
       return []
     }
+    // Resolve each fanclub's display name (best-effort).
+    const creators: Creator[] = []
+    for (const id of ids) {
+      ctx.signal.throwIfAborted()
+      let name = String(id)
+      let iconUrl: string | undefined
+      try {
+        const fc = await ctx.fetchJson<{
+          fanclub?: { fanclub_name?: string; creator_name?: string; icon?: { main?: string } }
+        }>(`${API}/fanclubs/${id}`, { headers: XHR })
+        name = fc.fanclub?.fanclub_name || fc.fanclub?.creator_name || String(id)
+        iconUrl = fc.fanclub?.icon?.main
+      } catch (err) {
+        ctx.log('debug', `fanclub ${id} name lookup failed`, err)
+      }
+      creators.push({ serviceId: 'fantia', creatorId: String(id), name, iconUrl })
+    }
+    return creators
   },
 
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
-    // VERIFY: fanclub post listing + pagination, then per-post detail.
-    let page = 1
-    for (;;) {
+    let csrf = ''
+    const seen = new Set<string>()
+    const MAX_PAGES = 500 // safety against stray links never terminating
+    for (let page = 1; page <= MAX_PAGES; page++) {
       ctx.signal.throwIfAborted()
-      let ids: string[]
+      let html: string
       try {
-        ids = await fetchPostIds(ctx, creatorId, page)
+        // HTML listing — must NOT send the XHR header (otherwise JSON 404).
+        html = await ctx.fetchText(`${BASE}/fanclubs/${encodeURIComponent(creatorId)}/posts?page=${page}`)
       } catch (err) {
-        ctx.log('error', `listPosts page ${page} failed for ${creatorId}`, err)
+        ctx.log('error', `fanclub posts page ${page} failed for ${creatorId}`, err)
         return
       }
-      if (ids.length === 0) return
-      for (const id of ids) {
+      if (!csrf) csrf = extractCsrf(html)
+      const ids = [...new Set([...html.matchAll(/\/posts\/(\d+)/g)].map((m) => m[1]))]
+      const fresh = ids.filter((id) => !seen.has(id))
+      if (fresh.length === 0) return // no new posts on this page -> done
+      for (const id of fresh) {
+        seen.add(id)
         ctx.signal.throwIfAborted()
-        const post = await fetchPostDetail(ctx, creatorId, id)
+        const post = await fetchPostDetail(ctx, creatorId, id, csrf)
         if (post) yield post
       }
-      page += 1
     }
   },
 
   async resolvePost(_ctx: ServiceContext, post: Post): Promise<Post> {
-    // listPosts already fetches full detail per post.
     return post
   }
-}
-
-/** VERIFY: a supported fanclub entry. */
-interface RawFanclub {
-  id: number
-  creator_name?: string
-  fanclub_name?: string
-  icon?: { main?: string }
-}
-
-/** VERIFY: a page of post ids for a fanclub. */
-async function fetchPostIds(ctx: ServiceContext, fanclubId: string, page: number): Promise<string[]> {
-  // VERIFY: real listing endpoint & pagination. Assumes a JSON summary list;
-  // if the live listing is HTML, parse post anchors here instead.
-  const res = await ctx.fetchJson<{ posts?: Array<{ id: number }> }>(
-    `${API}/fanclubs/${encodeURIComponent(fanclubId)}/posts?page=${page}`
-  )
-  return (res.posts ?? []).map((p) => String(p.id))
 }
 
 async function fetchPostDetail(
   ctx: ServiceContext,
   creatorId: string,
-  postId: string
+  postId: string,
+  csrf: string
 ): Promise<Post | null> {
   try {
-    // VERIFY: the post detail endpoint and its response body shape.
-    const raw = await ctx.fetchJson<RawFantiaPostResponse>(
-      `${API}/posts/${encodeURIComponent(postId)}`
-    )
-    return normalizePost(creatorId, raw)
+    const res = await ctx.fetchJson<RawFantiaPostResponse>(`${API}/posts/${encodeURIComponent(postId)}`, {
+      headers: { ...XHR, 'X-CSRF-Token': csrf }
+    })
+    return normalizePost(creatorId, res)
   } catch (err) {
-    ctx.log('warn', `post.info ${postId} failed`, err)
+    ctx.log('warn', `post ${postId} detail failed`, err)
     return null
   }
 }
