@@ -1,5 +1,5 @@
 /* fc-downloader — renderer design-layer types (ported from the design handoff) */
-import type { Creator, DownloadOptions } from '@shared/types'
+import type { Creator, DownloadOptions, DownloadProgress } from '@shared/types'
 import type { ViewPost } from './library'
 
 export type ServiceId = 'fantia' | 'fanbox' | 'patreon' | 'cien'
@@ -97,6 +97,10 @@ export interface AppState {
   /** Favorited post keys (serviceId/creatorId/postId), persisted locally. */
   favs: Set<string>
   download: DownloadState | null
+  /** Latest progress snapshot for the active/last run, kept at the app level so
+   *  the progress screen can recover it after navigating away and back (the
+   *  per-screen subscription misses events while unmounted). */
+  lastProgress: DownloadProgress | null
   /** Services waiting in the download queue (behind the active one). */
   queued: ServiceId[]
   saveDir: string
