@@ -48,8 +48,7 @@ export function toViewPost(lp: LibraryPost): ViewPost {
     key: postKey(lp.serviceId, lp.creatorId, lp.postId),
     service: lp.serviceId,
     creator: lp.creatorId,
-    // The ledger has no display name; fall back to the creator id.
-    creatorName: lp.creatorId,
+    creatorName: lp.creatorName,
     postId: lp.postId,
     title: lp.title,
     year: lp.year,

@@ -131,6 +131,8 @@ export interface AppSettings {
 export interface LibraryPost {
   serviceId: ServiceId
   creatorId: string
+  /** Display name (falls back to creatorId if unknown). */
+  creatorName: string
   postId: string
   title: string
   /** ISO-8601 publish timestamp. */
