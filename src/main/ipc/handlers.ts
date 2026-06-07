@@ -7,6 +7,7 @@ import { createServiceContext } from '@main/services/context'
 import { clearSession } from '@main/session/manager'
 import { getSettings, updateSettings } from '@main/storage/settings'
 import { buildViewerTree } from '@main/storage/viewer'
+import { listPosts } from '@main/storage/db'
 import { DownloadEngine } from '@main/download/engine'
 
 const engine = new DownloadEngine()
@@ -129,4 +130,6 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   handle('viewer:openPath', async (path) => {
     await shell.openPath(path)
   })
+
+  handle('posts:list', async () => listPosts())
 }

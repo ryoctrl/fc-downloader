@@ -6,7 +6,14 @@
  * is undefined and there is no preload bridge).
  */
 import type { IpcEvents, RendererApi } from '@shared/ipc'
-import type { AppSettings, Creator, DownloadOptions, ServiceId, ViewerNode } from '@shared/types'
+import type {
+  AppSettings,
+  Creator,
+  DownloadOptions,
+  LibraryPost,
+  ServiceId,
+  ViewerNode
+} from '@shared/types'
 
 const api: RendererApi | undefined =
   typeof window !== 'undefined' ? (window as unknown as { api?: RendererApi }).api : undefined
@@ -47,7 +54,8 @@ export const bridge = {
   onDownloadDone: (cb: (p: IpcEvents['download:done']) => void): (() => void) =>
     api ? api.on('download:done', cb) : noop,
 
-  // viewer
+  // viewer / library
   viewerTree: (): Promise<ViewerNode[]> => api?.['viewer:tree']() ?? Promise.resolve([]),
-  openPath: (path: string): Promise<void> => api?.['viewer:openPath'](path) ?? Promise.resolve()
+  openPath: (path: string): Promise<void> => api?.['viewer:openPath'](path) ?? Promise.resolve(),
+  listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([])
 }

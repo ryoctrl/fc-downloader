@@ -155,7 +155,7 @@ export class DownloadEngine {
       const dest = filePath(root, loc, file.name)
       try {
         if (options.skipExisting && (await exists(dest))) {
-          markFileDownloaded(post, file.fileId, file.name)
+          markFileDownloaded(post, file.fileId, file.name, undefined, file.kind)
           this.progress.skipped += 1
           cb.onItem?.({
             serviceId,
@@ -166,7 +166,7 @@ export class DownloadEngine {
           })
         } else {
           const size = await this.downloadFile(serviceId, file, dest)
-          markFileDownloaded(post, file.fileId, file.name, size)
+          markFileDownloaded(post, file.fileId, file.name, size, file.kind)
           this.progress.completed += 1
           this.progress.bytesDownloaded += size
           cb.onItem?.({

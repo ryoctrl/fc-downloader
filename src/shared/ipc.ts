@@ -13,6 +13,7 @@ import type {
   DownloadItem,
   DownloadOptions,
   DownloadProgress,
+  LibraryPost,
   ServiceDescriptor,
   ServiceId,
   ViewerNode
@@ -37,6 +38,8 @@ export interface IpcApi {
 
   'viewer:tree': { args: []; result: ViewerNode[] }
   'viewer:openPath': { args: [path: string]; result: void }
+
+  'posts:list': { args: []; result: LibraryPost[] }
 }
 
 export type IpcChannel = keyof IpcApi
