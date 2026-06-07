@@ -90,9 +90,17 @@ export function ProgressScreen() {
   }
 
   const done = dl.done
-  const p = progress ?? { total: 0, completed: 0, skipped: 0, failed: 0, inFlight: 0, bytesDownloaded: 0, bytesTotal: 0 }
+  const p = progress ?? {
+    total: 0,
+    completed: 0,
+    skipped: 0,
+    failed: 0,
+    inFlight: 0,
+    postsCompleted: 0,
+    bytesDownloaded: 0,
+    bytesTotal: 0
+  }
   const processed = p.completed + p.skipped + p.failed
-  const pct = done ? 100 : p.total > 0 ? Math.min(100, (processed / p.total) * 100) : 0
 
   const stat = (label: string, value: string, color?: string): ReactNode => (
     <div style={{ flex: 1 }}>
@@ -142,25 +150,53 @@ export function ProgressScreen() {
               fontSize: 38,
               fontWeight: 700,
               color: done ? 'var(--ok)' : 'var(--accent)',
-              fontVariantNumeric: 'tabular-nums'
+              fontVariantNumeric: 'tabular-nums',
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 4
             }}
           >
-            {Math.round(pct)}
-            <span style={{ fontSize: 20 }}>%</span>
+            {done ? (
+              <>
+                100<span style={{ fontSize: 20 }}>%</span>
+              </>
+            ) : (
+              <>
+                {p.postsCompleted}
+                <span style={{ fontSize: 15, color: 'var(--text-3)' }}>{L.postsUnit}</span>
+              </>
+            )}
           </div>
         </div>
-        <div style={{ height: 10, borderRadius: 99, background: 'var(--surface-2)', overflow: 'hidden' }}>
-          <div
-            style={{
-              height: '100%',
-              width: pct + '%',
-              borderRadius: 99,
-              background: done ? 'var(--ok)' : 'var(--accent)',
-              transition: 'width .2s linear'
-            }}
-          />
+        {/* The file total is discovered as the run streams, so a determinate %
+            would regress; show an indeterminate bar while running. */}
+        <div
+          style={{
+            position: 'relative',
+            height: 10,
+            borderRadius: 99,
+            background: 'var(--surface-2)',
+            overflow: 'hidden'
+          }}
+        >
+          {done ? (
+            <div style={{ height: '100%', width: '100%', borderRadius: 99, background: 'var(--ok)' }} />
+          ) : (
+            <div
+              className="fc-indeterminate"
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                width: '35%',
+                borderRadius: 99,
+                background: 'var(--accent)'
+              }}
+            />
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 22 }}>
+          {stat(L.postsUnit, `${p.postsCompleted}`, 'var(--accent)')}
           {stat(L.filesUnit, `${processed}/${p.total}`)}
           {stat(L.doneShort, `${p.completed}`, 'var(--ok)')}
           {stat(L.skipped, `${p.skipped}`)}

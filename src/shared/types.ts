@@ -102,6 +102,9 @@ export interface DownloadProgress {
   skipped: number
   failed: number
   inFlight: number
+  /** Posts fully processed so far (monotonic; the file total is discovered as
+   * the run streams, so this is the stable per-post counter for the UI). */
+  postsCompleted: number
   /** Bytes across the whole run. */
   bytesDownloaded: number
   bytesTotal: number

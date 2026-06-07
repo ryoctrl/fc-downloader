@@ -101,6 +101,7 @@ export class DownloadEngine {
             ).length
             this.progress.skipped += inScope
             this.progress.total += inScope
+            this.progress.postsCompleted += 1
             cb.onProgress({ ...this.progress })
             continue
           }
@@ -114,6 +115,8 @@ export class DownloadEngine {
             nameById.get(creatorId),
             avatarUrl
           )
+          this.progress.postsCompleted += 1
+          cb.onProgress({ ...this.progress })
         }
       }
     } finally {
@@ -257,6 +260,7 @@ function blankProgress(): DownloadProgress {
     skipped: 0,
     failed: 0,
     inFlight: 0,
+    postsCompleted: 0,
     bytesDownloaded: 0,
     bytesTotal: 0
   }
