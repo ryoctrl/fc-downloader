@@ -122,13 +122,17 @@ interface NetResponse {
  * bytes written. Throws an Error carrying a numeric `.status` on HTTP errors,
  * or an AbortError if the signal fires; in both cases the `.part` is removed.
  */
-export async function downloadToFile(
+export function downloadToFile(
   serviceId: ServiceId,
   url: string,
   destPath: string,
   init: DownloadFileInit = {}
 ): Promise<number> {
-  await awaitPoliteSlot(serviceId, init.signal)
+  // No politeness gate here: file downloads are bounded by the user's
+  // concurrency setting (the engine's worker pool), which is the load limit.
+  // The min-gap throttle would serialize parallel downloads into ~1 every
+  // MIN_GAP_MS, defeating the concurrency setting. (Metadata enumeration in
+  // requestFor still goes through awaitPoliteSlot to stay gentle.)
   const s = sessionFor(serviceId)
   return new Promise((resolve, reject) => {
     const request = net.request({ url, method: 'GET', session: s, useSessionCookies: true })
