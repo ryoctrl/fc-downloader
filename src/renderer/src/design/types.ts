@@ -67,6 +67,8 @@ export type Nav =
 /** A live download run, driven by real main-process events. */
 export interface DownloadState {
   svcId: ServiceId
+  /** The options the run was started with (for retrying). */
+  options: DownloadOptions
   startedAt: number
   done: boolean
 }
@@ -96,6 +98,8 @@ export interface AppActions {
   /** Mark the active run as finished (called on the download:done event). */
   markDownloadDone: () => void
   cancelDownload: () => void
+  /** Re-run the last download with the same options (dedup re-fetches gaps). */
+  retryDownload: () => void
   setConcurrency: (n: number) => void
   /** Open the OS folder picker and persist the chosen download root. */
   pickSaveDir: () => void
