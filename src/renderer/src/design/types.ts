@@ -64,6 +64,15 @@ export type Nav =
   | { screen: 'post'; postKey: string; from?: string }
   | { screen: 'settings' }
 
+/** Persisted, cross-service download-form selections (restored on launch). */
+export interface DownloadPrefs {
+  image: boolean
+  video: boolean
+  file: boolean
+  /** Skip posts already fully downloaded (dedup). */
+  skipDup: boolean
+}
+
 /** A live download run, driven by real main-process events. */
 export interface DownloadState {
   svcId: ServiceId
@@ -85,7 +94,8 @@ export interface AppState {
   queued: ServiceId[]
   saveDir: string
   concurrency: number
-  skipDupDefault: boolean
+  /** Persisted download-form selections (file types + skip-dup). */
+  downloadPrefs: DownloadPrefs
 }
 
 export interface AppActions {
@@ -109,7 +119,8 @@ export interface AppActions {
   setConcurrency: (n: number) => void
   /** Open the OS folder picker and persist the chosen download root. */
   pickSaveDir: () => void
-  toggleSkipDefault: () => void
+  /** Update + persist cross-service download-form selections. */
+  setDownloadPrefs: (patch: Partial<DownloadPrefs>) => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */
