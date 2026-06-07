@@ -1,7 +1,15 @@
 /* fc-downloader — bulk download progress, driven by real main-process events */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DownloadItem, DownloadProgress } from '@shared/types'
 import { FC, fmtSize } from '../design/data'
+import {
+  estimateEtaSec,
+  formatEta,
+  formatSpeed,
+  initSpeed,
+  pushSample,
+  type SpeedState
+} from '../design/metrics'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
@@ -23,15 +31,40 @@ export function ProgressScreen() {
   const svc = dl ? FC.serviceById(dl.svcId) : null
   const [progress, setProgress] = useState<DownloadProgress | null>(null)
   const [items, setItems] = useState<DownloadItem[]>([])
+  const [speedBps, setSpeedBps] = useState(0)
+  const [etaSec, setEtaSec] = useState<number | null>(null)
+  const speedRef = useRef<SpeedState>(initSpeed())
+  const startRef = useRef<{ t: number; processed: number; started: boolean }>({
+    t: 0,
+    processed: 0,
+    started: false
+  })
 
   // Subscribe to live download events; reset when a new run starts.
   useEffect(() => {
     setProgress(null)
     setItems([])
-    const offProgress = bridge.onDownloadProgress((p) => setProgress(p))
+    setSpeedBps(0)
+    setEtaSec(null)
+    speedRef.current = initSpeed()
+    startRef.current = { t: 0, processed: 0, started: false }
+
+    const offProgress = bridge.onDownloadProgress((p) => {
+      setProgress(p)
+      const now = Date.now()
+      const sample = pushSample(speedRef.current, p.bytesDownloaded, now)
+      speedRef.current = sample.state
+      setSpeedBps(sample.bps)
+      const processed = p.completed + p.skipped + p.failed
+      if (!startRef.current.started) startRef.current = { t: now, processed, started: true }
+      const elapsed = (now - startRef.current.t) / 1000
+      setEtaSec(estimateEtaSec(elapsed, processed, p.total, startRef.current.processed))
+    })
     const offItem = bridge.onDownloadItem((it) => setItems((list) => [it, ...list].slice(0, 300)))
     const offDone = bridge.onDownloadDone((p) => {
       setProgress(p)
+      setSpeedBps(0)
+      setEtaSec(null)
       app.actions.markDownloadDone()
     })
     return () => {
@@ -130,6 +163,8 @@ export function ProgressScreen() {
           {stat(L.skipped, `${p.skipped}`)}
           {stat(L.failed, `${p.failed}`, p.failed > 0 ? 'var(--danger)' : undefined)}
           {stat(L.size, fmtSize(p.bytesDownloaded / (1024 * 1024)))}
+          {stat(L.speed, done ? '—' : formatSpeed(speedBps))}
+          {stat(L.eta, done ? L.doneShort : formatEta(etaSec))}
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
           {done ? (
