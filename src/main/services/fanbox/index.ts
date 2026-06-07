@@ -6,9 +6,9 @@
  * api.fanbox.cc requires an `Origin: https://www.fanbox.cc` header, and the
  * media CDN requires a `Referer` (see `downloadHeaders`).
  *
- * Fanbox has no official public API — endpoint paths/shapes are based on the
- * site's internal XHR and are marked `VERIFY:`. See
- * docs/spec/service-abstraction.md for the verification workflow.
+ * Fanbox has no official public API; the endpoints/shapes below were verified
+ * against the live api.fanbox.cc with a logged-in session (2026-06-07) — see
+ * scripts/probe-fanbox.cjs and docs/spec/service-abstraction.md.
  */
 import type { Creator, Post } from '@shared/types'
 import type { Service, ServiceContext } from '../types'
@@ -29,13 +29,12 @@ export const fanboxService: Service = {
 
   async checkAuth(ctx: ServiceContext): Promise<boolean> {
     try {
-      // VERIFY: a lightweight authenticated endpoint. Returns { body: { count } }
-      // when logged in; 401 otherwise.
-      const res = await ctx.fetchJson<{ body?: { count?: number } }>(
-        `${API}/user.countUnreadMessages`,
-        { headers: apiHeaders }
-      )
-      return !!res && typeof res.body?.count === 'number'
+      // Verified: returns 200 `{ body: <number> }` when logged in, and HTTP 400
+      // `{ error: "general_error" }` otherwise (fetchJson throws on >= 400).
+      const res = await ctx.fetchJson<{ body?: unknown }>(`${API}/user.countUnreadMessages`, {
+        headers: apiHeaders
+      })
+      return !!res && Object.prototype.hasOwnProperty.call(res, 'body')
     } catch (err) {
       ctx.log('debug', 'checkAuth failed (treating as logged out)', err)
       return false
@@ -43,8 +42,9 @@ export const fanboxService: Service = {
   },
 
   async listCreators(ctx: ServiceContext): Promise<Creator[]> {
-    // VERIFY: plans the user supports. Followed (free) creators would come from
-    // creator.listFollowing; supported is the primary case for downloading.
+    // Verified: plan.listSupporting -> `{ body: [{ creatorId, user: { name,
+    // iconUrl }, ... }] }`. (Free follows would come from creator.listFollowing;
+    // supported plans are the downloadable case.)
     try {
       const res = await ctx.fetchJson<{ body?: RawSupportingPlan[] }>(
         `${API}/plan.listSupporting`,
@@ -71,24 +71,36 @@ export const fanboxService: Service = {
   },
 
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
-    // VERIFY: post.listCreator returns a page of summaries + a nextUrl cursor.
-    let url: string | null = `${API}/post.listCreator?creatorId=${encodeURIComponent(creatorId)}&limit=50`
-    while (url) {
+    // Verified pagination: post.paginateCreator returns `{ body: [pageUrl, ...] }`
+    // (cursor-based). Each page URL returns `{ body: [postSummary, ...] }`.
+    let pageUrls: string[]
+    try {
+      const pag = await ctx.fetchJson<{ body?: string[] }>(
+        `${API}/post.paginateCreator?creatorId=${encodeURIComponent(creatorId)}`,
+        { headers: apiHeaders }
+      )
+      pageUrls = pag.body ?? []
+    } catch (err) {
+      ctx.log('error', `post.paginateCreator failed for ${creatorId}`, err)
+      return
+    }
+    for (const pageUrl of pageUrls) {
       ctx.signal.throwIfAborted()
-      let page: { body?: { items?: Array<{ id: string }>; nextUrl?: string | null } }
+      let items: Array<{ id: string }>
       try {
-        page = await ctx.fetchJson(url, { headers: apiHeaders })
+        const page = await ctx.fetchJson<{ body?: Array<{ id: string }> }>(pageUrl, {
+          headers: apiHeaders
+        })
+        items = page.body ?? []
       } catch (err) {
-        ctx.log('error', `post.listCreator failed for ${creatorId}`, err)
-        return
+        ctx.log('warn', `post.listCreator page failed for ${creatorId}`, err)
+        continue
       }
-      const items = page.body?.items ?? []
       for (const item of items) {
         ctx.signal.throwIfAborted()
         const post = await fetchPostDetail(ctx, item.id)
         if (post) yield post
       }
-      url = page.body?.nextUrl ?? null
     }
   },
 

@@ -99,12 +99,19 @@ npm run dist       # package installers via electron-builder
 
 ## Current status & next steps
 
-MVP scaffold + the **full design UI** are implemented and **verified to
-install, typecheck, lint, test (5 passing), and build**. The renderer currently
-renders from a **mock data layer** (`src/renderer/src/design/data.ts`) — wiring
-it to the real backend is M2.5. The **Fantia adapter's network/parsing is
-stubbed** (endpoints marked `VERIFY:`). The remaining M1 item is a manual GUI
-launch (`npm run dev`). See
-[docs/roadmap.md](docs/roadmap.md) for the ordered task list. The immediate next
-task is making Fantia `listCreators` / `listPosts` / file-URL resolution real,
-backed by saved HTML/JSON fixtures and tests.
+The app is wired end-to-end on **real data** (the mock layer is gone): real
+per-service login state, real download (streaming + retry/backoff), a real
+library/viewer from the metadata ledger with `fcfile://` media preview + image
+lightbox, speed/ETA, creator names, failed-retry, offline-bundled fonts, and an
+app icon. **Pixiv Fanbox is verified against the live API** (checkAuth →
+list creators → posts → image download), see `scripts/probe-fanbox.cjs`.
+
+Gotcha fixed (don't regress): the per-service `<webview>` is keyed by
+`serviceId` in `App.tsx` so switching services remounts it with the correct
+`persist:<id>` partition — the `partition` attribute is immutable after attach,
+so without the key all logins leak into one partition.
+
+Remaining: **Fantia** is structured like Fanbox but its endpoints are still
+`VERIFY:` (needs a logged-in Fantia probe to confirm); ci-en/Patreon adapters;
+minor polish (range-resume, filename collision, download history). External
+blockers: code signing (Smart App Control). See [docs/roadmap.md](docs/roadmap.md).

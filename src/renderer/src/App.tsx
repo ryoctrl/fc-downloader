@@ -235,7 +235,10 @@ export function App() {
   const screen = () => {
     switch (nav.screen) {
       case 'service':
-        return <ServiceScreen serviceId={nav.serviceId} />
+        // Key by serviceId so switching services remounts the <webview> with
+        // the correct `persist:<id>` partition (the partition attribute is
+        // immutable after attach — without this, all logins share one session).
+        return <ServiceScreen key={nav.serviceId} serviceId={nav.serviceId} />
       case 'progress':
         return <ProgressScreen />
       case 'library':

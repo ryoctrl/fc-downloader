@@ -61,8 +61,12 @@ UI・エンジン・ストレージ側の変更は不要。
   相対 URL は `https://fantia.jp` で絶対化。`normalize.test.ts` にフィクスチャテストあり。
 - **実地検証は要ログインアカウント（外部依存）**。未検証のうちは listCreators/listPosts は空に縮退する。
 
-### Pixiv Fanbox（アダプタ実装済み）
+### Pixiv Fanbox（実装・**実 API 検証済み** 2026-06-07）
 - 実装: `src/main/services/fanbox/`（`index.ts` = ネットワーク、`normalize.ts` = 純粋変換 + テスト）。
+- ログイン済みセッションで `scripts/probe-fanbox.cjs` により実 API を検証（checkAuth→列挙→投稿→画像 DL まで通し確認）。
+- 確定エンドポイント: `user.countUnreadMessages`（200 `{body:数値}`=ログイン済み）/ `plan.listSupporting`（支援クリエイター）/
+  `post.paginateCreator`→ページ URL 配列→各 `post.listCreator`（`body` が投稿配列）→ `post.info`（`body.body.images/files/blocks`）。
+- 画像は `downloads.fanbox.cc`（Referer 必須＝`downloadHeaders`）。
 - ログイン: WebView で `https://www.fanbox.cc/`。Cookie は `FANBOXSESSID`。
 - API は `https://api.fanbox.cc`。**`Origin: https://www.fanbox.cc` ヘッダ必須**（`apiHeaders`）。
 - メディア CDN は **`Referer` 必須** → `Service.downloadHeaders` で全ファイル DL に付与（engine が適用）。
