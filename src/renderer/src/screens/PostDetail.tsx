@@ -1,5 +1,5 @@
 /* fc-downloader — post detail with real media preview (fcfile:// files) */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import type { LibraryFile } from '@shared/types'
 import { THUMBNAIL_WIDTH } from '@shared/constants'
 import { FC, fmtSize } from '../design/data'
@@ -9,6 +9,47 @@ import { Icon } from '../design/icons'
 import { Btn, ServiceMark, StatusBadge, Thumb } from '../design/primitives'
 import { useApp } from '../design/context'
 import { bridge } from '../bridge'
+
+/** Shared base style for the post action buttons (favorite / open in browser /
+ *  open folder) so they're visually consistent (same radius, border, height). */
+const ACTION_STYLE: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 7,
+  padding: '10px 13px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  border: '1px solid var(--border)',
+  background: 'transparent',
+  color: 'var(--text-2)'
+}
+
+/** Uppercase section heading for the media/file groups in the preview. */
+function SectionHeading({ icon, label, count }: { icon: string; label: string; count: number }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        marginTop: 4,
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: '.05em',
+        textTransform: 'uppercase',
+        color: 'var(--text-3)'
+      }}
+    >
+      <Icon name={icon} size={13} />
+      {label}
+      <span style={{ fontFamily: 'var(--mono)' }}>· {count}</span>
+    </div>
+  )
+}
 
 function MetaRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -100,6 +141,7 @@ function Preview({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {videos.length > 0 && <SectionHeading icon="play" label={L.videos} count={videos.length} />}
       {videos.map((v) => (
         <video
           key={v.url}
@@ -109,6 +151,7 @@ function Preview({
           style={{ width: '100%', borderRadius: 12, background: '#000', boxShadow: 'var(--shadow-sm)' }}
         />
       ))}
+      {audios.length > 0 && <SectionHeading icon="play" label={L.audios} count={audios.length} />}
       {audios.map((a) => (
         <div
           key={a.url}
@@ -138,6 +181,7 @@ function Preview({
           <audio src={a.url} controls preload="metadata" style={{ height: 34 }} />
         </div>
       ))}
+      {images.length > 0 && <SectionHeading icon="image" label={L.images} count={images.length} />}
       {images.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
           {images.map((img, i) => (
@@ -161,6 +205,7 @@ function Preview({
           ))}
         </div>
       )}
+      {others.length > 0 && <SectionHeading icon="file" label={L.filesType} count={others.length} />}
       {others.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {others.map((f) => (
@@ -389,41 +434,32 @@ export function PostDetail() {
             <button
               onClick={() => app.actions.toggleFav(post.key)}
               style={{
+                ...ACTION_STYLE,
                 flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 7,
-                padding: '10px',
-                borderRadius: 10,
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: 'inherit',
-                border: '1px solid ' + (fav ? 'transparent' : 'var(--border)'),
-                background: fav ? 'var(--fav-tint)' : 'transparent',
-                color: fav ? 'var(--fav)' : 'var(--text-2)'
+                ...(fav
+                  ? { border: '1px solid transparent', background: 'var(--fav-tint)', color: 'var(--fav)' }
+                  : {})
               }}
             >
               <Icon name="heart" size={16} fill={fav} />
               {fav ? L.favorited : L.favorite}
             </button>
             {post.postUrl && (
-              <Btn
-                variant="ghost"
-                icon="external"
-                style={{ padding: '10px 13px' }}
-                title={L.openInBrowser}
+              <button
                 onClick={() => bridge.openExternal(post.postUrl!)}
-              />
+                title={L.openInBrowser}
+                style={ACTION_STYLE}
+              >
+                <Icon name="external" size={16} />
+              </button>
             )}
-            <Btn
-              variant="solid"
-              icon="folder"
-              style={{ padding: '10px 13px' }}
-              title={L.openFolder}
+            <button
               onClick={() => bridge.openPath(post.dirPath)}
-            />
+              title={L.openFolder}
+              style={ACTION_STYLE}
+            >
+              <Icon name="folder" size={16} />
+            </button>
           </div>
           <MetaRow label={L.posted}>{post.date}</MetaRow>
           <MetaRow label={L.type}>{post.type}</MetaRow>
