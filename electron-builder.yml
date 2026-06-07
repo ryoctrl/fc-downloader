@@ -16,6 +16,7 @@ files:
 # No native modules (the metadata store is pure JS), so default asar packing is fine.
 
 win:
+  icon: build/icon.ico
   target:
     - nsis # Setup installer
     - portable # single self-contained .exe (no install needed — handy for testing)
