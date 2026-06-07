@@ -3,6 +3,7 @@ import type { ServiceId } from '@shared/types'
 import type { Service } from './types'
 import { fantiaService } from './fantia'
 import { fanboxService } from './fanbox'
+import { patreonService } from './patreon'
 
 const services = new Map<ServiceId, Service>()
 
@@ -10,10 +11,11 @@ function register(service: Service): void {
   services.set(service.id, service)
 }
 
-// Register implemented services here. Stubs for patreon/cien will be added as
-// they are implemented (see docs/roadmap.md).
+// Register implemented services here. The cien adapter will be added as it is
+// implemented (see docs/roadmap.md).
 register(fantiaService)
 register(fanboxService)
+register(patreonService)
 
 export function getService(id: ServiceId): Service {
   const svc = services.get(id)
