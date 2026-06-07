@@ -39,6 +39,8 @@ export interface IpcApi {
 
   'viewer:tree': { args: []; result: ViewerNode[] }
   'viewer:openPath': { args: [path: string]; result: void }
+  /** Open an http(s) URL in the user's default browser. */
+  'shell:openExternal': { args: [url: string]; result: void }
 
   'posts:list': { args: []; result: LibraryPost[] }
   'posts:files': { args: [dirPath: string]; result: LibraryFile[] }

@@ -9,6 +9,7 @@
  */
 import type { Post, PostFile, PostFileKind } from '@shared/types'
 import { toLocationParts } from '@main/storage/layout'
+import { webPostUrl } from '../postUrl'
 
 /** VERIFY: subset of the api.fanbox.cc `post.info` response body. */
 export interface RawFanboxImage {
@@ -124,6 +125,7 @@ export function normalizePost(raw: RawFanboxPost): Post | null {
     postedAt,
     year,
     month,
+    url: webPostUrl('fanbox', raw.creatorId, raw.id),
     files: collectFiles(raw.body)
   }
 }

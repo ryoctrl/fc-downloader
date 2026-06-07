@@ -13,6 +13,7 @@
  */
 import type { Post, PostFile, PostFileKind } from '@shared/types'
 import { toLocationParts } from '@main/storage/layout'
+import { webPostUrl } from '../postUrl'
 
 /** A JSON:API resource linkage: `{ id, type }`, possibly an array or null. */
 interface Linkage {
@@ -158,6 +159,7 @@ export function normalizePost(
     postedAt,
     year,
     month,
+    url: raw.attributes.url || webPostUrl('patreon', creatorId, raw.id),
     files
   }
 }

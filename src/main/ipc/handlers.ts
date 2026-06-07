@@ -167,6 +167,10 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   handle('viewer:openPath', async (path) => {
     await shell.openPath(path)
   })
+  handle('shell:openExternal', async (url) => {
+    // Only open web URLs in the external browser — never file:// or other schemes.
+    if (/^https?:\/\//i.test(url)) await shell.openExternal(url)
+  })
 
   handle('posts:list', async () => listPosts())
   handle('posts:files', async (dirPath) => listPostFiles(dirPath))
