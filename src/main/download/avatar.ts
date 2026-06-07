@@ -7,9 +7,9 @@
  * fcfile:// protocol. Used both by the download engine (during a run) and by the
  * library backfill (for creators downloaded before avatars existed).
  */
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
-import { downloadToFile } from '@main/session/manager'
+import { requestFor } from '@main/session/manager'
 import { fcfileUrl } from '@main/storage/files'
 import type { ServiceId } from '@shared/types'
 
@@ -27,6 +27,11 @@ async function exists(path: string): Promise<boolean> {
  * (reusing it if already present) and return a fcfile:// URL the viewer can
  * render. Returns undefined when there is no source URL. Throws on a failed
  * fetch — callers treat avatars as cosmetic and swallow errors.
+ *
+ * Fetched via requestFor (which goes through the per-service politeness
+ * throttle) rather than downloadToFile, so a creator-heavy service (e.g. Fantia
+ * with dozens of fanclubs) doesn't fire avatar requests in a burst and trip a
+ * 429. Avatars are small, so buffering in memory is fine.
  */
 export async function ensureCreatorAvatar(
   serviceId: ServiceId,
@@ -43,7 +48,9 @@ export async function ensureCreatorAvatar(
   const dest = join(dir, `_avatar.${ext}`)
   const url = fcfileUrl(relative(root, dest))
   if (await exists(dest)) return url
+  const res = await requestFor(serviceId, iconUrl, { signal, headers })
+  if (res.status >= 400) throw new Error(`HTTP ${res.status} fetching avatar`)
   await mkdir(dir, { recursive: true })
-  await downloadToFile(serviceId, iconUrl, dest, { signal, headers })
+  await writeFile(dest, res.buffer())
   return url
 }
