@@ -1,4 +1,5 @@
 /** Registers all IPC handlers and wires download events back to the renderer. */
+import { join, normalize } from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcApi, IpcChannel, IpcEventChannel, IpcEvents } from '@shared/ipc'
 import type {
@@ -19,8 +20,9 @@ import {
   reconcileWithDisk,
   setCreatorIcon
 } from '@main/storage/db'
-import { listPostFiles } from '@main/storage/files'
+import { isWithinRoot, listPostFiles } from '@main/storage/files'
 import { DownloadEngine } from '@main/download/engine'
+import { extractZip } from '@main/archive/extract'
 import { ensureCreatorAvatar } from '@main/download/avatar'
 
 const engine = new DownloadEngine()
@@ -177,6 +179,19 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   handle('shell:openExternal', async (url) => {
     // Only open web URLs in the external browser — never file:// or other schemes.
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url)
+  })
+  handle('archive:extract', async (dirPath, fileName) => {
+    const zipPath = normalize(join(dirPath, fileName))
+    // Only extract zips that live inside the download root.
+    if (!isWithinRoot(getSettings().downloadRoot, zipPath) || !/\.zip$/i.test(zipPath)) return null
+    try {
+      const out = await extractZip(zipPath)
+      await shell.openPath(out)
+      return out
+    } catch (err) {
+      console.error('[archive] extract failed', err)
+      return null
+    }
   })
 
   handle('posts:list', async () => listPosts())

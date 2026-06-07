@@ -41,6 +41,9 @@ export interface IpcApi {
   'viewer:openPath': { args: [path: string]; result: void }
   /** Open an http(s) URL in the user's default browser. */
   'shell:openExternal': { args: [url: string]; result: void }
+  /** Extract a downloaded .zip (within the download root) into a sibling folder
+   * and reveal it. Returns the folder path, or null on failure. */
+  'archive:extract': { args: [dirPath: string, fileName: string]; result: string | null }
   /** Capture the window's current bounds before a service <webview> mounts, so
    * the main process can restore them if the attach un-snaps the window. */
   'window:pinBounds': { args: []; result: void }
