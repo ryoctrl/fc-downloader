@@ -151,6 +151,12 @@ export function parseAttachments(html: string): PostFile[] {
     const url = decodeEntities(m[0])
     const variant = m[2].split('?')[0]
     if (!variant) continue // bare hash dir, no file
+    // Skip cropped thumbnails (`image-<N>-c.jpg`): these are shared UI images —
+    // the creator icon and recent-article covers that appear on EVERY article
+    // page — not this post's content. Including them downloaded another post's
+    // thumbnail into each post. Real content is `upload/` / `image-800` /
+    // `image-web` (never `-c` cropped).
+    if (/^image-\d+-c\./i.test(variant)) continue
     const list = byHash.get(hash) ?? []
     list.push({ variant, url })
     byHash.set(hash, list)
