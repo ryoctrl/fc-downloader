@@ -619,44 +619,29 @@ export function ServiceScreen({ serviceId }: { serviceId: DesignService['id'] })
         <ServiceMark svc={svc} size={26} active={loggedIn} />
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{svc.name}</div>
         <div style={{ flex: 1 }} />
-        <label
+        <span
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 7,
+            gap: 6,
             fontSize: 11.5,
-            color: 'var(--text-3)',
-            cursor: 'pointer'
+            fontWeight: 500,
+            color: loggedIn ? 'var(--ok)' : 'var(--text-3)',
+            fontFamily: 'var(--mono)'
           }}
-          onClick={() => app.actions.setLogin(serviceId, !loggedIn)}
         >
-          <span style={{ fontFamily: 'var(--mono)' }}>demo:</span>
           <span
             style={{
-              width: 30,
-              height: 18,
+              width: 7,
+              height: 7,
               borderRadius: 99,
-              position: 'relative',
-              background: loggedIn ? 'var(--ok)' : 'var(--border-2)'
+              background: loggedIn ? 'var(--ok)' : 'var(--text-3)'
             }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                top: 2,
-                left: loggedIn ? 14 : 2,
-                width: 14,
-                height: 14,
-                borderRadius: 99,
-                background: '#fff',
-                transition: 'left .15s'
-              }}
-            />
-          </span>
+          />
           {loggedIn ? L.loggedIn : L.notLoggedIn}
-        </label>
-        <Btn size="sm" variant="solid" icon="external">
-          {L.openInBrowser}
+        </span>
+        <Btn size="sm" variant="ghost" icon="refresh" onClick={() => app.actions.recheckAuth(serviceId)}>
+          {L.recheck}
         </Btn>
       </div>
 

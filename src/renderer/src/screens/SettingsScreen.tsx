@@ -225,15 +225,20 @@ export function SettingsScreen() {
                           background: on ? 'var(--ok)' : 'var(--text-3)'
                         }}
                       />
-                      {on ? `${L.connected} · ${3 + (svc.hue % 5)} cookies` : L.disconnected}
+                      {on ? L.connected : L.disconnected}
                     </div>
                   </div>
                   {on ? (
-                    <Btn size="sm" variant="ghost" icon="trash" onClick={() => actions.setLogin(svc.id, false)}>
+                    <Btn size="sm" variant="ghost" icon="trash" onClick={() => actions.clearSession(svc.id)}>
                       {L.clearCookies}
                     </Btn>
                   ) : (
-                    <Btn size="sm" variant="solid" icon="external" onClick={() => actions.setLogin(svc.id, true)}>
+                    <Btn
+                      size="sm"
+                      variant="solid"
+                      icon="external"
+                      onClick={() => app.go({ screen: 'service', serviceId: svc.id })}
+                    >
                       {L.logIn}
                     </Btn>
                   )}

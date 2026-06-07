@@ -72,12 +72,8 @@ export function App() {
   const L = LANG[prefs.lang] || LANG.ja
 
   const [nav, setNav] = useState<Nav>({ screen: 'service', serviceId: 'fantia' })
-  const [logins, setLogins] = useState<Record<string, boolean>>({
-    fantia: true,
-    fanbox: true,
-    patreon: false,
-    cien: false
-  })
+  // Real login state per service, populated from services:checkAuth.
+  const [logins, setLogins] = useState<Record<string, boolean>>({})
   const [favs, setFavs] = useState<Set<number>>(
     () => new Set(FC.POSTS.filter((p) => p.fav).map((p) => p.id))
   )
@@ -96,6 +92,18 @@ export function App() {
       setSaveDir(s.downloadRoot)
       setConcurrencyState(s.defaultConcurrency)
     })
+  }, [])
+
+  // Determine real login state per service on startup, and react to changes
+  // pushed from the main process (services:authChanged).
+  useEffect(() => {
+    for (const svc of FC.SERVICES) {
+      void bridge.checkAuth(svc.id).then((ok) => setLogins((s) => ({ ...s, [svc.id]: ok })))
+    }
+    const off = bridge.onAuthChanged(({ serviceId, loggedIn }) =>
+      setLogins((s) => ({ ...s, [serviceId]: loggedIn }))
+    )
+    return off
   }, [])
 
   const setConcurrency = (n: number): void => {
@@ -120,7 +128,12 @@ export function App() {
         else n.add(id)
         return n
       }),
-    setLogin: (id, v) => setLogins((s) => ({ ...s, [id]: v })),
+    recheckAuth: (id) => {
+      void bridge.checkAuth(id).then((ok) => setLogins((s) => ({ ...s, [id]: ok })))
+    },
+    clearSession: (id) => {
+      void bridge.clearSession(id).then(() => setLogins((s) => ({ ...s, [id]: false })))
+    },
     startDownload: (svc, plan) => {
       setDownload({
         svcId: svc.id,

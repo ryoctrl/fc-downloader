@@ -87,7 +87,10 @@ export interface AppState {
 
 export interface AppActions {
   toggleFav: (id: number) => void
-  setLogin: (id: ServiceId, v: boolean) => void
+  /** Re-check the real login state for a service (services:checkAuth). */
+  recheckAuth: (id: ServiceId) => void
+  /** Clear a service's cookies/session (services:clearSession). */
+  clearSession: (id: ServiceId) => void
   startDownload: (svc: DesignService, plan: DownloadPlan) => void
   markDownloadDone: () => void
   cancelDownload: () => void
