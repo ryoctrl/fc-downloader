@@ -1,6 +1,5 @@
 /* fc-downloader — settings: cookies/account, storage, general */
-import { useRef, type ReactNode } from 'react'
-import type { DesignService } from '../design/types'
+import { type ReactNode } from 'react'
 import { FC, fmtSize } from '../design/data'
 import { countsForService } from '../design/library'
 import { Icon } from '../design/icons'
@@ -119,49 +118,6 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
         }}
       />
     </span>
-  )
-}
-
-function LogoRow({ svc }: { svc: DesignService }) {
-  const app = useApp()
-  const L = app.L
-  const ref = useRef<HTMLInputElement>(null)
-  const logo = app.state.brandLogos[svc.id]
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files && e.target.files[0]
-    if (!f) return
-    const r = new FileReader()
-    r.onload = () => app.actions.setBrandLogo(svc.id, r.result as string)
-    r.readAsDataURL(f)
-    e.target.value = ''
-  }
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 13,
-        padding: '12px 4px',
-        borderBottom: '1px solid var(--border)'
-      }}
-    >
-      <ServiceMark svc={svc} size={34} active={!!logo} />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{svc.name}</div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-          {logo ? 'custom logo' : svc.note}
-        </div>
-      </div>
-      <input ref={ref} type="file" accept="image/*" onChange={onFile} style={{ display: 'none' }} />
-      {logo && (
-        <Btn size="sm" variant="ghost" icon="trash" onClick={() => app.actions.clearBrandLogo(svc.id)}>
-          {L.remove}
-        </Btn>
-      )}
-      <Btn size="sm" variant="solid" icon="image" onClick={() => ref.current?.click()}>
-        {L.upload}
-      </Btn>
-    </div>
   )
 }
 
@@ -317,14 +273,6 @@ export function SettingsScreen() {
                   {fmtSize(countsForService(app.posts, svc.id).sizeMB)}
                 </span>
               </div>
-            ))}
-          </div>
-        </SettingsCard>
-
-        <SettingsCard title={L.brandLogos} desc={L.brandLogosDesc}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {FC.SERVICES.map((svc) => (
-              <LogoRow key={svc.id} svc={svc} />
             ))}
           </div>
         </SettingsCard>
