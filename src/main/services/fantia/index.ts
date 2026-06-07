@@ -57,23 +57,31 @@ export const fantiaService: Service = {
       ctx.log('error', 'listCreators (me/fanclubs) failed', err)
       return []
     }
-    // Resolve each fanclub's display name (best-effort).
-    const creators: Creator[] = []
-    for (const id of ids) {
-      ctx.signal.throwIfAborted()
-      let name = String(id)
-      let iconUrl: string | undefined
-      try {
-        const fc = await ctx.fetchJson<{
-          fanclub?: { fanclub_name?: string; creator_name?: string; icon?: { main?: string } }
-        }>(`${API}/fanclubs/${id}`, { headers: XHR })
-        name = fc.fanclub?.fanclub_name || fc.fanclub?.creator_name || String(id)
-        iconUrl = fc.fanclub?.icon?.main
-      } catch (err) {
-        ctx.log('debug', `fanclub ${id} name lookup failed`, err)
+    // Resolve each fanclub's display name with bounded concurrency (keeps the
+    // listing fast without hammering Fantia with 48 simultaneous requests).
+    const creators: Creator[] = new Array(ids.length)
+    let next = 0
+    const LIMIT = 5
+    const worker = async (): Promise<void> => {
+      while (next < ids.length) {
+        const i = next++
+        const id = ids[i]
+        ctx.signal.throwIfAborted()
+        let name = String(id)
+        let iconUrl: string | undefined
+        try {
+          const fc = await ctx.fetchJson<{
+            fanclub?: { fanclub_name?: string; creator_name?: string; icon?: { main?: string } }
+          }>(`${API}/fanclubs/${id}`, { headers: XHR })
+          name = fc.fanclub?.fanclub_name || fc.fanclub?.creator_name || String(id)
+          iconUrl = fc.fanclub?.icon?.main
+        } catch (err) {
+          ctx.log('debug', `fanclub ${id} name lookup failed`, err)
+        }
+        creators[i] = { serviceId: 'fantia', creatorId: String(id), name, iconUrl }
       }
-      creators.push({ serviceId: 'fantia', creatorId: String(id), name, iconUrl })
     }
+    await Promise.all(Array.from({ length: Math.min(LIMIT, ids.length) }, worker))
     return creators
   },
 

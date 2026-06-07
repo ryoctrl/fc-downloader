@@ -1,6 +1,6 @@
 /* fc-downloader — app shell: prefs, state, routing, theme */
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import type { LibraryPost } from '@shared/types'
+import type { Creator, LibraryPost } from '@shared/types'
 import type { AppActions, AppState, Nav, Prefs, ServiceId } from './design/types'
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
@@ -94,6 +94,8 @@ export function App() {
   const [nav, setNav] = useState<Nav>({ screen: 'service', serviceId: 'fantia' })
   // Real login state per service, populated from services:checkAuth.
   const [logins, setLogins] = useState<Record<string, boolean>>({})
+  const [creators, setCreators] = useState<Record<string, Creator[]>>({})
+  const [creatorsLoading, setCreatorsLoading] = useState<Record<string, boolean>>({})
   const [favs, setFavs] = useState<Set<string>>(loadFavs)
   const [rawPosts, setRawPosts] = useState<LibraryPost[]>([])
   const posts = useMemo(() => rawPosts.map(toViewPost), [rawPosts])
@@ -162,7 +164,19 @@ export function App() {
       void bridge.checkAuth(id).then((ok) => setLogins((s) => ({ ...s, [id]: ok })))
     },
     clearSession: (id) => {
-      void bridge.clearSession(id).then(() => setLogins((s) => ({ ...s, [id]: false })))
+      void bridge.clearSession(id).then(() => {
+        setLogins((s) => ({ ...s, [id]: false }))
+        setCreators((s) => ({ ...s, [id]: [] }))
+      })
+    },
+    loadCreators: (id, force) => {
+      if (!force && creators[id]) return // cached
+      if (creatorsLoading[id]) return // already loading
+      setCreatorsLoading((s) => ({ ...s, [id]: true }))
+      void bridge
+        .listCreators(id)
+        .then((list) => setCreators((s) => ({ ...s, [id]: list })))
+        .finally(() => setCreatorsLoading((s) => ({ ...s, [id]: false })))
     },
     startDownload: (svc, options) => {
       setDownload({ svcId: svc.id, options, startedAt: Date.now(), done: false })
@@ -216,7 +230,17 @@ export function App() {
     lang: prefs.lang,
     nav,
     go: setNav,
-    state: { logins, favs, download, saveDir, concurrency, skipDupDefault, brandLogos },
+    state: {
+      logins,
+      creators,
+      creatorsLoading,
+      favs,
+      download,
+      saveDir,
+      concurrency,
+      skipDupDefault,
+      brandLogos
+    },
     actions,
     posts
   }

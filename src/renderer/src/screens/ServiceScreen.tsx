@@ -1,12 +1,11 @@
 /* fc-downloader — Service screen: embedded WebView + download settings panel */
-import { useEffect, useState } from 'react'
-import type { Creator, PostFileKind } from '@shared/types'
+import { useEffect, useMemo, useState } from 'react'
+import type { PostFileKind } from '@shared/types'
 import type { DesignService, PostType } from '../design/types'
 import { FC } from '../design/data'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
-import { bridge } from '../bridge'
 
 function UrlBar({ svc, loggedIn }: { svc: DesignService; loggedIn: boolean }) {
   return (
@@ -207,31 +206,26 @@ function OptToggle({
 function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolean }) {
   const app = useApp()
   const L = app.L
-  const [creators, setCreators] = useState<Creator[]>([])
-  const [loadingCreators, setLoadingCreators] = useState(false)
+  // Creators come from the app-level cache (survives service switches).
+  const creators = useMemo(
+    () => app.state.creators[svc.id] ?? [],
+    [app.state.creators, svc.id]
+  )
+  const loadingCreators = !!app.state.creatorsLoading[svc.id]
   const [types, setTypes] = useState<Record<PostType, boolean>>({ image: true, video: true, file: true })
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [skipDup, setSkipDup] = useState(app.state.skipDupDefault)
 
-  // Load the real creators the user supports for this service (requires login).
+  // Trigger a (cached) load when logged in.
   useEffect(() => {
-    let cancelled = false
-    if (!loggedIn) {
-      setCreators([])
-      setSel(new Set())
-      return
-    }
-    setLoadingCreators(true)
-    void bridge.listCreators(svc.id).then((list) => {
-      if (cancelled) return
-      setCreators(list)
-      setSel(new Set(list.map((c) => c.creatorId)))
-      setLoadingCreators(false)
-    })
-    return () => {
-      cancelled = true
-    }
+    if (loggedIn) app.actions.loadCreators(svc.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [svc.id, loggedIn])
+
+  // Default-select all whenever the creator list (re)loads.
+  useEffect(() => {
+    setSel(new Set(creators.map((c) => c.creatorId)))
+  }, [creators])
 
   const toggleSel = (id: string) =>
     setSel((s) => {
@@ -310,16 +304,27 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
         <div>
           <SectionLabel
             action={
-              creators.length > 0 ? (
-                <span
-                  onClick={() =>
-                    setSel(allSel ? new Set() : new Set(creators.map((c) => c.creatorId)))
-                  }
-                  style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
-                >
-                  {allSel ? L.deselectAll : L.selectAll}
-                </span>
-              ) : undefined
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {creators.length > 0 && (
+                  <span
+                    onClick={() =>
+                      setSel(allSel ? new Set() : new Set(creators.map((c) => c.creatorId)))
+                    }
+                    style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    {allSel ? L.deselectAll : L.selectAll}
+                  </span>
+                )}
+                {loggedIn && (
+                  <span
+                    onClick={() => app.actions.loadCreators(svc.id, true)}
+                    title={L.recheck}
+                    style={{ display: 'flex', color: 'var(--text-3)', cursor: 'pointer' }}
+                  >
+                    <Icon name="refresh" size={13} style={loadingCreators ? { animation: 'fc-spin .8s linear infinite' } : undefined} />
+                  </span>
+                )}
+              </span>
             }
           >
             {L.creators}
@@ -331,7 +336,28 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
                 {L.loginToSeeCreators}
               </div>
             ) : loadingCreators ? (
-              <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.loading}</div>
+              <div
+                style={{
+                  padding: '12px 0',
+                  fontSize: 12,
+                  color: 'var(--text-3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 9
+                }}
+              >
+                <span
+                  className="fc-spin"
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 99,
+                    border: '2px solid var(--border-2)',
+                    borderTopColor: 'var(--accent)'
+                  }}
+                />
+                {L.loading}
+              </div>
             ) : creators.length === 0 ? (
               <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.noCreators}</div>
             ) : (

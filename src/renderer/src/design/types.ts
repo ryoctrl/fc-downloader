@@ -1,5 +1,5 @@
 /* fc-downloader — renderer design-layer types (ported from the design handoff) */
-import type { DownloadOptions } from '@shared/types'
+import type { Creator, DownloadOptions } from '@shared/types'
 import type { ViewPost } from './library'
 
 export type ServiceId = 'fantia' | 'fanbox' | 'patreon' | 'cien'
@@ -75,6 +75,9 @@ export interface DownloadState {
 
 export interface AppState {
   logins: Record<string, boolean>
+  /** Cached supported creators per service (avoids re-fetching on revisit). */
+  creators: Record<string, Creator[]>
+  creatorsLoading: Record<string, boolean>
   /** Favorited post keys (serviceId/creatorId/postId), persisted locally. */
   favs: Set<string>
   download: DownloadState | null
@@ -93,6 +96,8 @@ export interface AppActions {
   recheckAuth: (id: ServiceId) => void
   /** Clear a service's cookies/session (services:clearSession). */
   clearSession: (id: ServiceId) => void
+  /** Load (or, with force, refresh) a service's supported creators into cache. */
+  loadCreators: (id: ServiceId, force?: boolean) => void
   /** Kick off a real download run for a service with the given options. */
   startDownload: (svc: DesignService, options: DownloadOptions) => void
   /** Mark the active run as finished (called on the download:done event). */
