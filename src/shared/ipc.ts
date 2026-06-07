@@ -42,6 +42,9 @@ export interface IpcApi {
 
   'posts:list': { args: []; result: LibraryPost[] }
   'posts:files': { args: [dirPath: string]; result: LibraryFile[] }
+  /** Fetch avatars for already-downloaded creators that lack one. Returns the
+   * number of creators updated (0 if none missing or not logged in). */
+  'library:backfillAvatars': { args: []; result: number }
 }
 
 export type IpcChannel = keyof IpcApi
