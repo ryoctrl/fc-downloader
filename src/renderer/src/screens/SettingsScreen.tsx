@@ -131,6 +131,11 @@ export function SettingsScreen() {
   // No real disk-capacity probe yet; show usage relative to a nominal 512 GB.
   const diskTotal = 512 * 1024
 
+  // Services eligible for a bulk run: enabled + logged in.
+  const eligibleCount = FC.SERVICES.filter(
+    (s) => state.enabledServices[s.id] !== false && state.logins[s.id]
+  ).length
+
   const [verifying, setVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<string | null>(null)
   const runVerify = async (): Promise<void> => {
@@ -233,6 +238,25 @@ export function SettingsScreen() {
                 </div>
               )
             })}
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title={L.bulkDownload} desc={L.bulkDownloadDesc}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, fontSize: 12.5, color: 'var(--text-2)' }}>
+              {eligibleCount > 0
+                ? `${eligibleCount} ${L.servicesTargeted}`
+                : L.bulkNoServices}
+            </div>
+            <Btn
+              variant="primary"
+              icon="download"
+              onClick={() => {
+                if (eligibleCount > 0) actions.startBulkDownload()
+              }}
+            >
+              {L.bulkDownloadRun}
+            </Btn>
           </div>
         </SettingsCard>
 
