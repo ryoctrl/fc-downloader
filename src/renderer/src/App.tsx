@@ -8,6 +8,7 @@ import type {
   DownloadPrefs,
   Nav,
   Prefs,
+  ScheduleConfig,
   ServiceId
 } from './design/types'
 import { AppCtx } from './design/context'
@@ -29,6 +30,18 @@ const FAVS_KEY = 'fc_favs'
 const DL_PREFS_KEY = 'fc_dl_prefs'
 const CREATOR_SEL_KEY = 'fc_creator_sel'
 const ENABLED_KEY = 'fc_enabled_services'
+const SCHEDULE_KEY = 'fc_schedule'
+const SCHEDULE_LASTRUN_KEY = 'fc_schedule_lastrun'
+
+const DEFAULT_SCHEDULE: ScheduleConfig = { enabled: false, time: '03:00' }
+
+function todayStr(d = new Date()): string {
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
+function minutesOf(time: string): number {
+  const [h, m] = time.split(':').map((n) => parseInt(n, 10))
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0)
+}
 
 const DEFAULT_DL_PREFS: DownloadPrefs = { image: true, video: true, file: true, skipDup: true }
 
@@ -136,6 +149,13 @@ export function App() {
   const [enabledServices, setEnabledServicesState] = useState<Record<string, boolean>>(() =>
     loadJson(ENABLED_KEY, {})
   )
+  const [schedule, setScheduleState] = useState<ScheduleConfig>(() =>
+    loadJson(SCHEDULE_KEY, DEFAULT_SCHEDULE)
+  )
+  const scheduleRef = useRef(schedule)
+  scheduleRef.current = schedule
+  const lastRunRef = useRef<string>(localStorage.getItem(SCHEDULE_LASTRUN_KEY) ?? '')
+  const bulkRef = useRef<() => void>(() => {})
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const sysDark = useSystemDark()
 
@@ -249,6 +269,31 @@ export function App() {
       window.removeEventListener('focus', onFocus)
       if (timer) clearTimeout(timer)
     }
+  }, [])
+
+  // Daily auto-download scheduler (runs while the app is open). A 1-minute clock
+  // tick (no network) checks the configured time; fires at most once per day,
+  // catching up if the app is opened after the scheduled time.
+  useEffect(() => {
+    const tick = (): void => {
+      const sch = scheduleRef.current
+      if (!sch.enabled) return
+      const today = todayStr()
+      if (lastRunRef.current === today) return
+      const now = new Date()
+      if (now.getHours() * 60 + now.getMinutes() >= minutesOf(sch.time)) {
+        lastRunRef.current = today
+        try {
+          localStorage.setItem(SCHEDULE_LASTRUN_KEY, today)
+        } catch {
+          /* ignore */
+        }
+        bulkRef.current()
+      }
+    }
+    tick() // catch up on launch
+    const interval = setInterval(tick, 60_000)
+    return () => clearInterval(interval)
   }, [])
 
   const setConcurrency = (n: number): void => {
@@ -400,8 +445,33 @@ export function App() {
           /* ignore */
         }
         return next
+      }),
+    setSchedule: (patch) =>
+      setScheduleState((p) => {
+        const next = { ...p, ...patch }
+        try {
+          localStorage.setItem(SCHEDULE_KEY, JSON.stringify(next))
+        } catch {
+          /* ignore */
+        }
+        // Enabling after today's time already passed: mark today as run so it
+        // doesn't fire immediately (starts at the next occurrence).
+        if (patch.enabled === true) {
+          const now = new Date()
+          const t = todayStr()
+          if (now.getHours() * 60 + now.getMinutes() >= minutesOf(next.time) && lastRunRef.current !== t) {
+            lastRunRef.current = t
+            try {
+              localStorage.setItem(SCHEDULE_LASTRUN_KEY, t)
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+        return next
       })
   }
+  bulkRef.current = actions.startBulkDownload
 
   const app = {
     t: prefs,
@@ -421,7 +491,8 @@ export function App() {
       concurrency,
       downloadPrefs,
       creatorSel,
-      enabledServices
+      enabledServices,
+      schedule
     },
     actions,
     posts
