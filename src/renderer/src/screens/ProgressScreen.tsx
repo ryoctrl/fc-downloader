@@ -14,6 +14,7 @@ import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
 import { bridge } from '../bridge'
+import { FilterChip } from './LibraryScreen'
 
 const STATUS_COLOR: Record<string, string> = {
   completed: 'var(--ok)',
@@ -33,6 +34,7 @@ export function ProgressScreen() {
   const [items, setItems] = useState<DownloadItem[]>([])
   const [speedBps, setSpeedBps] = useState(0)
   const [etaSec, setEtaSec] = useState<number | null>(null)
+  const [failedOnly, setFailedOnly] = useState(false)
   const speedRef = useRef<SpeedState>(initSpeed())
   const startRef = useRef<{ t: number; processed: number; started: boolean }>({
     t: 0,
@@ -46,6 +48,7 @@ export function ProgressScreen() {
     setItems([])
     setSpeedBps(0)
     setEtaSec(null)
+    setFailedOnly(false)
     speedRef.current = initSpeed()
     startRef.current = { t: 0, processed: 0, started: false }
 
@@ -175,6 +178,11 @@ export function ProgressScreen() {
               <Btn variant="solid" icon="folder" onClick={() => bridge.openPath(app.state.saveDir)}>
                 {L.openFolder}
               </Btn>
+              {p.failed > 0 && (
+                <Btn variant="solid" icon="refresh" onClick={() => app.actions.retryDownload()}>
+                  {L.retryFailed}
+                </Btn>
+              )}
             </>
           ) : (
             <Btn variant="danger" icon="x" onClick={() => app.actions.cancelDownload()}>
@@ -185,12 +193,26 @@ export function ProgressScreen() {
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '8px 18px 20px' }}>
-        {items.length === 0 ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-            {done ? L.doneShort : L.loading}
+        {p.failed > 0 && (
+          <div style={{ display: 'flex', gap: 7, padding: '4px 6px 10px' }}>
+            <FilterChip active={!failedOnly} onClick={() => setFailedOnly(false)}>
+              {L.allStatus}
+            </FilterChip>
+            <FilterChip active={failedOnly} onClick={() => setFailedOnly(true)} icon="x">
+              {L.failedOnly} · {p.failed}
+            </FilterChip>
           </div>
-        ) : (
-          items.map((it) => (
+        )}
+        {(() => {
+          const shown = failedOnly ? items.filter((it) => it.status === 'failed') : items
+          if (shown.length === 0) {
+            return (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+                {done ? L.doneShort : L.loading}
+              </div>
+            )
+          }
+          return shown.map((it) => (
             <div
               key={it.id}
               style={{
@@ -252,7 +274,7 @@ export function ProgressScreen() {
               </span>
             </div>
           ))
-        )}
+        })()}
       </div>
     </div>
   )

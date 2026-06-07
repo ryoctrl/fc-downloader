@@ -165,9 +165,15 @@ export function App() {
       void bridge.clearSession(id).then(() => setLogins((s) => ({ ...s, [id]: false })))
     },
     startDownload: (svc, options) => {
-      setDownload({ svcId: svc.id, startedAt: Date.now(), done: false })
+      setDownload({ svcId: svc.id, options, startedAt: Date.now(), done: false })
       void bridge.startDownload(svc.id, options)
       setNav({ screen: 'progress' })
+    },
+    retryDownload: () => {
+      if (!download) return
+      const svc = FC.serviceById(download.svcId)
+      setDownload({ svcId: svc.id, options: download.options, startedAt: Date.now(), done: false })
+      void bridge.startDownload(svc.id, download.options)
     },
     markDownloadDone: () => {
       setDownload((d) => (d && !d.done ? { ...d, done: true } : d))
