@@ -262,11 +262,16 @@ describe('listPosts', () => {
     upsertPost(postB, dirB)
     markFileDownloaded(postB, 'x', 'x.png', 1, 'image') // never written -> missing
 
+    // Post C: no file records at all and its directory never existed -> must
+    // still be removed (regression: per-file loop alone would skip it).
+    upsertPost(base('C', []), join(dir, 'c'))
+
     const r = await reconcileWithDisk()
-    expect(r).toEqual({ removedFiles: 2, removedPosts: 1, updatedPosts: 1 })
+    expect(r).toEqual({ removedFiles: 2, removedPosts: 2, updatedPosts: 1 })
 
     const posts = listPosts()
     expect(posts.find((p) => p.postId === 'B')).toBeUndefined() // fully gone
+    expect(posts.find((p) => p.postId === 'C')).toBeUndefined() // 0-file, dir gone
     const a = posts.find((p) => p.postId === 'A')
     expect(a?.fileCount).toBe(1) // only keep.png remains
     expect(a?.completed).toBe(false) // lost a file -> marked incomplete
