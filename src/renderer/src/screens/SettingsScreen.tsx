@@ -2,6 +2,7 @@
 import { useRef, type ReactNode } from 'react'
 import type { DesignService } from '../design/types'
 import { FC, fmtSize } from '../design/data'
+import { countsForService } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
@@ -169,8 +170,9 @@ export function SettingsScreen() {
   const L = app.L
   const { state, actions, setTweak, t } = app
 
-  const totalUsed = FC.totals.sizeMB
-  const diskTotal = 512 * 1024 // 512 GB (demo)
+  const totalUsed = app.posts.reduce((s, p) => s + p.sizeMB, 0)
+  // No real disk-capacity probe yet; show usage relative to a nominal 512 GB.
+  const diskTotal = 512 * 1024
 
   return (
     <div style={{ height: '100%', overflow: 'auto' }}>
@@ -293,7 +295,7 @@ export function SettingsScreen() {
             }}
           >
             {FC.SERVICES.map((svc) => {
-              const sz = FC.countsForService(svc.id).sizeMB
+              const sz = countsForService(app.posts, svc.id).sizeMB
               return (
                 <div
                   key={svc.id}
@@ -312,7 +314,7 @@ export function SettingsScreen() {
                 <span style={{ width: 9, height: 9, borderRadius: 3, background: `oklch(0.62 0.14 ${svc.hue})` }} />
                 {svc.name}{' '}
                 <span style={{ fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
-                  {fmtSize(FC.countsForService(svc.id).sizeMB)}
+                  {fmtSize(countsForService(app.posts, svc.id).sizeMB)}
                 </span>
               </div>
             ))}

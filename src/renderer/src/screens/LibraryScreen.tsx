@@ -1,7 +1,8 @@
-/* fc-downloader — file viewer (library): tree + grid/list + filters */
+/* fc-downloader — file viewer (library): tree + grid/list + filters, real data */
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Dict, Post, ServiceId, ViewMode } from '../design/types'
+import type { Dict, ServiceId, ViewMode } from '../design/types'
 import { FC, fmtSize } from '../design/data'
+import { libraryTotals, type ViewPost } from '../design/library'
 import { Icon } from '../design/icons'
 import { ServiceMark, StatusBadge, Thumb } from '../design/primitives'
 import { useApp } from '../design/context'
@@ -12,6 +13,10 @@ interface TreeNode {
   creator?: string
   year?: number
   month?: number
+}
+
+function uniq<T>(xs: T[]): T[] {
+  return [...new Set(xs)]
 }
 
 function TreeRow({
@@ -85,10 +90,18 @@ function TreeRow({
   )
 }
 
-function LibraryTree({ node, setNode }: { node: TreeNode; setNode: (n: TreeNode) => void }) {
+function LibraryTree({
+  posts,
+  node,
+  setNode
+}: {
+  posts: ViewPost[]
+  node: TreeNode
+  setNode: (n: TreeNode) => void
+}) {
   const app = useApp()
   const L = app.L
-  const [exp, setExp] = useState<Set<string>>(() => new Set(['svc:fantia']))
+  const [exp, setExp] = useState<Set<string>>(() => new Set())
   const toggle = (k: string) =>
     setExp((s) => {
       const n = new Set(s)
@@ -96,12 +109,15 @@ function LibraryTree({ node, setNode }: { node: TreeNode; setNode: (n: TreeNode)
       else n.add(k)
       return n
     })
-  const sameNode = (a: TreeNode, b: TreeNode) =>
+  const same = (a: TreeNode, b: TreeNode) =>
     a.kind === b.kind &&
     a.service === b.service &&
     a.creator === b.creator &&
     a.year === b.year &&
     a.month === b.month
+
+  const totals = libraryTotals(posts)
+  const services = FC.SERVICES.filter((svc) => posts.some((p) => p.service === svc.id))
 
   return (
     <div
@@ -118,7 +134,7 @@ function LibraryTree({ node, setNode }: { node: TreeNode; setNode: (n: TreeNode)
       <div style={{ padding: '16px 16px 10px' }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{L.library}</div>
         <div style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--mono)', marginTop: 2 }}>
-          {FC.totals.posts} {L.postsUnit} · {fmtSize(FC.totals.sizeMB)}
+          {totals.posts} {L.postsUnit} · {fmtSize(totals.sizeMB)}
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 14px' }}>
@@ -126,71 +142,67 @@ function LibraryTree({ node, setNode }: { node: TreeNode; setNode: (n: TreeNode)
           depth={0}
           icon="library"
           label={L.allPosts}
-          count={FC.totals.posts}
+          count={totals.posts}
           selected={node.kind === 'all'}
           expandable={false}
           onSelect={() => setNode({ kind: 'all' })}
         />
-        {FC.SERVICES.map((svc) => {
+        {services.map((svc) => {
           const sk = 'svc:' + svc.id
           const sopen = exp.has(sk)
-          const c = FC.countsForService(svc.id)
+          const sPosts = posts.filter((p) => p.service === svc.id)
+          const creators = uniq(sPosts.map((p) => p.creator))
           return (
             <div key={svc.id}>
               <TreeRow
                 depth={0}
                 mark={<ServiceMark svc={svc} size={20} />}
                 label={svc.name}
-                count={c.posts}
+                count={sPosts.length}
                 expandable
                 open={sopen}
                 onToggle={() => toggle(sk)}
-                selected={sameNode(node, { kind: 'service', service: svc.id })}
+                selected={same(node, { kind: 'service', service: svc.id })}
                 onSelect={() => setNode({ kind: 'service', service: svc.id })}
               />
               {sopen &&
-                (FC.CREATORS[svc.id] || []).map((cr) => {
-                  const ck = sk + ':' + cr.id
+                creators.map((cr) => {
+                  const ck = sk + ':' + cr
                   const copen = exp.has(ck)
-                  const cposts = FC.POSTS.filter((p) => p.service === svc.id && p.creator === cr.id)
-                  const years = [...new Set(cposts.map((p) => p.year))].sort((a, b) => b - a)
+                  const cPosts = sPosts.filter((p) => p.creator === cr)
+                  const years = uniq(cPosts.map((p) => p.year)).sort((a, b) => b - a)
                   return (
-                    <div key={cr.id}>
+                    <div key={cr}>
                       <TreeRow
                         depth={1}
                         icon="folder"
-                        label={cr.name}
-                        count={cposts.length}
+                        label={cr}
+                        count={cPosts.length}
                         expandable
                         open={copen}
                         onToggle={() => toggle(ck)}
-                        selected={sameNode(node, { kind: 'creator', service: svc.id, creator: cr.id })}
-                        onSelect={() => setNode({ kind: 'creator', service: svc.id, creator: cr.id })}
+                        selected={same(node, { kind: 'creator', service: svc.id, creator: cr })}
+                        onSelect={() => setNode({ kind: 'creator', service: svc.id, creator: cr })}
                       />
                       {copen &&
                         years.map((yr) => {
                           const yk = ck + ':' + yr
                           const yopen = exp.has(yk)
-                          const yposts = cposts.filter((p) => p.year === yr)
-                          const months = [...new Set(yposts.map((p) => p.month))].sort((a, b) => b - a)
+                          const yPosts = cPosts.filter((p) => p.year === yr)
+                          const months = uniq(yPosts.map((p) => p.month)).sort((a, b) => b - a)
                           return (
                             <div key={yr}>
                               <TreeRow
                                 depth={2}
                                 icon="folder"
-                                label={yr + ''}
-                                count={yposts.length}
+                                label={String(yr)}
+                                count={yPosts.length}
                                 expandable
                                 open={yopen}
                                 onToggle={() => toggle(yk)}
-                                selected={sameNode(node, {
-                                  kind: 'year',
-                                  service: svc.id,
-                                  creator: cr.id,
-                                  year: yr
-                                })}
+                                selected={same(node, { kind: 'year', service: svc.id, creator: cr, year: yr })}
                                 onSelect={() =>
-                                  setNode({ kind: 'year', service: svc.id, creator: cr.id, year: yr })
+                                  setNode({ kind: 'year', service: svc.id, creator: cr, year: yr })
                                 }
                               />
                               {yopen &&
@@ -200,23 +212,17 @@ function LibraryTree({ node, setNode }: { node: TreeNode; setNode: (n: TreeNode)
                                     depth={3}
                                     icon="folder"
                                     label={String(mo).padStart(2, '0') + ' ' + L.month}
-                                    count={yposts.filter((p) => p.month === mo).length}
+                                    count={yPosts.filter((p) => p.month === mo).length}
                                     expandable={false}
-                                    selected={sameNode(node, {
+                                    selected={same(node, {
                                       kind: 'month',
                                       service: svc.id,
-                                      creator: cr.id,
+                                      creator: cr,
                                       year: yr,
                                       month: mo
                                     })}
                                     onSelect={() =>
-                                      setNode({
-                                        kind: 'month',
-                                        service: svc.id,
-                                        creator: cr.id,
-                                        year: yr,
-                                        month: mo
-                                      })
+                                      setNode({ kind: 'month', service: svc.id, creator: cr, year: yr, month: mo })
                                     }
                                   />
                                 ))}
@@ -270,17 +276,21 @@ export function FilterChip({
   )
 }
 
+function typeIcon(type: ViewPost['type']): string {
+  return type === 'video' ? 'play' : type === 'audio' ? 'play' : type === 'file' ? 'file' : 'image'
+}
+
 export function PostCard({
   post,
   density,
   onOpen
 }: {
-  post: Post
+  post: ViewPost
   density: string
   onOpen: () => void
 }) {
   const app = useApp()
-  const fav = app.state.favs.has(post.id)
+  const fav = app.state.favs.has(post.key)
   const svc = FC.serviceById(post.service)
   const pad = density === 'compact' ? 9 : 11
   return (
@@ -299,7 +309,7 @@ export function PostCard({
       }}
     >
       <div style={{ position: 'relative' }}>
-        <Thumb post={post} radius={0} ratio="4 / 3" />
+        <Thumb hue={post.hue} type={post.type} radius={0} ratio="4 / 3" />
         <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 5 }}>
           <span
             style={{
@@ -315,17 +325,14 @@ export function PostCard({
               backdropFilter: 'blur(4px)'
             }}
           >
-            <Icon
-              name={post.type === 'video' ? 'play' : post.type === 'file' ? 'file' : 'image'}
-              size={11}
-            />
+            <Icon name={typeIcon(post.type)} size={11} />
             {post.files}
           </span>
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation()
-            app.actions.toggleFav(post.id)
+            app.actions.toggleFav(post.key)
           }}
           className="fc-fav"
           style={{
@@ -386,10 +393,10 @@ export function PostCard({
   )
 }
 
-function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
+function PostRow({ post, onOpen }: { post: ViewPost; onOpen: () => void }) {
   const app = useApp()
   const L = app.L
-  const fav = app.state.favs.has(post.id)
+  const fav = app.state.favs.has(post.key)
   const svc = FC.serviceById(post.service)
   return (
     <div
@@ -405,7 +412,7 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
       }}
     >
       <div style={{ width: 44, flexShrink: 0 }}>
-        <Thumb post={post} radius={7} ratio="1 / 1" />
+        <Thumb hue={post.hue} type={post.type} radius={7} ratio="1 / 1" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
@@ -421,7 +428,7 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
           {post.title}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)', marginTop: 1 }}>
-          id_{post.id} · {post.tags.join(', ')}
+          id_{post.postId}
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, width: 150, flexShrink: 0 }}>
@@ -442,7 +449,7 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
         {post.date}
       </div>
       <div style={{ width: 44, flexShrink: 0, color: 'var(--text-3)' }}>
-        <Icon name={post.type === 'video' ? 'play' : post.type === 'file' ? 'file' : 'image'} size={15} />
+        <Icon name={typeIcon(post.type)} size={15} />
       </div>
       <div
         style={{
@@ -474,7 +481,7 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
       <button
         onClick={(e) => {
           e.stopPropagation()
-          app.actions.toggleFav(post.id)
+          app.actions.toggleFav(post.key)
         }}
         style={{
           background: 'none',
@@ -493,10 +500,9 @@ function PostRow({ post, onOpen }: { post: Post; onOpen: () => void }) {
 function nodeLabel(node: TreeNode, L: Dict): string[] {
   if (!node || node.kind === 'all') return [L.allPosts]
   const svc = FC.serviceById(node.service!)
-  const cr = (FC.CREATORS[node.service!] || []).find((c) => c.id === node.creator)
   const out = [svc.name]
-  if (node.creator) out.push(cr ? cr.name : node.creator)
-  if (node.year) out.push(node.year + '')
+  if (node.creator) out.push(node.creator)
+  if (node.year) out.push(String(node.year))
   if (node.month != null) out.push(String(node.month).padStart(2, '0'))
   return out
 }
@@ -504,6 +510,7 @@ function nodeLabel(node: TreeNode, L: Dict): string[] {
 export function LibraryScreen() {
   const app = useApp()
   const L = app.L
+  const allPosts = app.posts
   const startSvc = app.nav.screen === 'library' ? app.nav.svc : undefined
   const [node, setNode] = useState<TreeNode>(
     startSvc ? { kind: 'service', service: startSvc } : { kind: 'all' }
@@ -512,14 +519,13 @@ export function LibraryScreen() {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
-  const [tag, setTag] = useState<string | null>(null)
   const [sortDesc, setSortDesc] = useState(true)
   useEffect(() => {
     setView(app.t.viewerView)
   }, [app.t.viewerView])
 
   const posts = useMemo(() => {
-    const matchNode = (p: Post) => {
+    const matchNode = (p: ViewPost) => {
       if (!node || node.kind === 'all') return true
       if (node.service && p.service !== node.service) return false
       if (node.creator && p.creator !== node.creator) return false
@@ -527,24 +533,22 @@ export function LibraryScreen() {
       if (node.month != null && p.month !== node.month) return false
       return true
     }
-    let ps = FC.POSTS.filter(matchNode)
+    let ps = allPosts.filter(matchNode)
     if (status !== 'all') ps = ps.filter((p) => p.status === status)
     if (type !== 'all') ps = ps.filter((p) => p.type === type)
-    if (tag) ps = ps.filter((p) => p.tags.includes(tag))
     if (q.trim()) {
       const k = q.trim().toLowerCase()
       ps = ps.filter(
         (p) =>
           p.title.toLowerCase().includes(k) ||
           p.creatorName.toLowerCase().includes(k) ||
-          p.tags.some((t) => t.toLowerCase().includes(k)) ||
-          ('' + p.id).includes(k)
+          p.postId.includes(k)
       )
     }
     return [...ps].sort((a, b) =>
       sortDesc ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)
     )
-  }, [node, status, type, tag, q, sortDesc])
+  }, [allPosts, node, status, type, q, sortDesc])
 
   const crumbs = nodeLabel(node, L)
   const density = app.t.density
@@ -552,7 +556,7 @@ export function LibraryScreen() {
 
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      <LibraryTree node={node} setNode={setNode} />
+      <LibraryTree posts={allPosts} node={node} setNode={setNode} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
         <div style={{ padding: '14px 20px 10px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -662,9 +666,6 @@ export function LibraryScreen() {
             <FilterChip active={status === 'done'} onClick={() => setStatus('done')} icon="check">
               {L.downloaded}
             </FilterChip>
-            <FilterChip active={status === 'new'} onClick={() => setStatus('new')}>
-              {L.notDownloaded}
-            </FilterChip>
             <FilterChip active={status === 'partial'} onClick={() => setStatus('partial')}>
               {L.partial}
             </FilterChip>
@@ -681,16 +682,17 @@ export function LibraryScreen() {
                 {lbl}
               </FilterChip>
             ))}
-            <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 3px' }} />
-            {FC.TAGS.slice(0, 6).map((tg) => (
-              <FilterChip key={tg} active={tag === tg} onClick={() => setTag(tag === tg ? null : tg)}>
-                #{tg}
-              </FilterChip>
-            ))}
           </div>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: view === 'grid' ? '18px 20px 28px' : '8px 14px 24px' }}>
-          {posts.length === 0 ? (
+          {allPosts.length === 0 ? (
+            <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>
+              <div style={{ textAlign: 'center' }}>
+                <Icon name="library" size={34} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                <div>{L.libraryEmpty}</div>
+              </div>
+            </div>
+          ) : posts.length === 0 ? (
             <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>
               <div style={{ textAlign: 'center' }}>
                 <Icon name="search" size={34} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
@@ -707,10 +709,10 @@ export function LibraryScreen() {
             >
               {posts.map((p) => (
                 <PostCard
-                  key={p.id}
+                  key={p.key}
                   post={p}
                   density={density}
-                  onOpen={() => app.go({ screen: 'post', postId: p.id, from: 'library' })}
+                  onOpen={() => app.go({ screen: 'post', postKey: p.key, from: 'library' })}
                 />
               ))}
             </div>
@@ -742,9 +744,9 @@ export function LibraryScreen() {
               </div>
               {posts.map((p) => (
                 <PostRow
-                  key={p.id}
+                  key={p.key}
                   post={p}
-                  onOpen={() => app.go({ screen: 'post', postId: p.id, from: 'library' })}
+                  onOpen={() => app.go({ screen: 'post', postKey: p.key, from: 'library' })}
                 />
               ))}
             </div>

@@ -1,4 +1,4 @@
-/* fc-downloader — favorites */
+/* fc-downloader — favorites (real data) */
 import { useMemo, useState } from 'react'
 import { FC } from '../design/data'
 import { Icon } from '../design/icons'
@@ -10,17 +10,19 @@ export function FavoritesScreen() {
   const L = app.L
   const [svcFilter, setSvcFilter] = useState('all')
   const [q, setQ] = useState('')
+
   const favPosts = useMemo(() => {
-    let ps = FC.POSTS.filter((p) => app.state.favs.has(p.id))
+    let ps = app.posts.filter((p) => app.state.favs.has(p.key))
     if (svcFilter !== 'all') ps = ps.filter((p) => p.service === svcFilter)
     if (q.trim()) {
       const k = q.trim().toLowerCase()
       ps = ps.filter((p) => p.title.toLowerCase().includes(k) || p.creatorName.toLowerCase().includes(k))
     }
     return ps
-  }, [app.state.favs, svcFilter, q])
+  }, [app.posts, app.state.favs, svcFilter, q])
   const density = app.t.density
   const minW = density === 'compact' ? 168 : 210
+  const favAll = app.posts.filter((p) => app.state.favs.has(p.key))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -62,10 +64,10 @@ export function FavoritesScreen() {
         </div>
         <div style={{ display: 'flex', gap: 7, marginTop: 14 }}>
           <FilterChip active={svcFilter === 'all'} onClick={() => setSvcFilter('all')}>
-            {L.allServices} · {FC.POSTS.filter((p) => app.state.favs.has(p.id)).length}
+            {L.allServices} · {favAll.length}
           </FilterChip>
           {FC.SERVICES.map((s) => {
-            const c = FC.POSTS.filter((p) => p.service === s.id && app.state.favs.has(p.id)).length
+            const c = favAll.filter((p) => p.service === s.id).length
             if (!c) return null
             return (
               <FilterChip key={s.id} active={svcFilter === s.id} onClick={() => setSvcFilter(s.id)}>
@@ -93,10 +95,10 @@ export function FavoritesScreen() {
           >
             {favPosts.map((p) => (
               <PostCard
-                key={p.id}
+                key={p.key}
                 post={p}
                 density={density}
-                onOpen={() => app.go({ screen: 'post', postId: p.id, from: 'favorites' })}
+                onOpen={() => app.go({ screen: 'post', postKey: p.key, from: 'favorites' })}
               />
             ))}
           </div>
