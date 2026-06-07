@@ -140,6 +140,24 @@ export function App() {
     })
   }, [])
 
+  // While a download is running, refresh the library in near-real-time (throttled
+  // to once every 2s) so newly downloaded posts appear without waiting for the
+  // whole run to finish. listPosts reads the live in-memory ledger.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const off = bridge.onDownloadProgress(() => {
+      if (timer) return
+      timer = setTimeout(() => {
+        timer = null
+        void bridge.listPosts().then(setRawPosts)
+      }, 2000)
+    })
+    return () => {
+      off()
+      if (timer) clearTimeout(timer)
+    }
+  }, [])
+
   // Mirror the backend download queue: switch the active run as it advances.
   useEffect(() => {
     const off = bridge.onDownloadQueue(({ active, queued: q }) => {
