@@ -14,6 +14,7 @@
 ## アプリのセキュリティ方針
 
 - **ローカル完結**: 対象サイト以外の外部サーバへ通信しない。テレメトリ・自動アップロードなし。
+  フォントも `@fontsource` でローカル同梱（Google Fonts 等の CDN 依存なし）。CSP も外部許可を撤去。
 - **Renderer 隔離**: `contextIsolation: true` / `nodeIntegration: false`。
   renderer は Node / Electron API へ直接触れず、`window.api`（型付き IPC・許可制）経由でのみ
   特権操作を行う。
