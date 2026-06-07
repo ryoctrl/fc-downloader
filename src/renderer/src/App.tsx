@@ -1,6 +1,12 @@
 /* fc-downloader — app shell: prefs, state, routing, theme */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import type { Creator, DownloadOptions, LibraryPost, PostFileKind } from '@shared/types'
+import type {
+  Creator,
+  DownloadOptions,
+  DownloadProgress,
+  LibraryPost,
+  PostFileKind
+} from '@shared/types'
 import type {
   AppActions,
   AppState,
@@ -137,6 +143,7 @@ export function App() {
   const [rawPosts, setRawPosts] = useState<LibraryPost[]>([])
   const posts = useMemo(() => rawPosts.map(toViewPost), [rawPosts])
   const [download, setDownload] = useState<AppState['download']>(null)
+  const [lastProgress, setLastProgress] = useState<DownloadProgress | null>(null)
   const [queued, setQueued] = useState<ServiceId[]>([])
   const optionsRef = useRef<Record<string, DownloadOptions>>({})
   const [concurrency, setConcurrencyState] = useState(3)
@@ -192,20 +199,33 @@ export function App() {
     }
   }, [nav, enabledServices])
 
-  // While a download is running, refresh the library in near-real-time (throttled
-  // to once every 2s) so newly downloaded posts appear without waiting for the
-  // whole run to finish. listPosts reads the live in-memory ledger.
+  // App-level download lifecycle (so it works regardless of which screen is
+  // shown): keep the latest progress snapshot, mark the run done on completion,
+  // and refresh the library in near-real-time (throttled to once every 2s) so
+  // newly downloaded posts appear. The progress screen has its own (richer)
+  // live subscription while mounted, but it misses events when unmounted —
+  // hence this. listPosts reads the live in-memory ledger.
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null
-    const off = bridge.onDownloadProgress(() => {
+    const throttledReload = (): void => {
       if (timer) return
       timer = setTimeout(() => {
         timer = null
         void bridge.listPosts().then(setRawPosts)
       }, 2000)
+    }
+    const offProgress = bridge.onDownloadProgress((p) => {
+      setLastProgress(p)
+      throttledReload()
+    })
+    const offDone = bridge.onDownloadDone((p) => {
+      setLastProgress(p)
+      setDownload((d) => (d && !d.done ? { ...d, done: true } : d))
+      void bridge.listPosts().then(setRawPosts)
     })
     return () => {
-      off()
+      offProgress()
+      offDone()
       if (timer) clearTimeout(timer)
     }
   }, [])
@@ -337,9 +357,13 @@ export function App() {
   const doStartDownload = (svc: DesignService, options: DownloadOptions): void => {
     optionsRef.current[svc.id] = options
     // Optimistic: show it now if nothing is running; otherwise it queues.
-    setDownload((d) =>
-      !d || d.done ? { svcId: svc.id, options, startedAt: Date.now(), done: false } : d
-    )
+    setDownload((d) => {
+      if (!d || d.done) {
+        setLastProgress(null) // fresh run — drop the previous snapshot
+        return { svcId: svc.id, options, startedAt: Date.now(), done: false }
+      }
+      return d
+    })
     void bridge.startDownload(svc.id, options)
   }
 
@@ -486,6 +510,7 @@ export function App() {
       creatorsLoading,
       favs,
       download,
+      lastProgress,
       queued,
       saveDir,
       concurrency,

@@ -90,17 +90,21 @@ export function ProgressScreen() {
   }
 
   const done = dl.done
-  const p = progress ?? {
-    total: 0,
-    completed: 0,
-    skipped: 0,
-    failed: 0,
-    inFlight: 0,
-    postsCompleted: 0,
-    postsTotal: 0,
-    bytesDownloaded: 0,
-    bytesTotal: 0
-  }
+  // Prefer this screen's live progress; fall back to the app-level snapshot so a
+  // run that finished while we were on another screen still shows its result
+  // (not 0%) after navigating back.
+  const p = progress ??
+    app.state.lastProgress ?? {
+      total: 0,
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      inFlight: 0,
+      postsCompleted: 0,
+      postsTotal: 0,
+      bytesDownloaded: 0,
+      bytesTotal: 0
+    }
   const processed = p.completed + p.skipped + p.failed
   // Determinate progress once the up-front post count is known.
   const hasTotal = p.postsTotal > 0
