@@ -54,6 +54,8 @@ export const bridge = {
     api ? api.on('download:item', cb) : noop,
   onDownloadDone: (cb: (p: IpcEvents['download:done']) => void): (() => void) =>
     api ? api.on('download:done', cb) : noop,
+  onDownloadQueue: (cb: (p: IpcEvents['download:queue']) => void): (() => void) =>
+    api ? api.on('download:queue', cb) : noop,
 
   // viewer / library
   viewerTree: (): Promise<ViewerNode[]> => api?.['viewer:tree']() ?? Promise.resolve([]),

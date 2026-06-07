@@ -190,6 +190,21 @@ export function ProgressScreen() {
             </Btn>
           )}
         </div>
+        {app.state.queued.length > 0 && (
+          <div
+            style={{
+              marginTop: 14,
+              fontSize: 12,
+              color: 'var(--text-3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7
+            }}
+          >
+            <Icon name="clock" size={13} />
+            {L.queued}: {app.state.queued.map((id) => FC.serviceById(id).name).join(', ')}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '8px 18px 20px' }}>

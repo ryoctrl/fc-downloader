@@ -52,6 +52,8 @@ export interface IpcEvents {
   'download:item': DownloadItem
   /** Emitted once when a download run finishes (completed, failed, or canceled). */
   'download:done': DownloadProgress
+  /** Current download queue state (active run + pending services). */
+  'download:queue': { active: ServiceId | null; queued: ServiceId[] }
   'services:authChanged': { serviceId: ServiceId; loggedIn: boolean }
 }
 

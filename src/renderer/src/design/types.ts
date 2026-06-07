@@ -81,6 +81,8 @@ export interface AppState {
   /** Favorited post keys (serviceId/creatorId/postId), persisted locally. */
   favs: Set<string>
   download: DownloadState | null
+  /** Services waiting in the download queue (behind the active one). */
+  queued: ServiceId[]
   saveDir: string
   concurrency: number
   skipDupDefault: boolean
