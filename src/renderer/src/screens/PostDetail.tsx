@@ -405,6 +405,15 @@ export function PostDetail() {
               <Icon name="heart" size={16} fill={fav} />
               {fav ? L.favorited : L.favorite}
             </button>
+            {post.postUrl && (
+              <Btn
+                variant="ghost"
+                icon="external"
+                style={{ padding: '10px 13px' }}
+                title={L.openInBrowser}
+                onClick={() => bridge.openExternal(post.postUrl!)}
+              />
+            )}
             <Btn
               variant="solid"
               icon="folder"

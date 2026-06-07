@@ -16,6 +16,8 @@ export interface ViewPost {
   creatorName: string
   /** fcfile:// URL of the creator's avatar, if saved on disk. */
   creatorIconUrl?: string
+  /** Canonical web page for this post (for "open in browser"), if known. */
+  postUrl?: string
   postId: string
   title: string
   year: number
@@ -54,6 +56,7 @@ export function toViewPost(lp: LibraryPost): ViewPost {
     creator: lp.creatorId,
     creatorName: lp.creatorName,
     creatorIconUrl: lp.creatorIconUrl,
+    postUrl: lp.postUrl,
     postId: lp.postId,
     title: lp.title,
     year: lp.year,

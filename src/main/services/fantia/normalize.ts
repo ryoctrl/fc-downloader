@@ -10,6 +10,7 @@
 import type { Post, PostFile } from '@shared/types'
 import { toLocationParts } from '@main/storage/layout'
 import { kindForName } from '@main/storage/files'
+import { webPostUrl } from '../postUrl'
 
 const BASE = 'https://fantia.jp'
 
@@ -99,6 +100,7 @@ export function normalizePost(creatorId: string, raw: RawFantiaPostResponse): Po
     postedAt,
     year,
     month,
+    url: webPostUrl('fantia', creatorId, String(p.id)),
     files: collectFiles(p)
   }
 }

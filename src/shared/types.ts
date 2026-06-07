@@ -39,6 +39,8 @@ export interface Post {
   /** Derived from postedAt; used for the year/month folder layout. */
   year: number
   month: number
+  /** Canonical web page for this post (for "open in browser"), if known. */
+  url?: string
   /** Files attached to / embedded in this post. */
   files: PostFile[]
 }
@@ -135,6 +137,8 @@ export interface LibraryPost {
   creatorName: string
   /** fcfile:// URL of the creator's avatar saved on disk, if any. */
   creatorIconUrl?: string
+  /** Canonical web page for this post (for "open in browser"), if known. */
+  postUrl?: string
   postId: string
   title: string
   /** ISO-8601 publish timestamp. */

@@ -18,6 +18,7 @@
 import type { Creator, Post } from '@shared/types'
 import type { Service, ServiceContext } from '../types'
 import { toLocationParts } from '@main/storage/layout'
+import { webPostUrl } from '../postUrl'
 import {
   parseArticleDate,
   parseArticleIds,
@@ -132,6 +133,7 @@ async function fetchArticle(
     postedAt,
     year,
     month,
+    url: webPostUrl('cien', creatorId, articleId),
     files
   }
 }
