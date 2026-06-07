@@ -62,6 +62,8 @@ export const bridge = {
   openPath: (path: string): Promise<void> => api?.['viewer:openPath'](path) ?? Promise.resolve(),
   openExternal: (url: string): Promise<void> =>
     api?.['shell:openExternal'](url) ?? Promise.resolve(),
+  extractArchive: (dirPath: string, fileName: string): Promise<string | null> =>
+    api?.['archive:extract'](dirPath, fileName) ?? Promise.resolve(null),
   pinWindowBounds: (): Promise<void> => api?.['window:pinBounds']() ?? Promise.resolve(),
   listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([]),
   listFiles: (dirPath: string): Promise<LibraryFile[]> =>

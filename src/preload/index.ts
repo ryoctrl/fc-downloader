@@ -16,6 +16,7 @@ const invokeChannels: IpcChannel[] = [
   'viewer:tree',
   'viewer:openPath',
   'shell:openExternal',
+  'archive:extract',
   'window:pinBounds',
   'posts:list',
   'posts:files',

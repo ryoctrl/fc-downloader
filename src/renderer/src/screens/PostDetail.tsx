@@ -79,8 +79,19 @@ function MetaRow({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function FileRow({ file }: { file: LibraryFile }) {
+function FileRow({ file, dirPath, L }: { file: LibraryFile; dirPath: string; L: Dict }) {
   const icon = file.kind === 'audio' ? 'play' : file.kind === 'video' ? 'play' : 'file'
+  const isZip = /\.zip$/i.test(file.name)
+  const [extracting, setExtracting] = useState(false)
+  const extract = async (): Promise<void> => {
+    if (extracting) return
+    setExtracting(true)
+    try {
+      await bridge.extractArchive(dirPath, file.name)
+    } finally {
+      setExtracting(false)
+    }
+  }
   return (
     <div
       style={{
@@ -111,6 +122,31 @@ function FileRow({ file }: { file: LibraryFile }) {
       <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--text-3)', flexShrink: 0 }}>
         {fmtSize(file.sizeBytes / (1024 * 1024))}
       </span>
+      {isZip && (
+        <button
+          onClick={() => void extract()}
+          title={L.extractZip}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 10px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-2)',
+            cursor: extracting ? 'default' : 'pointer',
+            fontSize: 11.5,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            flexShrink: 0,
+            opacity: extracting ? 0.6 : 1
+          }}
+        >
+          <Icon name="folder" size={13} />
+          {extracting ? L.extracting : L.extractZip}
+        </button>
+      )}
     </div>
   )
 }
@@ -209,7 +245,7 @@ function Preview({
       {others.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {others.map((f) => (
-            <FileRow key={f.url} file={f} />
+            <FileRow key={f.url} file={f} dirPath={post.dirPath} L={L} />
           ))}
         </div>
       )}
