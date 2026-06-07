@@ -65,10 +65,14 @@ export class DownloadEngine {
     const service = getService(serviceId)
 
     try {
+      // Resolve display names for the ledger (best-effort; falls back to ids).
+      const allCreators = await service.listCreators(ctx).catch((err) => {
+        ctx.log('warn', 'listCreators failed; creator names unavailable', err)
+        return []
+      })
+      const nameById = new Map(allCreators.map((c) => [c.creatorId, c.name]))
       const creators =
-        options.creatorIds.length > 0
-          ? options.creatorIds
-          : (await service.listCreators(ctx)).map((c) => c.creatorId)
+        options.creatorIds.length > 0 ? options.creatorIds : allCreators.map((c) => c.creatorId)
 
       for (const creatorId of creators) {
         signal.throwIfAborted()
@@ -86,7 +90,7 @@ export class DownloadEngine {
             continue
           }
 
-          await this.downloadPost(serviceId, root, post, options, cb)
+          await this.downloadPost(serviceId, root, post, options, cb, nameById.get(creatorId))
         }
       }
     } finally {
@@ -100,13 +104,14 @@ export class DownloadEngine {
     root: string,
     post: Post,
     options: DownloadOptions,
-    cb: DownloadCallbacks
+    cb: DownloadCallbacks,
+    creatorName?: string
   ): Promise<void> {
     const { year, month } = toLocationParts(post.postedAt)
     const loc = { serviceId, creatorId: post.creatorId, year, month, postId: post.postId }
     const dir = postDir(root, loc)
     await mkdir(dir, { recursive: true })
-    upsertPost(post, dir)
+    upsertPost(post, dir, creatorName)
 
     const targets = post.files.filter((f) => options.includeKinds.includes(f.kind))
     this.progress.total += targets.length

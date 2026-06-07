@@ -149,6 +149,40 @@ describe('listPosts', () => {
     expect(listPosts()[0].type).toBe('audio')
   })
 
+  it('uses the provided creator display name, falling back to the id', () => {
+    const base: Post = {
+      serviceId: 'fanbox',
+      creatorId: 'aotsuki',
+      postId: '300',
+      title: 't',
+      postedAt: '2025-06-03T00:00:00.000Z',
+      year: 2025,
+      month: 6,
+      files: []
+    }
+    upsertPost(base, '/root/300', '蒼月アート')
+    upsertPost({ ...base, postId: '301' }, '/root/301') // no name supplied
+    const byId = new Map(listPosts().map((p) => [p.postId, p.creatorName]))
+    expect(byId.get('300')).toBe('蒼月アート')
+    expect(byId.get('301')).toBe('aotsuki')
+  })
+
+  it('preserves a stored creator name across upserts without one', () => {
+    const base: Post = {
+      serviceId: 'fanbox',
+      creatorId: 'aotsuki',
+      postId: '302',
+      title: 't',
+      postedAt: '2025-06-03T00:00:00.000Z',
+      year: 2025,
+      month: 6,
+      files: []
+    }
+    upsertPost(base, '/root/302', '蒼月アート')
+    upsertPost(base, '/root/302') // re-upsert without a name must not clobber it
+    expect(listPosts()[0].creatorName).toBe('蒼月アート')
+  })
+
   it('sorts newest first by postedAt', () => {
     const mk = (postId: string, postedAt: string): Post => ({
       serviceId: 'fanbox',
