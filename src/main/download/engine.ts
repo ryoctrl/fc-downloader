@@ -16,6 +16,8 @@ import { getService } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
 import { downloadToFile } from '@main/session/manager'
 import { dedupeFileNames, postDir, sanitizeFileName, toLocationParts } from '@main/storage/layout'
+import { getThumbnail } from '@main/storage/thumbnails'
+import { THUMBNAIL_WIDTH } from '@shared/constants'
 import { ensureCreatorAvatar } from './avatar'
 import {
   isFileDownloaded,
@@ -215,6 +217,7 @@ export class DownloadEngine {
       try {
         if (options.skipExisting && (await exists(dest))) {
           markFileDownloaded(post, file.fileId, diskName, undefined, file.kind)
+          warmThumbnail(file.kind, dest)
           this.progress.skipped += 1
           cb.onItem?.({
             serviceId,
@@ -226,6 +229,7 @@ export class DownloadEngine {
         } else {
           const size = await this.downloadFile(serviceId, file, dest)
           markFileDownloaded(post, file.fileId, diskName, size, file.kind)
+          warmThumbnail(file.kind, dest)
           this.progress.completed += 1
           this.progress.bytesDownloaded += size
           cb.onItem?.({
@@ -286,6 +290,18 @@ function blankProgress(): DownloadProgress {
     bytesDownloaded: 0,
     bytesTotal: 0
   }
+}
+
+/**
+ * Pre-generate an image's thumbnail at download time (fire-and-forget) so the
+ * library is responsive from the first view. Best-effort: failures are ignored
+ * (the fcfile handler regenerates lazily on demand if needed).
+ */
+function warmThumbnail(kind: PostFile['kind'], dest: string): void {
+  if (kind !== 'image') return
+  void getThumbnail(dest, THUMBNAIL_WIDTH).catch(() => {
+    /* cosmetic; lazily regenerated on view */
+  })
 }
 
 async function exists(path: string): Promise<boolean> {
