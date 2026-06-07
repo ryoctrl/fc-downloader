@@ -1,7 +1,7 @@
 /** Registers all IPC handlers and wires download events back to the renderer. */
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcApi, IpcChannel, IpcEventChannel, IpcEvents } from '@shared/ipc'
-import type { DownloadItem, ServiceDescriptor } from '@shared/types'
+import type { DownloadItem, DownloadProgress, ServiceDescriptor } from '@shared/types'
 import { listServices } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
 import { clearSession } from '@main/session/manager'
@@ -66,28 +66,46 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   handle('download:start', async (serviceId, options) => {
     const { downloadRoot } = getSettings()
     recentItems = []
-    void engine.run(serviceId, downloadRoot, options, {
-      onProgress: (progress) => {
-        const win = getWindow()
-        if (win) emit(win, 'download:progress', progress)
-      },
-      onItem: (item) => {
-        const win = getWindow()
-        const dlItem: DownloadItem = {
-          id: `${item.postId}:${item.fileId}`,
-          serviceId: item.serviceId,
-          creatorId: '',
-          postId: item.postId,
-          fileId: item.fileId,
-          fileName: item.fileName,
-          status: item.status,
-          bytesDownloaded: 0,
-          error: item.error
+    let lastProgress: DownloadProgress = {
+      total: 0,
+      completed: 0,
+      skipped: 0,
+      failed: 0,
+      inFlight: 0,
+      bytesDownloaded: 0,
+      bytesTotal: 0
+    }
+    // Fire-and-forget: the invoke resolves immediately; progress/done are pushed
+    // as events. A `download:done` event is emitted once the run settles.
+    void engine
+      .run(serviceId, downloadRoot, options, {
+        onProgress: (progress) => {
+          lastProgress = progress
+          const win = getWindow()
+          if (win) emit(win, 'download:progress', progress)
+        },
+        onItem: (item) => {
+          const win = getWindow()
+          const dlItem: DownloadItem = {
+            id: `${item.postId}:${item.fileId}`,
+            serviceId: item.serviceId,
+            creatorId: '',
+            postId: item.postId,
+            fileId: item.fileId,
+            fileName: item.fileName,
+            status: item.status,
+            bytesDownloaded: 0,
+            error: item.error
+          }
+          recentItems.push(dlItem)
+          if (win) emit(win, 'download:item', dlItem)
         }
-        recentItems.push(dlItem)
-        if (win) emit(win, 'download:item', dlItem)
-      }
-    })
+      })
+      .catch((err) => console.error('[download] run failed', err))
+      .finally(() => {
+        const win = getWindow()
+        if (win) emit(win, 'download:done', lastProgress)
+      })
   })
 
   handle('download:cancel', async () => {

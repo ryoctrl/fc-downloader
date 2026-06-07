@@ -45,6 +45,8 @@ export type IpcChannel = keyof IpcApi
 export interface IpcEvents {
   'download:progress': DownloadProgress
   'download:item': DownloadItem
+  /** Emitted once when a download run finishes (completed, failed, or canceled). */
+  'download:done': DownloadProgress
   'services:authChanged': { serviceId: ServiceId; loggedIn: boolean }
 }
 
