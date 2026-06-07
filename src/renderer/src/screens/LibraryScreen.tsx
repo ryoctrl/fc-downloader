@@ -280,6 +280,28 @@ function typeIcon(type: ViewPost['type']): string {
   return type === 'video' ? 'play' : type === 'audio' ? 'play' : type === 'file' ? 'file' : 'image'
 }
 
+/** Real cover image if the post has one, else the striped placeholder. */
+function Cover({ post, radius, ratio }: { post: ViewPost; radius: number; ratio: string }) {
+  if (post.coverUrl) {
+    return (
+      <img
+        src={post.coverUrl}
+        alt=""
+        loading="lazy"
+        style={{
+          width: '100%',
+          aspectRatio: ratio,
+          objectFit: 'cover',
+          display: 'block',
+          borderRadius: radius,
+          background: 'var(--surface-2)'
+        }}
+      />
+    )
+  }
+  return <Thumb hue={post.hue} type={post.type} radius={radius} ratio={ratio} />
+}
+
 export function PostCard({
   post,
   density,
@@ -309,7 +331,7 @@ export function PostCard({
       }}
     >
       <div style={{ position: 'relative' }}>
-        <Thumb hue={post.hue} type={post.type} radius={0} ratio="4 / 3" />
+        <Cover post={post} radius={0} ratio="4 / 3" />
         <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 5 }}>
           <span
             style={{
@@ -412,7 +434,7 @@ function PostRow({ post, onOpen }: { post: ViewPost; onOpen: () => void }) {
       }}
     >
       <div style={{ width: 44, flexShrink: 0 }}>
-        <Thumb hue={post.hue} type={post.type} radius={7} ratio="1 / 1" />
+        <Cover post={post} radius={7} ratio="1 / 1" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div

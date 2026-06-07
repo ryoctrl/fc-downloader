@@ -147,6 +147,8 @@ export interface LibraryPost {
   sizeBytes: number
   /** Dominant file kind (for icons / filtering). */
   type: PostFileKind
+  /** fcfile:// URL of the post's first image on disk, for a real thumbnail. */
+  coverUrl?: string
   /** Whether the post's in-scope files are all downloaded. */
   completed: boolean
 }
