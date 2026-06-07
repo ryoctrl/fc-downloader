@@ -99,6 +99,10 @@ export interface AppState {
   /** Per-service selected creator ids (serviceId -> creatorIds). Absent = all
    *  selected by default. Persisted so the choice survives service switches. */
   creatorSel: Record<string, string[]>
+  /** Per-service enabled flag (serviceId -> bool). Absent = enabled. Disabled
+   *  services are hidden from the rail and excluded from bulk/scheduled runs;
+   *  the login session is kept. */
+  enabledServices: Record<string, boolean>
 }
 
 export interface AppActions {
@@ -126,6 +130,9 @@ export interface AppActions {
   setDownloadPrefs: (patch: Partial<DownloadPrefs>) => void
   /** Set + persist the selected creator ids for a service. */
   setCreatorSel: (serviceId: ServiceId, ids: string[]) => void
+  /** Enable/disable a service (hide from rail + exclude from bulk/scheduled;
+   *  keeps the login session). Persisted. */
+  setServiceEnabled: (serviceId: ServiceId, enabled: boolean) => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */

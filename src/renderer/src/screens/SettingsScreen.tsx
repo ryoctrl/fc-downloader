@@ -170,6 +170,7 @@ export function SettingsScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {FC.SERVICES.map((svc) => {
               const on = !!state.logins[svc.id]
+              const enabled = state.enabledServices[svc.id] !== false
               return (
                 <div
                   key={svc.id}
@@ -204,6 +205,16 @@ export function SettingsScreen() {
                       />
                       {on ? L.connected : L.disconnected}
                     </div>
+                  </div>
+                  <div
+                    title={L.serviceEnabledHint}
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+                  >
+                    <span style={{ fontSize: 10, color: 'var(--text-3)' }}>{L.serviceEnabled}</span>
+                    <Toggle
+                      on={enabled}
+                      onClick={() => actions.setServiceEnabled(svc.id, !enabled)}
+                    />
                   </div>
                   {on ? (
                     <Btn size="sm" variant="ghost" icon="trash" onClick={() => actions.clearSession(svc.id)}>

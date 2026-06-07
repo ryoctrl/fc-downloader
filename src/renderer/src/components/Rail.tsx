@@ -112,7 +112,7 @@ export function Rail() {
         overflow: 'auto'
       }}
     >
-      {FC.SERVICES.map((svc) => {
+      {FC.SERVICES.filter((svc) => app.state.enabledServices[svc.id] !== false).map((svc) => {
         const active = nav.screen === 'service' && nav.serviceId === svc.id
         return (
           <RailItem

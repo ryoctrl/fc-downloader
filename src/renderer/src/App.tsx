@@ -19,6 +19,7 @@ const PREFS_KEY = 'fc_prefs'
 const FAVS_KEY = 'fc_favs'
 const DL_PREFS_KEY = 'fc_dl_prefs'
 const CREATOR_SEL_KEY = 'fc_creator_sel'
+const ENABLED_KEY = 'fc_enabled_services'
 
 const DEFAULT_DL_PREFS: DownloadPrefs = { image: true, video: true, file: true, skipDup: true }
 
@@ -118,6 +119,9 @@ export function App() {
   const [creatorSel, setCreatorSelState] = useState<Record<string, string[]>>(() =>
     loadJson(CREATOR_SEL_KEY, {})
   )
+  const [enabledServices, setEnabledServicesState] = useState<Record<string, boolean>>(() =>
+    loadJson(ENABLED_KEY, {})
+  )
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const sysDark = useSystemDark()
 
@@ -143,6 +147,16 @@ export function App() {
       }
     })
   }, [])
+
+  // If the active service screen is for a now-disabled service, move away from
+  // it (to the first enabled service, else the library).
+  useEffect(() => {
+    if (nav.screen !== 'service') return
+    if (enabledServices[nav.serviceId] === false) {
+      const firstEnabled = FC.SERVICES.find((s) => enabledServices[s.id] !== false)
+      setNav(firstEnabled ? { screen: 'service', serviceId: firstEnabled.id } : { screen: 'library' })
+    }
+  }, [nav, enabledServices])
 
   // While a download is running, refresh the library in near-real-time (throttled
   // to once every 2s) so newly downloaded posts appear without waiting for the
@@ -284,6 +298,16 @@ export function App() {
           /* ignore */
         }
         return next
+      }),
+    setServiceEnabled: (serviceId, enabled) =>
+      setEnabledServicesState((s) => {
+        const next = { ...s, [serviceId]: enabled }
+        try {
+          localStorage.setItem(ENABLED_KEY, JSON.stringify(next))
+        } catch {
+          /* ignore */
+        }
+        return next
       })
   }
 
@@ -304,7 +328,8 @@ export function App() {
       saveDir,
       concurrency,
       downloadPrefs,
-      creatorSel
+      creatorSel,
+      enabledServices
     },
     actions,
     posts
