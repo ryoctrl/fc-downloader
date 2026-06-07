@@ -169,6 +169,23 @@ describe('listPosts', () => {
     expect(byId.get('301')).toBe('aotsuki')
   })
 
+  it('stores the creator avatar URL and preserves it across upserts without one', () => {
+    const base: Post = {
+      serviceId: 'fanbox',
+      creatorId: 'aotsuki',
+      postId: '400',
+      title: 't',
+      postedAt: '2025-06-03T00:00:00.000Z',
+      year: 2025,
+      month: 6,
+      files: []
+    }
+    upsertPost(base, '/root/400', '蒼月アート', 'fcfile://fc/fanbox/aotsuki/_avatar.jpg')
+    expect(listPosts()[0].creatorIconUrl).toBe('fcfile://fc/fanbox/aotsuki/_avatar.jpg')
+    upsertPost(base, '/root/400', '蒼月アート') // re-upsert without an icon must not clobber it
+    expect(listPosts()[0].creatorIconUrl).toBe('fcfile://fc/fanbox/aotsuki/_avatar.jpg')
+  })
+
   it('preserves a stored creator name across upserts without one', () => {
     const base: Post = {
       serviceId: 'fanbox',

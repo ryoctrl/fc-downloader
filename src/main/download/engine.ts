@@ -4,6 +4,7 @@
  * remaining files with bounded concurrency, emitting progress events.
  */
 import { mkdir, stat } from 'node:fs/promises'
+import { join, relative } from 'node:path'
 import type {
   DownloadOptions,
   DownloadProgress,
@@ -15,6 +16,7 @@ import { getService } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
 import { downloadToFile } from '@main/session/manager'
 import { filePath, postDir, toLocationParts } from '@main/storage/layout'
+import { fcfileUrl } from '@main/storage/files'
 import {
   isFileDownloaded,
   isPostComplete,
@@ -71,11 +73,21 @@ export class DownloadEngine {
         return []
       })
       const nameById = new Map(allCreators.map((c) => [c.creatorId, c.name]))
+      const iconById = new Map(allCreators.map((c) => [c.creatorId, c.iconUrl]))
       const creators =
         options.creatorIds.length > 0 ? options.creatorIds : allCreators.map((c) => c.creatorId)
 
       for (const creatorId of creators) {
         signal.throwIfAborted()
+        // Fetch the creator's avatar once per run so the library can show it.
+        const avatarUrl = await this.ensureAvatar(
+          ctx,
+          serviceId,
+          root,
+          creatorId,
+          iconById.get(creatorId),
+          service.downloadHeaders
+        )
         for await (const listed of service.listPosts(ctx, creatorId)) {
           signal.throwIfAborted()
           const post = service.resolvePost ? await service.resolvePost(ctx, listed) : listed
@@ -90,7 +102,15 @@ export class DownloadEngine {
             continue
           }
 
-          await this.downloadPost(serviceId, root, post, options, cb, nameById.get(creatorId))
+          await this.downloadPost(
+            serviceId,
+            root,
+            post,
+            options,
+            cb,
+            nameById.get(creatorId),
+            avatarUrl
+          )
         }
       }
     } finally {
@@ -105,13 +125,14 @@ export class DownloadEngine {
     post: Post,
     options: DownloadOptions,
     cb: DownloadCallbacks,
-    creatorName?: string
+    creatorName?: string,
+    creatorIconUrl?: string
   ): Promise<void> {
     const { year, month } = toLocationParts(post.postedAt)
     const loc = { serviceId, creatorId: post.creatorId, year, month, postId: post.postId }
     const dir = postDir(root, loc)
     await mkdir(dir, { recursive: true })
-    upsertPost(post, dir, creatorName)
+    upsertPost(post, dir, creatorName, creatorIconUrl)
 
     const targets = post.files.filter((f) => options.includeKinds.includes(f.kind))
     this.progress.total += targets.length
@@ -213,6 +234,37 @@ export class DownloadEngine {
         attempt += 1
         await sleep(backoffDelayMs(attempt), signal)
       }
+    }
+  }
+
+  /**
+   * Download a creator's avatar once into `<root>/<serviceId>/<creatorId>/` and
+   * return a fcfile:// URL the viewer can render. Best-effort: returns undefined
+   * if there's no avatar URL or the fetch fails (avatars are cosmetic). Reuses
+   * an already-saved avatar instead of re-downloading.
+   */
+  private async ensureAvatar(
+    ctx: ReturnType<typeof createServiceContext>,
+    serviceId: ServiceId,
+    root: string,
+    creatorId: string,
+    iconUrl: string | undefined,
+    headers: Record<string, string> | undefined
+  ): Promise<string | undefined> {
+    if (!iconUrl) return undefined
+    const cleanUrl = iconUrl.split('?')[0]
+    const ext = (cleanUrl.match(/\.([a-zA-Z0-9]{2,4})$/)?.[1] ?? 'jpg').toLowerCase()
+    const dir = join(root, serviceId, creatorId)
+    const dest = join(dir, `_avatar.${ext}`)
+    const url = fcfileUrl(relative(root, dest))
+    if (await exists(dest)) return url
+    try {
+      await mkdir(dir, { recursive: true })
+      await downloadToFile(serviceId, iconUrl, dest, { signal: this.abort.signal, headers })
+      return url
+    } catch (err) {
+      ctx.log('debug', `avatar download failed for ${creatorId}`, err)
+      return undefined
     }
   }
 }

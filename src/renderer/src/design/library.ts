@@ -14,6 +14,8 @@ export interface ViewPost {
   service: ServiceId
   creator: string
   creatorName: string
+  /** fcfile:// URL of the creator's avatar, if saved on disk. */
+  creatorIconUrl?: string
   postId: string
   title: string
   year: number
@@ -51,6 +53,7 @@ export function toViewPost(lp: LibraryPost): ViewPost {
     service: lp.serviceId,
     creator: lp.creatorId,
     creatorName: lp.creatorName,
+    creatorIconUrl: lp.creatorIconUrl,
     postId: lp.postId,
     title: lp.title,
     year: lp.year,
