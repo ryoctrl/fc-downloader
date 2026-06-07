@@ -1,5 +1,5 @@
 /* fc-downloader — file viewer (library): tree + grid/list + filters, real data */
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode, type UIEvent } from 'react'
 import type { Dict, ServiceId, ViewMode } from '../design/types'
 import { FC, fmtSize } from '../design/data'
 import { libraryTotals, type ViewPost } from '../design/library'
@@ -596,6 +596,21 @@ export function LibraryScreen() {
     )
   }, [allPosts, node, status, type, q, sortDesc])
 
+  // Incremental rendering: only mount a window of cards/rows and grow it as the
+  // user scrolls, so "All posts" with thousands of items stays responsive.
+  const PAGE = 60
+  const [visible, setVisible] = useState(PAGE)
+  useEffect(() => {
+    setVisible(PAGE)
+  }, [posts])
+  const shown = posts.slice(0, visible)
+  const onScroll = (e: UIEvent<HTMLDivElement>): void => {
+    const el = e.currentTarget
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 700) {
+      setVisible((v) => (v < posts.length ? v + PAGE : v))
+    }
+  }
+
   const crumbs = nodeLabel(node, L)
   const density = app.t.density
   const minW = density === 'compact' ? 168 : 210
@@ -730,7 +745,10 @@ export function LibraryScreen() {
             ))}
           </div>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: view === 'grid' ? '18px 20px 28px' : '8px 14px 24px' }}>
+        <div
+          onScroll={onScroll}
+          style={{ flex: 1, overflow: 'auto', padding: view === 'grid' ? '18px 20px 28px' : '8px 14px 24px' }}
+        >
           {allPosts.length === 0 ? (
             <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>
               <div style={{ textAlign: 'center' }}>
@@ -753,7 +771,7 @@ export function LibraryScreen() {
                 gap: density === 'compact' ? 12 : 16
               }}
             >
-              {posts.map((p) => (
+              {shown.map((p) => (
                 <PostCard
                   key={p.key}
                   post={p}
@@ -788,7 +806,7 @@ export function LibraryScreen() {
                 <div style={{ width: 96, flexShrink: 0 }}>{L.status}</div>
                 <div style={{ width: 16, flexShrink: 0 }} />
               </div>
-              {posts.map((p) => (
+              {shown.map((p) => (
                 <PostRow
                   key={p.key}
                   post={p}
