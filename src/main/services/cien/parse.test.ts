@@ -125,6 +125,24 @@ describe('parseAttachments', () => {
     expect(files[0].url).toContain('image-800.jpg')
   })
 
+  it('skips cropped thumbnails (image-<N>-c) — shared icons/covers, not content', () => {
+    const h = 'fff78a37e14d9450e3e2af89f1de15d21ff7a2c5511476f6d10767d7c0fb8874'
+    // A hash whose only variant is a cropped 200px thumbnail (creator icon /
+    // recent-article cover that appears on every article page) must be dropped.
+    const html = `<img src="${base}/${h}/image-200-c.jpg${SIG}">`
+    expect(parseAttachments(html)).toEqual([])
+  })
+
+  it('keeps content when a real variant accompanies a cropped thumbnail', () => {
+    const h = '0d4555f428cf1f928c88ddf13692ec7d07bb4382d1fd8362aa7ce34592df7966'
+    const html = `<img src="${base}/${h}/image-200-c.jpg${SIG}">
+      <img src="${base}/${h}/image-800.jpg${SIG}">
+      <a href="${base}/${h}/upload/pic.jpg${SIG}">o</a>`
+    const files = parseAttachments(html)
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ fileId: h, name: 'pic.jpg' })
+  })
+
   it('classifies non-image originals by extension', () => {
     const h3 = 'aaaa1111bbbb2222'
     const html = `<a href="${base}/${h3}/upload/track%20one.mp3${SIG}">audio</a>`
