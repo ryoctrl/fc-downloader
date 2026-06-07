@@ -1,6 +1,6 @@
 /* fc-downloader — Service screen: embedded WebView + download settings panel */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PostFileKind } from '@shared/types'
+import type { PostFileKind, ServiceId } from '@shared/types'
 import type { DesignService, Dict, PostType } from '../design/types'
 import { FC } from '../design/data'
 import { Icon } from '../design/icons'
@@ -248,21 +248,52 @@ function BrowserPane({
   )
 }
 
+/** Creator avatar for the download settings — the remote icon proxied through
+ *  the service session (fcicon://), with a folder fallback on error. */
+function CreatorIcon({ serviceId, iconUrl }: { serviceId: ServiceId; iconUrl?: string }) {
+  const [failed, setFailed] = useState(false)
+  if (iconUrl && !failed) {
+    const src = `fcicon://i/?s=${encodeURIComponent(serviceId)}&u=${encodeURIComponent(iconUrl)}`
+    return (
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 99,
+          objectFit: 'cover',
+          flexShrink: 0,
+          background: 'var(--surface-2)'
+        }}
+      />
+    )
+  }
+  return <Icon name="folder" size={16} style={{ color: 'var(--text-3)', flexShrink: 0 }} />
+}
+
 function Check({
   on,
   onClick,
   label,
+  sub,
+  mark,
   count
 }: {
   on: boolean
   onClick: () => void
   label: string
+  sub?: string
+  mark?: React.ReactNode
   count?: number
 }) {
   return (
     <label
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', cursor: 'pointer' }}
+      style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px', cursor: 'pointer' }}
     >
       <span
         style={{
@@ -279,7 +310,23 @@ function Check({
       >
         {on && <Icon name="check" size={12} strokeWidth={2.6} />}
       </span>
-      <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{label}</span>
+      {mark}
+      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <span
+          style={{
+            fontSize: 13,
+            color: 'var(--text)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}
+        >
+          {label}
+        </span>
+        {sub && (
+          <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>{sub}</span>
+        )}
+      </span>
       {count != null && (
         <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
           {count}
@@ -537,7 +584,9 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
                   key={c.creatorId}
                   on={sel.has(c.creatorId)}
                   onClick={() => toggleSel(c.creatorId)}
-                  label={c.name}
+                  mark={<CreatorIcon serviceId={c.serviceId} iconUrl={c.iconUrl} />}
+                  label={c.name === c.creatorId ? c.creatorId : c.name}
+                  sub={c.name === c.creatorId ? undefined : c.creatorId}
                 />
               ))
             )}

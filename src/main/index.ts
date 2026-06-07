@@ -4,9 +4,11 @@ import { registerIpcHandlers } from './ipc/handlers'
 import { initDb, closeDb } from './storage/db'
 import { getSettings, initSettings, updateSettings } from './storage/settings'
 import { registerFcfileHandler, registerFcfileScheme } from './protocol/fcfile'
+import { registerFciconHandler, registerFciconScheme } from './protocol/fcicon'
 
 // Privileged-scheme registration must happen before the app is ready.
 registerFcfileScheme()
+registerFciconScheme()
 
 let mainWindow: BrowserWindow | null = null
 
@@ -98,6 +100,7 @@ app.whenReady().then(() => {
   initDb(userData)
   initSettings(userData, defaultDownloadRoot)
   registerFcfileHandler() // after settings: the handler reads the download root
+  registerFciconHandler()
   registerIpcHandlers(() => mainWindow)
 
   // Capture the current (possibly snapped) bounds just before the renderer
