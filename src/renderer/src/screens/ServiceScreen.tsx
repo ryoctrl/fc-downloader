@@ -406,7 +406,10 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
         <div>
           <SectionLabel
             action={
-              <span style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}>
+              <span
+                onClick={() => app.actions.pickSaveDir()}
+                style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
+              >
                 {L.change}
               </span>
             }
