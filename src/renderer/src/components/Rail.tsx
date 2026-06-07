@@ -1,6 +1,6 @@
 /* fc-downloader — left navigation rail */
 import type { ReactNode } from 'react'
-import { FC } from '../design/data'
+import { FC, fmtSize } from '../design/data'
 import { SHORT } from '../design/i18n'
 import { Icon } from '../design/icons'
 import { ServiceMark } from '../design/primitives'
@@ -11,13 +11,15 @@ function RailItem({
   onClick,
   mark,
   icon,
-  label
+  label,
+  busy
 }: {
   active: boolean
   onClick: () => void
   mark?: ReactNode
   icon?: string
   label: string
+  busy?: boolean
 }) {
   return (
     <button
@@ -55,6 +57,7 @@ function RailItem({
       )}
       <div
         style={{
+          position: 'relative',
           display: 'grid',
           placeItems: 'center',
           width: 38,
@@ -66,6 +69,21 @@ function RailItem({
         }}
       >
         {mark || (icon && <Icon name={icon} size={21} />)}
+        {busy && (
+          <span
+            className="fc-spin"
+            style={{
+              position: 'absolute',
+              top: 1,
+              right: 1,
+              width: 12,
+              height: 12,
+              borderRadius: 99,
+              border: '2px solid var(--accent)',
+              borderTopColor: 'transparent'
+            }}
+          />
+        )}
       </div>
       <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.01em', whiteSpace: 'nowrap' }}>
         {label}
@@ -78,6 +96,8 @@ export function Rail() {
   const app = useApp()
   const L = app.L
   const nav = app.nav
+  const dlActive = !!app.state.download && !app.state.download.done
+  const totalMB = app.posts.reduce((s, p) => s + p.sizeMB, 0)
   return (
     <div
       style={{
@@ -121,7 +141,30 @@ export function Rail() {
         }
         onClick={() => app.go({ screen: 'favorites' })}
       />
+      <RailItem
+        label={L.downloads}
+        icon="download"
+        busy={dlActive}
+        active={nav.screen === 'progress'}
+        onClick={() => app.go({ screen: 'progress' })}
+      />
       <div style={{ flex: 1 }} />
+      <div
+        title={L.storage}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 2,
+          padding: '4px 2px 8px',
+          color: 'var(--text-3)'
+        }}
+      >
+        <Icon name="hdd" size={13} />
+        <span style={{ fontSize: 9, fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
+          {fmtSize(totalMB)}
+        </span>
+      </div>
       <RailItem
         label={L.settings}
         icon="gear"
