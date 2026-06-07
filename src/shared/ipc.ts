@@ -41,6 +41,9 @@ export interface IpcApi {
   'viewer:openPath': { args: [path: string]; result: void }
   /** Open an http(s) URL in the user's default browser. */
   'shell:openExternal': { args: [url: string]; result: void }
+  /** Capture the window's current bounds before a service <webview> mounts, so
+   * the main process can restore them if the attach un-snaps the window. */
+  'window:pinBounds': { args: []; result: void }
 
   'posts:list': { args: []; result: LibraryPost[] }
   'posts:files': { args: [dirPath: string]; result: LibraryFile[] }
