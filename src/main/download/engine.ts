@@ -15,7 +15,7 @@ import type {
 import { getService } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
 import { downloadToFile } from '@main/session/manager'
-import { filePath, postDir, toLocationParts } from '@main/storage/layout'
+import { dedupeFileNames, postDir, sanitizeFileName, toLocationParts } from '@main/storage/layout'
 import { fcfileUrl } from '@main/storage/files'
 import {
   isFileDownloaded,
@@ -134,13 +134,19 @@ export class DownloadEngine {
     await mkdir(dir, { recursive: true })
     upsertPost(post, dir, creatorName, creatorIconUrl)
 
+    // Assign collision-free on-disk names across the *whole* post (stable,
+    // independent of includeKinds) so distinct files never overwrite each other
+    // and the ledger records the real on-disk name (for the viewer/cover URLs).
+    const diskNames = dedupeFileNames(post.files.map((f) => f.name))
+    const diskNameById = new Map(post.files.map((f, i) => [f.fileId, diskNames[i]]))
+
     const targets = post.files.filter((f) => options.includeKinds.includes(f.kind))
     this.progress.total += targets.length
 
     // Bounded concurrency over this post's files.
     const queue = [...targets]
     const workers = Array.from({ length: Math.max(1, options.concurrency) }, () =>
-      this.worker(serviceId, root, loc, post, queue, options, cb)
+      this.worker(serviceId, root, loc, post, queue, options, cb, diskNameById)
     )
     await Promise.all(workers)
     refreshPostCompletion(post, options.includeKinds)
@@ -153,7 +159,8 @@ export class DownloadEngine {
     post: Post,
     queue: PostFile[],
     options: DownloadOptions,
-    cb: DownloadCallbacks
+    cb: DownloadCallbacks,
+    diskNameById: Map<string, string>
   ): Promise<void> {
     for (;;) {
       if (this.abort.signal.aborted) return
@@ -176,10 +183,11 @@ export class DownloadEngine {
         continue
       }
 
-      const dest = filePath(root, loc, file.name)
+      const diskName = diskNameById.get(file.fileId) ?? sanitizeFileName(file.name)
+      const dest = join(postDir(root, loc), diskName)
       try {
         if (options.skipExisting && (await exists(dest))) {
-          markFileDownloaded(post, file.fileId, file.name, undefined, file.kind)
+          markFileDownloaded(post, file.fileId, diskName, undefined, file.kind)
           this.progress.skipped += 1
           cb.onItem?.({
             serviceId,
@@ -190,7 +198,7 @@ export class DownloadEngine {
           })
         } else {
           const size = await this.downloadFile(serviceId, file, dest)
-          markFileDownloaded(post, file.fileId, file.name, size, file.kind)
+          markFileDownloaded(post, file.fileId, diskName, size, file.kind)
           this.progress.completed += 1
           this.progress.bytesDownloaded += size
           cb.onItem?.({
