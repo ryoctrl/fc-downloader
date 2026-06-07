@@ -6,7 +6,8 @@
 
 ## デザインシステム
 
-- フォント: **IBM Plex Sans / IBM Plex Mono**（Google Fonts、システムフォントへフォールバック）
+- フォント: **IBM Plex Sans / IBM Plex Mono**（`@fontsource` でローカル同梱・latin サブセット、
+  日本語はシステムフォントへフォールバック。外部 CDN 依存なし）
 - 色: **oklch** トークン + `color-mix`。`[data-theme="light|dark"]` で切替（`theme.css`）。
   アクセントは CSS 変数 `--accent`（既定 `#2f6df0`）。
 - 角丸・影・ホバー遷移・スクロールバー・アニメーション（spin/pulse）は `theme.css` に集約。
@@ -55,10 +56,11 @@
 - **設定の永続化**: prefs（theme/lang/accent/density/viewerView）と brandLogos は現状 **localStorage**。
   将来 `settings:*` IPC（main 側の `settings.json`）へ寄せる余地あり。
 
-## 今後（M3 以降）
+## 実装済み（実データ接続後）
 
-- モックを実データへ置換（M2 完了が前提）。
-- クリエイター選択 UI の実データ連携、サムネイル/プレビューの実ファイル表示。
-- 進捗画面を実ダウンロードイベント（`download:progress`/`download:item`）に接続。
-- フォントのローカル同梱（`@fontsource/*`）でオフライン時も完全一致（local-first 強化）。
-- bottom / overlay レイアウト、アクセント色の設定 UI（必要なら）。
+- モック→実データ置換、実メディアプレビュー、進捗の実イベント接続、speed/ETA、
+  失敗再試行、クリエイター表示名、フォントのローカル同梱（完全オフライン）。詳細は roadmap。
+
+## 今後
+
+- 画像ライトボックス、bottom / overlay レイアウト、アクセント色の設定 UI（必要なら）。
