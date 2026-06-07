@@ -9,6 +9,7 @@
 import { createWriteStream } from 'node:fs'
 import { net, session, type Session } from 'electron'
 import type { ServiceId } from '@shared/types'
+import { awaitPoliteSlot } from './throttle'
 
 export function partitionFor(serviceId: ServiceId): string {
   return `persist:${serviceId}`
@@ -38,11 +39,12 @@ export interface SessionResponse {
   json: <T>() => Promise<T>
 }
 
-export function requestFor(
+export async function requestFor(
   serviceId: ServiceId,
   url: string,
   init: RequestInit & { signal?: AbortSignal } = {}
 ): Promise<SessionResponse> {
+  await awaitPoliteSlot(serviceId, init.signal)
   const s = sessionFor(serviceId)
   return new Promise((resolve, reject) => {
     const request = net.request({
@@ -116,12 +118,13 @@ interface NetResponse {
  * number of bytes written. Throws an Error carrying a numeric `.status` on HTTP
  * errors, or an AbortError if the signal fires.
  */
-export function downloadToFile(
+export async function downloadToFile(
   serviceId: ServiceId,
   url: string,
   destPath: string,
   init: DownloadFileInit = {}
 ): Promise<number> {
+  await awaitPoliteSlot(serviceId, init.signal)
   const s = sessionFor(serviceId)
   return new Promise((resolve, reject) => {
     const request = net.request({ url, method: 'GET', session: s, useSessionCookies: true })
