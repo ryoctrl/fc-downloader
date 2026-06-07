@@ -51,15 +51,14 @@ UI・エンジン・ストレージ側の変更は不要。
 
 ## サイト別メモ（埋めていく）
 
-### Fantia（アダプタ構造実装済み・API は VERIFY）
-- 実装: `src/main/services/fantia/`（`index.ts` = ネットワーク、`normalize.ts` = 純粋変換 + テスト）。Fanbox と同等構成。
-- ログイン: WebView で `https://fantia.jp/`。メディア DL は **Referer 必須** → `downloadHeaders`。
-- 認証判定: `GET /api/v1/me`（`VERIFY:`）。
-- 支援中ファンクラブ列挙: `GET /api/v1/me/fanclubs`（JSON 想定、`VERIFY:`。HTML の場合はスクレイピングへ）。
-- 投稿列挙: `GET /api/v1/fanclubs/{id}/posts?page=N` をページング → 各 `GET /api/v1/posts/{id}`（`VERIFY:`）。
-- 正規化: `post_contents` の `photo_gallery`（画像）/`file`（拡張子→kind）を抽出。`blog`/`product`/`url` は無視。
-  相対 URL は `https://fantia.jp` で絶対化。`normalize.test.ts` にフィクスチャテストあり。
-- **実地検証は要ログインアカウント（外部依存）**。未検証のうちは listCreators/listPosts は空に縮退する。
+### Fantia（実装・**実 API 検証済み** 2026-06-08）
+- 実装: `src/main/services/fantia/`。`scripts/probe-fantia.cjs` で検証。
+- ログイン: WebView で `https://fantia.jp/`（Cookie `_session_id`）。画像は署名済み cc.fantia.jp(CloudFront)。
+- 認証判定: `GET /api/v1/me` → `{current_user:{id}}`（200=ログイン済 / 401=未）。**`current_user.id`** を見る。
+- クリエイター列挙: `GET /api/v1/me/fanclubs` → `{fanclub_ids:[…]}`、各 `GET /api/v1/fanclubs/{id}` で `fanclub_name`/`creator_name` を解決。
+- 投稿列挙: **HTML `/fanclubs/{id}/posts?page=N`（XHR ヘッダ無し）**をページングして `/posts/{id}` を抽出（新規ゼロで停止）。
+- post 詳細: `GET /api/v1/posts/{id}` に **`X-CSRF-Token`（HTML の `<meta csrf-token>`）+ XHR が必須**（無いと 403）。
+- 正規化: `post_contents` の `photo_gallery`（`post_content_photos[].url.original`）/`file`（`download_uri`）。相対は絶対化。`normalize.test.ts`。
 
 ### Pixiv Fanbox（実装・**実 API 検証済み** 2026-06-07）
 - 実装: `src/main/services/fanbox/`（`index.ts` = ネットワーク、`normalize.ts` = 純粋変換 + テスト）。
