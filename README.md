@@ -1,62 +1,92 @@
 # fc-downloader
 
-ファンクラブ系支援サイト（Fantia / pixiv FANBOX / Patreon / ci-en）の
-コンテンツを **完全ローカル** でダウンロード・閲覧するデスクトップアプリ。
+**Fantia / pixiv FANBOX / Patreon / ci-en** で自分が支援しているコンテンツを、
+**自分の PC 内に**ダウンロードして閲覧する、ローカル完結のデスクトップアプリです。
 
-- 各サービスのログインは内蔵 WebView で行い、Cookie はアプリ内（サービスごとに隔離）で管理
-- ログイン済みのコンテンツをまとめてダウンロード（並列・リトライ・速度/ETA 表示）
-- `サービス / ユーザー / 年 / 月 / 投稿ID` のフォルダ構成で保存し、重複ダウンロードを自動回避
-- 内蔵ビューワーでサムネイル一覧・画像ライトボックス・動画/音声プレビュー・zip 解凍
-- サービスの有効/無効、全サイト一括ダウンロード、日次の自動ダウンロード、ログアウト検知
-- すべてローカル完結（外部サーバ送信・テレメトリなし）
+- 🔒 **完全ローカル** — 取得したファイルは自分の PC にのみ保存。外部サーバへの送信・
+  テレメトリは一切ありません。
+- 🧩 **ログインは内蔵ブラウザで** — 各サービスに普段どおりログインするだけ。Cookie は
+  サービスごとに隔離してアプリ内で安全に管理します。
+- ⬇️ **まとめてダウンロード** — 支援先・ファイル種別を選んで一括取得。並列ダウンロード・
+  自動リトライ・速度/残り時間表示つき。重複は自動でスキップ。
+- 🖼️ **内蔵ビューワー** — サムネイル一覧、画像のライトボックス、動画/音声プレビュー、
+  zip の解凍まで。投稿から元ページへワンクリックで移動も。
+- ⚙️ **自動化** — サービスの有効/無効、全サイト一括ダウンロード、毎日の自動ダウンロード。
 
-> ⚠️ 本アプリは **個人利用・私的バックアップ目的** です。各サイトの利用規約を遵守し、
-> ダウンロードしたコンテンツの再配布は行わないでください。詳細は
+> ⚠️ **本アプリは個人利用・私的バックアップ目的のツールです。**
+> 各サイトの利用規約を遵守し、自分が支援しているコンテンツのみを対象にしてください。
+> ダウンロードしたコンテンツの再配布・共有は行わないでください。詳細は
 > [docs/spec/security-and-legal.md](docs/spec/security-and-legal.md)。
 
-## インストール（Windows）
+## インストール
 
-[Releases](https://github.com/ryoctrl/fc-downloader/releases) から以下のいずれかを入手します。
+[**Releases**](https://github.com/ryoctrl/fc-downloader/releases) から OS に合ったファイルを入手します。
 
-- **インストーラ版** `fc-downloader-<ver>-x64.exe` — 通常のセットアップ（インストール先選択可）
-- **ポータブル版** `fc-downloader-<ver>-portable.exe` — インストール不要、単体 exe
+### Windows
+- **インストーラ版** `fc-downloader-<ver>-x64.exe` — 通常のセットアップ
+- **ポータブル版** `fc-downloader-<ver>-portable.exe` — インストール不要の単体 exe
 
-### ⚠️ 起動時の警告について（未署名ビルド）
+### macOS
+- **`fc-downloader-<ver>-universal.dmg`** — Intel / Apple Silicon 両対応。
+  マウントして `fc-downloader.app` を「アプリケーション」へドラッグ。
 
-現状のビルドは **コード署名なし** のため、ダウンロードした exe には Windows の
-「Mark of the Web」が付与され、以下が発生します。
+### 初回起動時の警告について（未署名ビルド）
 
-- **SmartScreen**（「Windows によって PC が保護されました」）
-  → 「**詳細情報**」→「**実行**」で起動できます。
-  または、exe を右クリック →「プロパティ」→「**許可する（Unblock）**」にチェック → OK。
-  ポータブル版なら同梱の **`Unblock-and-run.bat`** を exe と同じフォルダに置いて実行すると、
-  Mark of the Web を除去して起動します。
-- **Smart App Control (SAC)**（Windows 11 の一部環境で有効）
-  → SAC は署名/評判をカーネルで評価するため、**`.bat` 等では回避できません**。
-  SAC を無効化（Windows セキュリティ →「アプリとブラウザー制御」→「Smart App Control」）するか、
-  署名済みビルドが必要です。コード署名の方針は
-  [docs/spec/security-and-legal.md](docs/spec/security-and-legal.md) を参照。
+現状のビルドは **コード署名がない**ため、初回起動時に OS の警告が出ます（マルウェアでは
+ありません。署名証明書の費用・要件の都合で未署名配布しています）。
 
-## 開発
+**Windows**
+- **SmartScreen**（「Windows によって PC が保護されました」）→「**詳細情報**」→「**実行**」。
+  または exe を右クリック →「プロパティ」→「**許可する（Unblock）**」→ OK。
+  ポータブル版はリリースに同梱の **`Unblock-and-run.bat`** を exe と同じフォルダで実行すると、
+  この警告を回避して起動できます。
+- **Smart App Control (SAC)** が有効な環境（Windows 11 の一部）では未署名アプリは
+  ブロックされます。`.bat` 等では回避できないため、SAC を無効化するか署名版が必要です。
+
+**macOS**（Gatekeeper）
+- 「壊れているため開けません」等が出たら、ターミナルで検疫属性を除去します：
+  ```sh
+  xattr -dr com.apple.quarantine "/Applications/fc-downloader.app"
+  ```
+- Apple Silicon でなお起動しない場合：
+  ```sh
+  codesign --force --deep --sign - "/Applications/fc-downloader.app"
+  ```
+
+## 使い方
+
+1. 左のレールから各サービスを開き、内蔵ブラウザで**ログイン**します
+   （ログイン状態は自動で判定。切れた場合は再ログインを促します）。
+2. 右の**ダウンロード設定**で、対象の支援先・ファイル種別（画像/動画/ファイル）を選んで
+   **ダウンロード**を実行します。設定はサービスごとに保存されます。
+3. **ライブラリ**でサムネイル一覧から閲覧。投稿を開くと画像・動画・音声・ファイルを
+   プレビューでき、zip は「解凍」、元ページは「ブラウザで開く」から開けます。
+4. **設定**画面から、使わないサービスの無効化、**全サイト一括ダウンロード**、
+   **毎日の自動ダウンロード**、ライブラリの整合性チェックなどが行えます。
+
+保存先は既定で `ドキュメント/fc-downloader`（設定で変更可）。
+`サービス / ユーザー / 年 / 月 / 投稿ID` のフォルダ構成で保存されます。
+
+## 対応サイトと状況
+
+| サイト | 状況 |
+| --- | --- |
+| pixiv FANBOX | ✅ ログイン〜ダウンロードまで動作確認済み |
+| Fantia | ✅ 動作確認済み |
+| ci-en | ✅ 動作確認済み |
+| Patreon | ⚠️ ログイン判定は動作。投稿/メディア取得は有効な支援がある環境で要検証 |
+
+## 開発・コントリビュート
+
+開発者向けの情報（セットアップ、設計、サービスアダプタの追加方法）は
+[CLAUDE.md](CLAUDE.md) と [docs/](docs/) を参照してください。
 
 ```bash
-npm install      # 依存導入（ネイティブビルド不要 / 純 JS 依存のみ）
+npm install      # 依存導入（ネイティブビルド不要）
 npm run dev      # 開発起動 (HMR)
-npm run typecheck
-npm run lint
 npm test         # vitest
 npm run build    # 型チェック + ビルド
-npm run dist     # 配布ビルド（インストーラ + ポータブル exe を release/ に生成）
 ```
 
-配布ビルドの設定は [electron-builder.yml](electron-builder.yml)。技術構成・設計の詳細は
-[CLAUDE.md](CLAUDE.md) と [docs/](docs/) を参照。
-
-## 技術スタック
-
-| 領域 | 採用 |
-| --- | --- |
-| デスクトップ | Electron（サービスごとに `persist:<serviceId>` で Cookie 隔離） |
-| UI | React + TypeScript + Vite (electron-vite) |
-| メタデータ/重複検知 | JSON メタデータストア（ネイティブ依存なし。将来 SQLite を検討） |
-| サムネイル/zip | Electron `nativeImage`（縮小生成）/ `fflate`（純 JS 解凍） |
+配布ビルドは [GitHub Actions](.github/workflows/release.yml)（`windows-latest` /
+`macos-latest`）で行います（[electron-builder.yml](electron-builder.yml)）。
