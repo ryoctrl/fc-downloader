@@ -19,6 +19,14 @@ export interface ServiceContext {
   log: (level: 'debug' | 'info' | 'warn' | 'error', msg: string, meta?: unknown) => void
   /** Cooperative cancellation for long enumerations / downloads. */
   signal: AbortSignal
+  /**
+   * Skip-existing fast path. On a skip-existing run, returns a network-free
+   * {@link Post} stub (rebuilt from the ledger) when this post is already fully
+   * downloaded for the run's file kinds — letting an adapter yield it WITHOUT
+   * fetching its detail (a per-post, often rate-limited API call). Returns null
+   * when the detail must be fetched. Absent on non-download contexts.
+   */
+  completedPostStub?(creatorId: string, postId: string): Post | null
 }
 
 export interface Service {
