@@ -9,6 +9,11 @@ name: Release
 #
 # Builds are UNSIGNED (no signing cert). The release stays a draft so the
 # artifacts can be smoke-tested before publishing.
+#
+# Distribution: the Windows .exe files are shipped INSIDE per-file .zip archives
+# (not as bare .exe). A directly-downloaded .exe gets a Mark-of-the-Web that
+# trips SmartScreen on every launch; shipping the .exe in a .zip lets the user
+# unblock the single .zip once before extracting. The macOS .dmg ships as-is.
 
 on:
   push:
@@ -47,12 +52,28 @@ jobs:
           # keychain (would hang/fail on the macOS runner).
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Collect artifacts
+      # Windows: ship each .exe inside its own .zip so a direct .exe download
+      # doesn't carry a Mark-of-the-Web that trips SmartScreen on every launch.
+      - name: Package Windows artifacts (zip each .exe)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist-out | Out-Null
+          Get-ChildItem release\*.exe | ForEach-Object {
+            $zip = Join-Path 'dist-out' ($_.BaseName + '.zip')
+            Compress-Archive -Path $_.FullName -DestinationPath $zip -Force
+            Write-Host "zipped $($_.Name) -> $zip"
+          }
+          Get-ChildItem dist-out
+
+      # macOS: the .dmg ships as-is (Gatekeeper is handled at first launch).
+      - name: Collect macOS artifacts
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           mkdir -p dist-out
           find release -maxdepth 1 -type f \
-            \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' \) \
+            \( -name '*.dmg' -o -name '*.zip' \) \
             -exec cp {} dist-out/ \;
           ls -la dist-out
 
@@ -84,7 +105,6 @@ jobs:
           gh release delete "$TAG" --yes 2>/dev/null || true
           gh release create "$TAG" \
             artifacts/* \
-            dist-assets/Unblock-and-run.bat \
             --target "${{ github.sha }}" \
             --title "fc-downloader $TAG" \
             --draft \
