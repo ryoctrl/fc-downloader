@@ -1,6 +1,6 @@
 {
   "name": "fc-downloader",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Local-first desktop downloader & viewer for fan-club support sites (Fantia, Pixiv Fanbox, Patreon, ci-en).",
   "private": true,
   "author": "ryoctrl",
