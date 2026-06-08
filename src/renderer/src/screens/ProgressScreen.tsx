@@ -111,6 +111,28 @@ export function ProgressScreen() {
   const postPct = hasTotal ? Math.min(100, (p.postsCompleted / p.postsTotal) * 100) : 0
   const pct = done ? 100 : postPct
 
+  // Live "what's happening now" line: counting / walking posts / downloading.
+  const cur = !done ? p.current : undefined
+  const activity = cur
+    ? (() => {
+        const label =
+          cur.phase === 'counting'
+            ? L.activityCounting
+            : cur.phase === 'downloading'
+              ? L.activityDownloading
+              : L.activityScanning
+        let detail = ''
+        if (cur.phase === 'downloading' && cur.activeFiles?.length) {
+          const fs = cur.activeFiles
+          detail = fs.slice(0, 2).join(', ') + (fs.length > 2 ? ` +${fs.length - 2}` : '')
+        } else {
+          const post = cur.postTitle || (cur.postId ? `#${cur.postId}` : '')
+          detail = [cur.creatorName, post].filter(Boolean).join(' — ')
+        }
+        return { label, detail }
+      })()
+    : null
+
   const stat = (label: string, value: string, color?: string): ReactNode => (
     <div style={{ flex: 1 }}>
       <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 5, fontWeight: 500 }}>{label}</div>
@@ -259,6 +281,43 @@ export function ProgressScreen() {
             {L.queued}: {app.state.queued.map((id) => FC.serviceById(id).name).join(', ')}
           </div>
         )}
+        {activity && (
+          <div
+            style={{
+              marginTop: 14,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 9,
+              padding: '9px 12px',
+              background: 'var(--surface-2)',
+              borderRadius: 10,
+              minWidth: 0
+            }}
+          >
+            <span
+              className="fc-pulse"
+              style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--accent)', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+              {activity.label}
+            </span>
+            {activity.detail && (
+              <span
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-2)',
+                  fontFamily: 'var(--mono)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  minWidth: 0
+                }}
+              >
+                {activity.detail}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: '8px 18px 20px' }}>
@@ -277,7 +336,7 @@ export function ProgressScreen() {
           if (shown.length === 0) {
             return (
               <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
-                {done ? L.doneShort : L.loading}
+                {done ? L.doneShort : activity ? `${activity.label}…` : L.loading}
               </div>
             )
           }
