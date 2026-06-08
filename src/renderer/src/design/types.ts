@@ -116,6 +116,8 @@ export interface AppState {
   enabledServices: Record<string, boolean>
   /** Daily auto-download schedule. */
   schedule: ScheduleConfig
+  /** Whether the app launches automatically at OS login (login item). */
+  launchAtStartup: boolean
 }
 
 export interface AppActions {
@@ -151,6 +153,8 @@ export interface AppActions {
   startBulkDownload: () => void
   /** Update + persist the daily auto-download schedule. */
   setSchedule: (patch: Partial<ScheduleConfig>) => void
+  /** Enable/disable launch-at-login (OS login item). */
+  setLaunchAtStartup: (enabled: boolean) => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */

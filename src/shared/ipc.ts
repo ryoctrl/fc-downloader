@@ -62,6 +62,10 @@ export interface IpcApi {
   }
   /** Check GitHub for a newer release. Null when the check fails. */
   'app:checkUpdate': { args: []; result: UpdateInfo | null }
+  /** Whether the app is registered to launch at login (OS login item). */
+  'app:getStartupEnabled': { args: []; result: boolean }
+  /** Enable/disable launch-at-login; returns the resulting OS state. */
+  'app:setStartupEnabled': { args: [enabled: boolean]; result: boolean }
 }
 
 export type IpcChannel = keyof IpcApi

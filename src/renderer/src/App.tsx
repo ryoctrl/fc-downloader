@@ -166,6 +166,7 @@ export function App() {
   const lastRunRef = useRef<string>(localStorage.getItem(SCHEDULE_LASTRUN_KEY) ?? '')
   const bulkRef = useRef<() => void>(() => {})
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
+  const [launchAtStartup, setLaunchAtStartupState] = useState(false)
   const sysDark = useSystemDark()
 
   // Load persisted settings from the main process (no-op without a backend).
@@ -196,6 +197,12 @@ export function App() {
     void bridge.checkUpdate().then((info) => {
       if (info?.available) setUpdate(info)
     })
+  }, [])
+
+  // Reflect the actual OS launch-at-login state (the OS login item is the
+  // source of truth — not persisted in our settings).
+  useEffect(() => {
+    void bridge.getStartupEnabled().then(setLaunchAtStartupState)
   }, [])
 
   // If the active service screen is for a now-disabled service, move away from
@@ -502,7 +509,12 @@ export function App() {
           }
         }
         return next
-      })
+      }),
+    setLaunchAtStartup: (enabled) => {
+      // Optimistic flip; reconcile with whatever the OS actually reports.
+      setLaunchAtStartupState(enabled)
+      void bridge.setStartupEnabled(enabled).then(setLaunchAtStartupState)
+    }
   }
   bulkRef.current = actions.startBulkDownload
 
@@ -526,7 +538,8 @@ export function App() {
       downloadPrefs,
       creatorSel,
       enabledServices,
-      schedule
+      schedule,
+      launchAtStartup
     },
     actions,
     posts

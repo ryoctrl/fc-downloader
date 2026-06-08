@@ -24,6 +24,7 @@ import { isWithinRoot, listPostFiles } from '@main/storage/files'
 import { DownloadEngine } from '@main/download/engine'
 import { extractZip } from '@main/archive/extract'
 import { checkForUpdate } from '@main/update/check'
+import { isStartupEnabled, setStartupEnabled } from '@main/startup/login-item'
 import { ensureCreatorAvatar } from '@main/download/avatar'
 
 const engine = new DownloadEngine()
@@ -201,6 +202,9 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   handle('library:reconcile', async () => reconcileWithDisk())
 
   handle('app:checkUpdate', async () => checkForUpdate())
+
+  handle('app:getStartupEnabled', async () => isStartupEnabled())
+  handle('app:setStartupEnabled', async (enabled) => setStartupEnabled(enabled))
 
   handle('library:backfillAvatars', async () => {
     const missing = creatorsMissingIcon()
