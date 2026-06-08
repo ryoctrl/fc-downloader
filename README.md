@@ -22,9 +22,11 @@
 
 [**Releases**](https://github.com/ryoctrl/fc-downloader/releases) から OS に合ったファイルを入手します。
 
-### Windows
-- **インストーラ版** `fc-downloader-<ver>-x64.exe` — 通常のセットアップ
-- **ポータブル版** `fc-downloader-<ver>-portable.exe` — インストール不要の単体 exe
+### Windows（zip 同梱）
+exe は **zip に梱包**して配布しています。**zip を展開してから中の exe を実行**してください。
+
+- **インストーラ版** `fc-downloader-<ver>-x64.zip` — 展開すると通常セットアップ用 exe
+- **ポータブル版** `fc-downloader-<ver>-portable.zip` — 展開するとインストール不要の単体 exe
 
 ### macOS
 - **`fc-downloader-<ver>-universal.dmg`** — Intel / Apple Silicon 両対応。
@@ -36,12 +38,13 @@
 ありません。署名証明書の費用・要件の都合で未署名配布しています）。
 
 **Windows**
-- **SmartScreen**（「Windows によって PC が保護されました」）→「**詳細情報**」→「**実行**」。
-  または exe を右クリック →「プロパティ」→「**許可する（Unblock）**」→ OK。
-  ポータブル版はリリースに同梱の **`Unblock-and-run.bat`** を exe と同じフォルダで実行すると、
-  この警告を回避して起動できます。
+- **おすすめ手順**: ダウンロードした **zip を右クリック →「プロパティ」→「許可する（Unblock）」に
+  チェック → OK** してから展開すると、中の exe にダウンロードマーク（Mark of the Web）が付かず、
+  SmartScreen の警告を避けられます。
+- それでも **SmartScreen**（「Windows によって PC が保護されました」）が出たら
+  「**詳細情報**」→「**実行**」で起動できます。
 - **Smart App Control (SAC)** が有効な環境（Windows 11 の一部）では未署名アプリは
-  ブロックされます。`.bat` 等では回避できないため、SAC を無効化するか署名版が必要です。
+  ブロックされます。zip 化では回避できないため、SAC を無効化するか署名版が必要です。
 
 **macOS**（Gatekeeper）
 - 「壊れているため開けません」等が出たら、ターミナルで検疫属性を除去します：
