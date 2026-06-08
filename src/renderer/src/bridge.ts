@@ -13,6 +13,7 @@ import type {
   LibraryFile,
   LibraryPost,
   ServiceId,
+  UpdateInfo,
   ViewerNode
 } from '@shared/types'
 
@@ -71,5 +72,7 @@ export const bridge = {
   backfillAvatars: (): Promise<number> =>
     api?.['library:backfillAvatars']() ?? Promise.resolve(0),
   reconcileLibrary: (): Promise<{ removedPosts: number; updatedPosts: number; removedFiles: number }> =>
-    api?.['library:reconcile']() ?? Promise.resolve({ removedPosts: 0, updatedPosts: 0, removedFiles: 0 })
+    api?.['library:reconcile']() ?? Promise.resolve({ removedPosts: 0, updatedPosts: 0, removedFiles: 0 }),
+  checkUpdate: (): Promise<UpdateInfo | null> =>
+    api?.['app:checkUpdate']() ?? Promise.resolve(null)
 }

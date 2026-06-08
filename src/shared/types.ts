@@ -176,6 +176,18 @@ export interface LibraryFile {
   sizeBytes: number
 }
 
+/** Result of checking GitHub for a newer release. */
+export interface UpdateInfo {
+  /** True when the latest published release is newer than the running version. */
+  available: boolean
+  /** Running app version (e.g. "1.0.1"). */
+  current: string
+  /** Latest published release version (tag without the leading "v"). */
+  latest: string
+  /** Release page URL to open. */
+  url: string
+}
+
 /** A node in the viewer tree (service -> creator -> year -> month -> post). */
 export interface ViewerNode {
   key: string

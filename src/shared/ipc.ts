@@ -17,6 +17,7 @@ import type {
   LibraryPost,
   ServiceDescriptor,
   ServiceId,
+  UpdateInfo,
   ViewerNode
 } from './types'
 
@@ -59,6 +60,8 @@ export interface IpcApi {
     args: []
     result: { removedPosts: number; updatedPosts: number; removedFiles: number }
   }
+  /** Check GitHub for a newer release. Null when the check fails. */
+  'app:checkUpdate': { args: []; result: UpdateInfo | null }
 }
 
 export type IpcChannel = keyof IpcApi
