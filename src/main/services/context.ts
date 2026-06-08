@@ -1,5 +1,5 @@
 /** Builds a ServiceContext bound to a service's isolated session. */
-import { requestFor } from '@main/session/manager'
+import { requestForWithRetry } from '@main/session/manager'
 import type { ServiceId } from '@shared/types'
 import type { ServiceContext } from './types'
 
@@ -15,12 +15,12 @@ export function createServiceContext(serviceId: ServiceId, signal: AbortSignal):
     signal,
     log,
     async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-      const res = await requestFor(serviceId, url, { ...init, signal })
+      const res = await requestForWithRetry(serviceId, url, { ...init, signal })
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`)
       return res.json<T>()
     },
     async fetchText(url: string, init?: RequestInit): Promise<string> {
-      const res = await requestFor(serviceId, url, { ...init, signal })
+      const res = await requestForWithRetry(serviceId, url, { ...init, signal })
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`)
       return res.text()
     }

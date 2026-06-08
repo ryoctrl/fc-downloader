@@ -35,6 +35,8 @@ export async function clearSession(serviceId: ServiceId): Promise<void> {
  */
 export interface SessionResponse {
   status: number
+  /** Response headers (keys lowercased by Electron's net stack). */
+  headers: Record<string, string | string[]>
   buffer: () => Buffer
   text: () => Promise<string>
   json: <T>() => Promise<T>
@@ -79,6 +81,7 @@ export async function requestFor(
         const buf = Buffer.concat(chunks)
         resolve({
           status: response.statusCode,
+          headers: response.headers as Record<string, string | string[]>,
           buffer: () => buf,
           text: async () => buf.toString('utf-8'),
           json: async <T,>() => JSON.parse(buf.toString('utf-8')) as T
@@ -91,6 +94,88 @@ export async function requestFor(
     if (init.body) request.write(init.body as string)
     request.end()
   })
+}
+
+/** Max retries (after the initial try) for transient metadata-fetch failures. */
+export const META_MAX_RETRIES = 4
+
+/** HTTP statuses worth retrying: rate-limit / timeout / transient server errors. */
+export function isRetriableStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500
+}
+
+/**
+ * Parse a `Retry-After` header into milliseconds. Supports both the
+ * delta-seconds form ("120") and the HTTP-date form. Returns null if absent or
+ * unparseable.
+ */
+export function parseRetryAfterMs(
+  headers: Record<string, string | string[]> | undefined,
+  now: number = Date.now()
+): number | null {
+  const raw = headers?.['retry-after']
+  const v = Array.isArray(raw) ? raw[0] : raw
+  if (!v) return null
+  const secs = Number(v)
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000)
+  const date = Date.parse(v)
+  return Number.isFinite(date) ? Math.max(0, date - now) : null
+}
+
+function backoffMs(attempt: number): number {
+  // 1s, 2s, 4s, 8s … capped at 30s (attempt is 1-based for the Nth retry).
+  return Math.min(30_000, 1_000 * 2 ** Math.max(0, attempt - 1))
+}
+
+function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+/**
+ * Like {@link requestFor}, but transparently retries transient failures —
+ * HTTP 429 / 5xx and network errors — with exponential backoff (honouring a
+ * `Retry-After` header when present). This is what metadata enumeration uses so
+ * a momentary rate-limit doesn't silently truncate a long run. Aborts are never
+ * retried. After exhausting retries it returns the last response (so the caller
+ * still sees the final status) or rethrows the last network error.
+ */
+export async function requestForWithRetry(
+  serviceId: ServiceId,
+  url: string,
+  init: RequestInit & { signal?: AbortSignal } = {}
+): Promise<SessionResponse> {
+  const signal = init.signal
+  for (let attempt = 0; ; attempt++) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    try {
+      const res = await requestFor(serviceId, url, init)
+      if (isRetriableStatus(res.status) && attempt < META_MAX_RETRIES) {
+        const wait = parseRetryAfterMs(res.headers) ?? backoffMs(attempt + 1)
+        await sleepMs(wait, signal)
+        continue
+      }
+      return res
+    } catch (err) {
+      // Aborts and exhausted retries propagate; transient network errors retry.
+      if (signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) throw err
+      if (attempt >= META_MAX_RETRIES) throw err
+      await sleepMs(backoffMs(attempt + 1), signal)
+    }
+  }
 }
 
 export interface DownloadFileInit {
