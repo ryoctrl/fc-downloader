@@ -95,6 +95,24 @@ export interface DownloadItem {
   error?: string
 }
 
+/**
+ * What the engine is doing right now, for a live activity line so a long
+ * metadata walk (or a re-run that skips whole posts) reads as "progressing"
+ * rather than "frozen".
+ */
+export interface DownloadActivity {
+  /** counting = up-front post count; scanning = walking posts (fetching detail /
+   *  checking already-downloaded); downloading = fetching file(s). */
+  phase: 'counting' | 'scanning' | 'downloading'
+  /** Creator currently being processed (display name, if known). */
+  creatorName?: string
+  /** Post currently being processed. */
+  postId?: string
+  postTitle?: string
+  /** Files currently being fetched (in-flight downloads). */
+  activeFiles?: string[]
+}
+
 /** Aggregate progress for a download run. */
 export interface DownloadProgress {
   total: number
@@ -102,6 +120,8 @@ export interface DownloadProgress {
   skipped: number
   failed: number
   inFlight: number
+  /** What the engine is doing right now (for the live activity line). */
+  current?: DownloadActivity
   /** Posts fully processed so far (monotonic; the file total is discovered as
    * the run streams, so this is the stable per-post counter for the UI). */
   postsCompleted: number

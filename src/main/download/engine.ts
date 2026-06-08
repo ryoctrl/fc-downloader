@@ -6,6 +6,7 @@
 import { mkdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
+  DownloadActivity,
   DownloadOptions,
   DownloadProgress,
   Post,
@@ -45,6 +46,10 @@ export class DownloadEngine {
   private abort = new AbortController()
   private running = false
   private progress: DownloadProgress = blankProgress()
+  /** Files currently being fetched (in-flight), for the live activity line. */
+  private activeFiles = new Set<string>()
+  /** The post/creator the engine is currently walking. */
+  private cur: Omit<DownloadActivity, 'activeFiles'> = { phase: 'counting' }
 
   isRunning(): boolean {
     return this.running
@@ -52,6 +57,20 @@ export class DownloadEngine {
 
   cancel(): void {
     this.abort.abort()
+  }
+
+  /** Stamp the current activity onto progress and push it to the renderer. */
+  private emit(cb: DownloadCallbacks): void {
+    this.progress.inFlight = this.activeFiles.size
+    const downloading = this.activeFiles.size > 0
+    this.progress.current = {
+      phase: downloading ? 'downloading' : this.cur.phase,
+      creatorName: this.cur.creatorName,
+      postId: this.cur.postId,
+      postTitle: this.cur.postTitle,
+      activeFiles: downloading ? [...this.activeFiles] : undefined
+    }
+    cb.onProgress({ ...this.progress })
   }
 
   async run(
@@ -64,6 +83,8 @@ export class DownloadEngine {
     this.running = true
     this.abort = new AbortController()
     this.progress = blankProgress()
+    this.activeFiles.clear()
+    this.cur = { phase: 'counting' }
     const signal = this.abort.signal
     const ctx = createServiceContext(serviceId, signal)
     const service = getService(serviceId)
@@ -86,6 +107,8 @@ export class DownloadEngine {
         let countable = true
         for (const creatorId of creators) {
           signal.throwIfAborted()
+          this.cur = { phase: 'counting', creatorName: nameById.get(creatorId) }
+          this.emit(cb)
           try {
             total += await service.countPosts(ctx, creatorId)
           } catch (err) {
@@ -94,10 +117,10 @@ export class DownloadEngine {
             break
           }
           this.progress.postsTotal = total
-          cb.onProgress({ ...this.progress })
+          this.emit(cb)
         }
         this.progress.postsTotal = countable ? total : 0
-        cb.onProgress({ ...this.progress })
+        this.emit(cb)
       }
 
       for (const creatorId of creators) {
@@ -114,9 +137,15 @@ export class DownloadEngine {
           ctx.log('debug', `avatar download failed for ${creatorId}`, err)
           return undefined
         })
+        const creatorName = nameById.get(creatorId)
         for await (const listed of service.listPosts(ctx, creatorId)) {
           signal.throwIfAborted()
           const post = service.resolvePost ? await service.resolvePost(ctx, listed) : listed
+
+          // Surface the post we're now on (covers skips too), so the activity
+          // line ticks through the walk instead of looking frozen.
+          this.cur = { phase: 'scanning', creatorName, postId: post.postId, postTitle: post.title }
+          this.emit(cb)
 
           if (options.skipExisting && isPostComplete(post, options.includeKinds)) {
             const inScope = post.files.filter((f) =>
@@ -125,26 +154,19 @@ export class DownloadEngine {
             this.progress.skipped += inScope
             this.progress.total += inScope
             this.progress.postsCompleted += 1
-            cb.onProgress({ ...this.progress })
+            this.emit(cb)
             continue
           }
 
-          await this.downloadPost(
-            serviceId,
-            root,
-            post,
-            options,
-            cb,
-            nameById.get(creatorId),
-            avatarUrl
-          )
+          await this.downloadPost(serviceId, root, post, options, cb, creatorName, avatarUrl)
           this.progress.postsCompleted += 1
-          cb.onProgress({ ...this.progress })
+          this.emit(cb)
         }
       }
     } finally {
       this.running = false
-      cb.onProgress({ ...this.progress })
+      this.activeFiles.clear()
+      this.emit(cb)
     }
   }
 
@@ -208,7 +230,7 @@ export class DownloadEngine {
           fileName: file.name,
           status: 'skipped'
         })
-        cb.onProgress({ ...this.progress })
+        this.emit(cb)
         continue
       }
 
@@ -227,7 +249,15 @@ export class DownloadEngine {
             status: 'skipped'
           })
         } else {
-          const size = await this.downloadFile(serviceId, file, dest)
+          // Mark as in-flight so the activity line shows the live download.
+          this.activeFiles.add(file.name)
+          this.emit(cb)
+          let size: number
+          try {
+            size = await this.downloadFile(serviceId, file, dest)
+          } finally {
+            this.activeFiles.delete(file.name)
+          }
           markFileDownloaded(post, file.fileId, diskName, size, file.kind)
           warmThumbnail(file.kind, dest)
           this.progress.completed += 1
@@ -251,7 +281,7 @@ export class DownloadEngine {
           error: err instanceof Error ? err.message : String(err)
         })
       }
-      cb.onProgress({ ...this.progress })
+      this.emit(cb)
     }
   }
 
