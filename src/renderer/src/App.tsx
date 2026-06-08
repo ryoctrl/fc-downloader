@@ -5,7 +5,8 @@ import type {
   DownloadOptions,
   DownloadProgress,
   LibraryPost,
-  PostFileKind
+  PostFileKind,
+  UpdateInfo
 } from '@shared/types'
 import type {
   AppActions,
@@ -135,6 +136,7 @@ export function App() {
   // Services whose session was detected as expired (were logged in, now not) —
   // surfaced as a re-login prompt. Cleared on re-login or explicit logout.
   const [reloginNeeded, setReloginNeeded] = useState<Set<ServiceId>>(new Set())
+  const [update, setUpdate] = useState<UpdateInfo | null>(null)
   const loginsRef = useRef(logins)
   loginsRef.current = logins
   const [creators, setCreators] = useState<Record<string, Creator[]>>({})
@@ -186,6 +188,13 @@ export function App() {
           if (n > 0) void bridge.listPosts().then(setRawPosts)
         })
       }
+    })
+  }, [])
+
+  // Check GitHub for a newer release on startup (best-effort; banner only).
+  useEffect(() => {
+    void bridge.checkUpdate().then((info) => {
+      if (info?.available) setUpdate(info)
     })
   }, [])
 
@@ -574,6 +583,55 @@ export function App() {
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           <Rail />
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {update && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  flexWrap: 'wrap',
+                  padding: '8px 16px',
+                  background: 'var(--accent-tint)',
+                  borderBottom: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontSize: 12.5
+                }}
+              >
+                <Icon name="download" size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600 }}>
+                  {L.updateAvailable} v{update.latest}
+                </span>
+                <span style={{ color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+                  (v{update.current} → v{update.latest})
+                </span>
+                <button
+                  onClick={() => bridge.openExternal(update.url)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '3px 10px',
+                    borderRadius: 99,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: 'var(--accent)',
+                    color: '#fff',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  {L.openReleasePage}
+                </button>
+                <button
+                  onClick={() => setUpdate(null)}
+                  title={L.dismiss}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex' }}
+                >
+                  <Icon name="x" size={14} />
+                </button>
+              </div>
+            )}
             {reloginNeeded.size > 0 && (
               <div
                 style={{

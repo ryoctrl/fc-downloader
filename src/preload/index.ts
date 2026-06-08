@@ -21,7 +21,8 @@ const invokeChannels: IpcChannel[] = [
   'posts:list',
   'posts:files',
   'library:backfillAvatars',
-  'library:reconcile'
+  'library:reconcile',
+  'app:checkUpdate'
 ]
 
 const api = {
