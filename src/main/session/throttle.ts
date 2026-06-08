@@ -7,8 +7,8 @@
  * services, every **metadata** request (creator/post enumeration and post
  * detail) passes through here first, which spaces successive request *starts*
  * for a given service at least `MIN_GAP_MS` apart — capping the metadata
- * request rate at roughly `1000 / MIN_GAP_MS` per second (≈1/s at 1000ms),
- * independent of the download-concurrency setting.
+ * request rate at roughly `1000 / MIN_GAP_MS` per second (≈1 every 2s at
+ * 2000ms), independent of the download-concurrency setting.
  *
  * NOTE: large **file downloads** (`downloadToFile`) intentionally do NOT pass
  * through here — they are bounded instead by the user's concurrency setting
@@ -22,12 +22,12 @@ import type { ServiceId } from '@shared/types'
 
 /**
  * Minimum spacing between successive automated metadata request starts, per
- * service (≈1 req/s). Kept conservative because some sites (e.g. Fantia)
- * rate-limit their post-detail API fairly aggressively; pair this with the
+ * service (≈1 request every 2s). Kept conservative because some sites (e.g.
+ * Fantia) rate-limit their post-detail API aggressively; pair this with the
  * "skip already-downloaded posts' detail fetch" optimization so long runs stay
  * both gentle and reasonably fast.
  */
-export const MIN_GAP_MS = 1000
+export const MIN_GAP_MS = 2000
 
 /** Earliest timestamp (ms epoch) at which the next request for a service may start. */
 const nextAllowedAt = new Map<ServiceId, number>()

@@ -145,6 +145,18 @@ function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
+/** Reported just before each backoff wait, so the UI can show what's happening. */
+export interface RetryNotice {
+  /** HTTP status that triggered the wait (e.g. 429, 503); undefined for a
+   *  network/socket error. */
+  status?: number
+  /** 1-based number of the retry about to be made (1 = first retry). */
+  attempt: number
+  /** Milliseconds we will wait before retrying. */
+  waitMs: number
+}
+export type RetryHook = (notice: RetryNotice) => void
+
 /**
  * Like {@link requestFor}, but transparently retries transient failures —
  * HTTP 429 / 5xx and network errors — with exponential backoff (honouring a
@@ -152,11 +164,13 @@ function sleepMs(ms: number, signal?: AbortSignal): Promise<void> {
  * a momentary rate-limit doesn't silently truncate a long run. Aborts are never
  * retried. After exhausting retries it returns the last response (so the caller
  * still sees the final status) or rethrows the last network error.
+ *
+ * `onRetry` is invoked just before each backoff wait (for live UI feedback).
  */
 export async function requestForWithRetry(
   serviceId: ServiceId,
   url: string,
-  init: RequestInit & { signal?: AbortSignal } = {}
+  init: RequestInit & { signal?: AbortSignal; onRetry?: RetryHook } = {}
 ): Promise<SessionResponse> {
   const signal = init.signal
   for (let attempt = 0; ; attempt++) {
@@ -165,6 +179,7 @@ export async function requestForWithRetry(
       const res = await requestFor(serviceId, url, init)
       if (isRetriableStatus(res.status) && attempt < META_MAX_RETRIES) {
         const wait = parseRetryAfterMs(res.headers) ?? backoffMs(attempt + 1)
+        init.onRetry?.({ status: res.status, attempt: attempt + 1, waitMs: wait })
         await sleepMs(wait, signal)
         continue
       }
@@ -173,7 +188,9 @@ export async function requestForWithRetry(
       // Aborts and exhausted retries propagate; transient network errors retry.
       if (signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) throw err
       if (attempt >= META_MAX_RETRIES) throw err
-      await sleepMs(backoffMs(attempt + 1), signal)
+      const wait = backoffMs(attempt + 1)
+      init.onRetry?.({ attempt: attempt + 1, waitMs: wait })
+      await sleepMs(wait, signal)
     }
   }
 }
