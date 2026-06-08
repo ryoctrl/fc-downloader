@@ -74,5 +74,9 @@ export const bridge = {
   reconcileLibrary: (): Promise<{ removedPosts: number; updatedPosts: number; removedFiles: number }> =>
     api?.['library:reconcile']() ?? Promise.resolve({ removedPosts: 0, updatedPosts: 0, removedFiles: 0 }),
   checkUpdate: (): Promise<UpdateInfo | null> =>
-    api?.['app:checkUpdate']() ?? Promise.resolve(null)
+    api?.['app:checkUpdate']() ?? Promise.resolve(null),
+  getStartupEnabled: (): Promise<boolean> =>
+    api?.['app:getStartupEnabled']() ?? Promise.resolve(false),
+  setStartupEnabled: (enabled: boolean): Promise<boolean> =>
+    api?.['app:setStartupEnabled'](enabled) ?? Promise.resolve(false)
 }

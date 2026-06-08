@@ -422,10 +422,16 @@ export function SettingsScreen() {
               </span>
             </div>
           </Setting>
-          <Setting label={L.skipDuplicates} hint={L.skipDupHint} last>
+          <Setting label={L.skipDuplicates} hint={L.skipDupHint}>
             <Toggle
               on={state.downloadPrefs.skipDup}
               onClick={() => actions.setDownloadPrefs({ skipDup: !state.downloadPrefs.skipDup })}
+            />
+          </Setting>
+          <Setting label={L.launchAtStartup} hint={L.launchAtStartupHint} last>
+            <Toggle
+              on={state.launchAtStartup}
+              onClick={() => actions.setLaunchAtStartup(!state.launchAtStartup)}
             />
           </Setting>
         </SettingsCard>

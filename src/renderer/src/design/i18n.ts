@@ -140,6 +140,8 @@ export const LANG: Record<Lang, Dict> = {
     to: '終了',
     concurrency: '同時ダウンロード数',
     concurrencyHint: '並行して取得するファイル数',
+    launchAtStartup: 'スタートアップ起動',
+    launchAtStartupHint: 'PC へのログイン時にアプリを自動起動（自動ダウンロードと併用すると便利）',
     about: 'このアプリについて',
     localOnly: 'すべての処理はこの PC 内で完結します'
   },
@@ -281,6 +283,8 @@ export const LANG: Record<Lang, Dict> = {
     to: 'To',
     concurrency: 'Concurrent downloads',
     concurrencyHint: 'Files fetched in parallel',
+    launchAtStartup: 'Launch at startup',
+    launchAtStartupHint: 'Start the app automatically when you log in (handy with scheduled downloads)',
     about: 'About',
     localOnly: 'Everything runs locally on this PC'
   }
