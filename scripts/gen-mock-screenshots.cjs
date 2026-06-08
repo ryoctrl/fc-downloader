@@ -3,7 +3,7 @@
  * real design tokens. No real data — fake creators / gradient thumbnails — so
  * nothing private ends up in this public repo. Re-run to refresh the images:
  *   node_modules/electron/dist/electron.exe scripts/gen-mock-screenshots.cjs
- * Output: docs/images/{library,progress,settings}.png
+ * Output: docs/images/{library,progress}.png
  */
 const { app, BrowserWindow } = require('electron')
 const fs = require('node:fs')
@@ -45,9 +45,18 @@ const ICON = {
   hdd: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3H3zM3 10v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M7 15h.01',
   library: 'M4 4h4v16H4zM10 4h4v16h-4zM17 5l3 .6-2.3 14.2-3-.6z',
   check: 'M5 12l4.5 4.5L19 7',
-  x: 'M6 6l12 12M18 6 6 18'
+  x: 'M6 6l12 12M18 6 6 18',
+  chevR: 'M9 6l6 6-6 6',
+  chevD: 'M6 9l6 6 6-6',
+  folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  play: 'M7 4v16l13-8z',
+  image: 'M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM8.5 11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 16l-5-5L5 21',
+  file: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
+  sort: 'M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l3 3M17 4l-3 3',
+  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'
 }
-const FILLED = new Set(['heart'])
+const FILLED = new Set(['heart', 'play'])
 function icon(name, size, color, sw = 1.7) {
   const d = ICON[name]
   const fill = FILLED.has(name)
@@ -58,26 +67,39 @@ function icon(name, size, color, sw = 1.7) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill ? color : 'none'}" stroke="${fill ? 'none' : color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="display:block">${paths}</svg>`
 }
 
+// The user supports 3 services, several creators each.
 const SERVICES = [
   ['fantia', 'Fantia'],
-  ['fanbox', 'FANBOX'],
-  ['patreon', 'Patreon'],
+  ['fanbox', 'pixiv FANBOX'],
   ['cien', 'ci-en']
 ]
 
-// Neutral, SFW mock creators + illustration-ish gradient covers.
+// Neutral, SFW mock creators: [name, serviceKey, gradientA, gradientB].
 const CREATORS = [
-  ['あおいスタジオ', 'oklch(0.6 0.16 250)', 'oklch(0.7 0.15 200)'],
-  ['Mocha Works', 'oklch(0.66 0.14 30)', 'oklch(0.72 0.13 60)'],
-  ['こもれび工房', 'oklch(0.62 0.15 145)', 'oklch(0.72 0.12 170)'],
-  ['Yuzu Atelier', 'oklch(0.64 0.16 300)', 'oklch(0.72 0.14 330)'],
-  ['Pixel Garden', 'oklch(0.6 0.15 220)', 'oklch(0.7 0.14 260)'],
-  ['ほしぞら制作', 'oklch(0.58 0.16 280)', 'oklch(0.68 0.13 240)']
+  ['あおいスタジオ', 'fantia', 'oklch(0.6 0.16 250)', 'oklch(0.7 0.15 200)'],
+  ['Mocha Works', 'fantia', 'oklch(0.66 0.14 30)', 'oklch(0.72 0.13 60)'],
+  ['こもれび工房', 'fantia', 'oklch(0.62 0.15 145)', 'oklch(0.72 0.12 170)'],
+  ['Yuzu Atelier', 'fanbox', 'oklch(0.64 0.16 300)', 'oklch(0.72 0.14 330)'],
+  ['Pixel Garden', 'fanbox', 'oklch(0.6 0.15 220)', 'oklch(0.7 0.14 260)'],
+  ['ほしぞら制作', 'cien', 'oklch(0.58 0.16 280)', 'oklch(0.68 0.13 240)'],
+  ['Studio Komorebi', 'cien', 'oklch(0.62 0.15 160)', 'oklch(0.72 0.13 130)']
 ]
-const TITLES = [
-  '春の新作イラスト集', 'メイキング動画 #12', '高解像度 壁紙パック',
-  '線画＆PSD 配布', 'ボイスドラマ 第3話', '設定資料まとめ'
+// Posts in the grid: [title, creatorIndex, fileCount, type, status, 'YYYY/MM'].
+const POSTS = [
+  ['春の新作イラスト集', 0, 12, 'image', 'done', '2026/05'],
+  ['立ち絵差分セット', 0, 8, 'image', 'done', '2026/04'],
+  ['メイキング動画 #12', 1, 3, 'video', 'partial', '2026/05'],
+  ['線画＆PSD 配布', 2, 6, 'file', 'done', '2026/03'],
+  ['高解像度 壁紙パック', 3, 5, 'image', 'done', '2026/05'],
+  ['ボイスドラマ 第3話', 4, 4, 'audio', 'partial', '2026/04'],
+  ['設定資料まとめ', 5, 9, 'file', 'done', '2026/05'],
+  ['月例レポート 5月号', 6, 2, 'file', 'done', '2026/05']
 ]
+
+// A white rounded logo tile (used in the rail, tree and post cards).
+function logoImg(key, size) {
+  return `<div style="width:${size}px;height:${size}px;border-radius:${(size * 0.28).toFixed(1)}px;overflow:hidden;flex-shrink:0;background:#fff;box-shadow:inset 0 0 0 1px var(--hairline)"><img src="${LOGOS[key]}" style="width:100%;height:100%;object-fit:cover;display:block"></div>`
+}
 
 // One rail button: a 38x38 icon box (logo or nav icon) + label below, with the
 // accent bar + tint when active — matching src/renderer/src/components/Rail.tsx.
@@ -125,44 +147,94 @@ function shell(active, content) {
   <body><div style="display:flex;height:100vh">${rail(active)}<div style="flex:1;min-width:0;display:flex;flex-direction:column">${content}</div></div></body></html>`
 }
 
-function avatar(i, size = 26) {
-  const [, a, b] = CREATORS[i]
-  return `<span style="width:${size}px;height:${size}px;border-radius:99px;flex-shrink:0;background:linear-gradient(135deg,${a},${b})"></span>`
+function treeAvatar(i) {
+  const c = CREATORS[i]
+  return `<span style="width:18px;height:18px;border-radius:99px;flex-shrink:0;background:linear-gradient(135deg,${c[2]},${c[3]})"></span>`
+}
+
+// A tree row (service → creator), matching LibraryScreen's TreeRow.
+function treeRow({ depth = 0, mark, iconName, label, count, selected, expandable, open }) {
+  const rowColor = selected ? 'var(--accent)' : 'var(--text-2)'
+  const chev = expandable ? icon(open ? 'chevD' : 'chevR', 13, 'var(--text-3)') : ''
+  return `<div style="display:flex;align-items:center;gap:7px;padding:6px 8px;padding-left:${8 + depth * 15}px;border-radius:8px;background:${selected ? 'var(--accent-tint)' : 'transparent'};color:${rowColor}">
+      <span style="width:14px;display:grid;place-items:center;flex-shrink:0">${chev}</span>
+      ${mark || ''}${iconName ? icon(iconName, 15, rowColor) : ''}
+      <span style="flex:1;font-size:12.5px;font-weight:${selected ? 600 : 500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</span>
+      ${count != null ? `<span style="font-size:10.5px;font-family:var(--mono);color:var(--text-3)">${count}</span>` : ''}
+    </div>`
+}
+
+function postCard(p) {
+  const [title, ci, files, type, status, ym] = p
+  const c = CREATORS[ci]
+  const tIcon = type === 'video' || type === 'audio' ? 'play' : type === 'file' ? 'file' : 'image'
+  const [sl, sc] = status === 'done' ? ['取得済み', 'var(--ok)'] : ['一部', 'var(--warn)']
+  return `<div style="border-radius:13px;overflow:hidden;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-sm);display:flex;flex-direction:column">
+      <div style="position:relative">
+        <div style="aspect-ratio:4/3;background:linear-gradient(135deg,${c[2]},${c[3]})"></div>
+        <div style="position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:99px;background:rgba(20,20,28,.62);color:#fff;font-size:10.5px;font-family:var(--mono)">${icon(tIcon, 11, '#fff')}${files}</div>
+        <div style="position:absolute;top:8px;left:8px;width:26px;height:26px;border-radius:99px;display:grid;place-items:center;background:rgba(20,20,28,.5);color:#fff">${icon('heart', 14, '#fff')}</div>
+        <div style="position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.85);font-size:10.5px;font-weight:600;color:${sc}"><span style="width:6px;height:6px;border-radius:99px;background:${sc}"></span>${sl}</div>
+      </div>
+      <div style="padding:11px 12px">
+        <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:5px">
+          ${logoImg(c[1], 15)}
+          <span style="flex:1;font-size:11.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c[0]}</span>
+          <span style="font-size:10.5px;color:var(--text-3);font-family:var(--mono)">${ym}</span>
+        </div>
+      </div></div>`
+}
+
+function chip(label, on, iconName) {
+  return `<span style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:99px;font-size:12px;font-weight:500;border:1px solid ${on ? 'transparent' : 'var(--border)'};background:${on ? 'var(--accent)' : 'transparent'};color:${on ? '#fff' : 'var(--text-2)'}">${iconName ? icon(iconName, 13, on ? '#fff' : 'var(--text-2)') : ''}${label}</span>`
 }
 
 function libraryScreen() {
-  const cards = CREATORS.map((c, i) => {
-    const [a, b] = [c[1], c[2]]
-    const done = i % 3 !== 1
-    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
-      <div style="height:150px;background:linear-gradient(135deg,${a},${b});position:relative">
-        <span style="position:absolute;top:10px;right:10px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:rgba(0,0,0,.35);color:#fff;backdrop-filter:blur(4px)">${(i % 4) + 3} ファイル</span>
-        <span style="position:absolute;bottom:10px;left:10px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:${done ? 'color-mix(in srgb,var(--ok) 88%,#000)' : 'color-mix(in srgb,var(--warn) 86%,#000)'};color:#fff">${done ? '取得済み' : '一部'}</span>
+  // Tree: 3 services, Fantia expanded to show its creators.
+  const fantiaCreators = [0, 1, 2].map((i) =>
+    treeRow({ depth: 1, mark: treeAvatar(i), label: CREATORS[i][0], count: i === 0 ? 2 : 1, expandable: true })
+  ).join('')
+  const tree = `<div style="width:246px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0">
+      <div style="padding:16px 16px 10px"><div style="font-size:15px;font-weight:700">ライブラリ</div>
+        <div style="font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px">${POSTS.length} 投稿 · 312.4MB</div></div>
+      <div style="flex:1;overflow:hidden;padding:0 8px 14px">
+        ${treeRow({ iconName: 'library', label: 'すべての投稿', count: POSTS.length, selected: true })}
+        ${treeRow({ mark: logoImg('fantia', 20), label: 'Fantia', count: 4, expandable: true, open: true })}
+        ${fantiaCreators}
+        ${treeRow({ mark: logoImg('fanbox', 20), label: 'pixiv FANBOX', count: 2, expandable: true })}
+        ${treeRow({ mark: logoImg('cien', 20), label: 'ci-en', count: 2, expandable: true })}
       </div>
-      <div style="padding:11px 13px 13px">
-        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${TITLES[i]}</div>
-        <div style="display:flex;align-items:center;gap:7px;margin-top:8px">${avatar(i, 22)}
-          <span style="font-size:11.5px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c[0]}</span>
-          <span style="margin-left:auto;font-size:10.5px;color:var(--text-3);font-family:var(--mono)">${(i + 2) * 7}.${i}MB</span>
+    </div>`
+
+  const header = `<div style="padding:14px 20px 10px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+          <span style="font-size:17px;font-weight:700;color:var(--text);white-space:nowrap">すべての投稿</span>
+          <span style="font-size:12px;color:var(--text-3);font-family:var(--mono);margin-left:4px">· ${POSTS.length}</span>
         </div>
-      </div></div>`
-  }).join('')
-  const topbar = `<div style="height:60px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 24px;background:var(--surface)">
-      <div style="font-size:16px;font-weight:700">ライブラリ</div>
-      <div style="flex:1"></div>
-      <div style="display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:7px 12px;width:240px;color:var(--text-3);font-size:12.5px">
-        ${icon('search', 15, 'var(--text-3)')}検索…</div>
-      <div style="display:flex;gap:4px;background:var(--surface-2);border-radius:9px;padding:3px">
-        <span style="padding:6px 13px;border-radius:7px;background:var(--surface);color:var(--accent);font-size:12px;font-weight:600;box-shadow:var(--shadow-sm)">新しい順</span>
-        <span style="padding:6px 13px;border-radius:7px;color:var(--text-3);font-size:12px;font-weight:600">古い順</span></div>
-  </div>`
-  const body = `<div style="flex:1;overflow:hidden;padding:22px 24px">
-      <div style="display:flex;gap:8px;margin-bottom:18px">
-        ${['すべて', 'Fantia', 'FANBOX', 'ci-en', 'Patreon'].map((t, i) => `<span style="padding:7px 15px;border-radius:99px;font-size:12.5px;font-weight:600;border:1px solid ${i === 0 ? 'transparent' : 'var(--border)'};background:${i === 0 ? 'var(--accent)' : 'transparent'};color:${i === 0 ? '#fff' : 'var(--text-2)'}">${t}</span>`).join('')}
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 12px;background:var(--surface-2);border-radius:9px;width:220px;color:var(--text-3);font-size:13px">${icon('search', 15, 'var(--text-3)')}検索…</div>
+        <button style="display:inline-flex;align-items:center;gap:7px;padding:5px 9px;font-size:12px;font-weight:500;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-family:inherit">${icon('sort', 14, 'var(--text)')}新しい順</button>
+        <div style="display:flex;background:var(--surface-2);border-radius:9px;padding:3px">
+          <span style="width:32px;height:28px;border-radius:7px;display:grid;place-items:center;background:var(--surface);box-shadow:var(--shadow-sm)">${icon('grid', 16, 'var(--accent)')}</span>
+          <span style="width:32px;height:28px;border-radius:7px;display:grid;place-items:center">${icon('list', 16, 'var(--text-3)')}</span>
+        </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">${cards}</div>
-  </div>`
-  return shell('library', topbar + body)
+      <div style="display:flex;align-items:center;gap:7px;margin-top:12px">
+        ${chip('すべて', true)}${chip('取得済み', false, 'check')}${chip('一部', false)}
+        <span style="width:1px;height:18px;background:var(--border);margin:0 3px"></span>
+        ${chip('全種別', true)}${chip('画像', false, 'image')}${chip('動画', false, 'play')}${chip('ファイル', false, 'file')}
+      </div>
+    </div>`
+
+  const grid = `<div style="flex:1;overflow:hidden;padding:18px 20px 28px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px">${POSTS.map(postCard).join('')}</div>
+    </div>`
+
+  const content = `<div style="flex:1;display:flex;min-height:0;min-width:0">${tree}
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0">${header}${grid}</div>
+    </div>`
+  return shell('library', content)
 }
 
 function progressScreen() {
@@ -198,34 +270,9 @@ function progressScreen() {
   return shell('download', header + list)
 }
 
-function settingsScreen() {
-  const card = (title, desc, inner) => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:18px">
-      <div style="font-size:14.5px;font-weight:700">${title}</div>${desc ? `<div style="font-size:12px;color:var(--text-3);margin-top:3px">${desc}</div>` : ''}<div style="margin-top:16px">${inner}</div></div>`
-  const toggle = (on) => `<span style="width:40px;height:23px;border-radius:99px;position:relative;display:inline-block;background:${on ? 'var(--accent)' : 'var(--border-2)'}"><span style="position:absolute;top:2px;left:${on ? 19 : 2}px;width:19px;height:19px;border-radius:99px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)"></span></span>`
-  const svcRow = (key, name, on) => `<div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid var(--border)">
-      <div style="width:34px;height:34px;border-radius:10px;overflow:hidden;background:#fff;box-shadow:inset 0 0 0 1px var(--hairline)"><img src="${LOGOS[key]}" style="width:100%;height:100%;object-fit:cover;display:block"></div>
-      <div style="flex:1"><div style="font-size:13.5px;font-weight:600">${name}</div>
-        <div style="font-size:11.5px;color:${on ? 'var(--ok)' : 'var(--text-3)'};display:flex;align-items:center;gap:6px;font-family:var(--mono);margin-top:2px"><span style="width:6px;height:6px;border-radius:99px;background:${on ? 'var(--ok)' : 'var(--text-3)'}"></span>${on ? '接続済み' : '未接続'}</div></div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:10px;color:var(--text-3)">有効</span>${toggle(true)}</div>
-      <span style="padding:6px 13px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-size:12px;color:var(--text-2);font-weight:600">${on ? 'Cookie を削除' : 'ログイン'}</span></div>`
-  const setRow = (label, hint, ctl, last) => `<div style="display:flex;align-items:center;gap:16px;padding:13px 0;border-bottom:${last ? 'none' : '1px solid var(--border)'}">
-      <div style="flex:1"><div style="font-size:13px;font-weight:500">${label}</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px">${hint}</div></div>${ctl}</div>`
-  const services = svcRow('fantia', 'Fantia', true) + svcRow('fanbox', 'pixiv FANBOX', true) + svcRow('cien', 'ci-en', false)
-  const general = setRow('同時ダウンロード数', '並行して取得するファイル数', '<span style="font-family:var(--mono);font-size:13px;color:var(--text-2)">3</span>') +
-    setRow('重複をスキップ', '取得済みの投稿は再取得しない', toggle(true)) +
-    setRow('スタートアップ起動', 'PC へのログイン時にアプリを自動起動', toggle(true), true)
-  const body = `<div style="height:100%;overflow:hidden;padding:28px 28px"><div style="max-width:760px;margin:0 auto">
-      <div style="font-size:22px;font-weight:700;margin-bottom:18px">設定</div>
-      ${card('アカウント / Cookie', 'WebView のログイン状態と Cookie をサービスごとに管理します', services)}
-      ${card('一般', '', general)}
-  </div></div>`
-  return shell('settings', body)
-}
-
 const SCREENS = [
   ['library', libraryScreen()],
-  ['progress', progressScreen()],
-  ['settings', settingsScreen()]
+  ['progress', progressScreen()]
 ]
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
