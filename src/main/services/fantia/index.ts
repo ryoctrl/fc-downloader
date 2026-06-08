@@ -106,6 +106,13 @@ export const fantiaService: Service = {
       for (const id of fresh) {
         seen.add(id)
         ctx.signal.throwIfAborted()
+        // Already fully downloaded for this run's kinds? Skip the post-detail
+        // API call (rate-limited) and let the engine skip it from the ledger.
+        const stub = ctx.completedPostStub?.(creatorId, id)
+        if (stub) {
+          yield stub
+          continue
+        }
         const post = await fetchPostDetail(ctx, creatorId, id, csrf)
         if (post) yield post
       }

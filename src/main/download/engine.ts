@@ -86,7 +86,13 @@ export class DownloadEngine {
     this.activeFiles.clear()
     this.cur = { phase: 'counting' }
     const signal = this.abort.signal
-    const ctx = createServiceContext(serviceId, signal)
+    // On skip-existing runs, give the context the ledger-backed skip helper so
+    // adapters can avoid a per-post detail fetch for posts already downloaded.
+    const ctx = createServiceContext(
+      serviceId,
+      signal,
+      options.skipExisting ? { includeKinds: options.includeKinds } : undefined
+    )
     const service = getService(serviceId)
 
     try {

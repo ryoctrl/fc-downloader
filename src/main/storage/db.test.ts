@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Post } from '@shared/types'
 import {
   closeDb,
+  completedPostStub,
   creatorsMissingIcon,
   initDb,
   isFileDownloaded,
@@ -88,6 +89,61 @@ describe('post completion is scoped to includeKinds', () => {
 
   it('returns false for an unknown post', () => {
     expect(isPostComplete(makePost(), ['image'])).toBe(false)
+  })
+})
+
+describe('completedPostStub (skip the detail fetch for already-downloaded posts)', () => {
+  const id = ['fantia', 'c1', 'p1'] as const
+
+  it('returns null for an unknown or not-yet-complete post', () => {
+    expect(completedPostStub(...id, ['image'])).toBeNull()
+    const post = makePost()
+    upsertPost(post, '/disk/p1')
+    markFileDownloaded(post, 'img', 'a.png', undefined, 'image')
+    expect(completedPostStub(...id, ['image'])).toBeNull() // not refreshed yet
+  })
+
+  it('returns a network-free stub the engine still sees as complete', () => {
+    const post = makePost()
+    upsertPost(post, '/disk/p1')
+    markFileDownloaded(post, 'img', 'a.png', undefined, 'image')
+    refreshPostCompletion(post, ['image'])
+
+    const stub = completedPostStub(...id, ['image'])
+    expect(stub).not.toBeNull()
+    expect(stub!.files.every((f) => f.url === '')).toBe(true) // nothing to download
+    // The engine's own skip check must agree, so it skips rather than downloads.
+    expect(isPostComplete(stub!, ['image'])).toBe(true)
+  })
+
+  it('does NOT skip when the scope widens beyond what was completed', () => {
+    const post = makePost()
+    upsertPost(post, '/disk/p1')
+    markFileDownloaded(post, 'img', 'a.png', undefined, 'image')
+    refreshPostCompletion(post, ['image'])
+    // Completed under image-only; a run that also wants video must re-fetch.
+    expect(completedPostStub(...id, ['image', 'video'])).toBeNull()
+  })
+
+  it('skips a subset scope of a broader completion', () => {
+    const post = makePost()
+    upsertPost(post, '/disk/p1')
+    markFileDownloaded(post, 'img', 'a.png', undefined, 'image')
+    markFileDownloaded(post, 'vid', 'b.mp4', undefined, 'video')
+    refreshPostCompletion(post, ['image', 'video'])
+    expect(completedPostStub(...id, ['image'])).not.toBeNull()
+    expect(completedPostStub(...id, ['image', 'video'])).not.toBeNull()
+  })
+
+  it('clears the completed scope once a wider run finds it incomplete', () => {
+    const post = makePost()
+    upsertPost(post, '/disk/p1')
+    markFileDownloaded(post, 'img', 'a.png', undefined, 'image')
+    refreshPostCompletion(post, ['image']) // complete for image
+    expect(completedPostStub(...id, ['image'])).not.toBeNull()
+    // A wider run (image+video) finds video missing -> no longer complete.
+    refreshPostCompletion(post, ['image', 'video'])
+    expect(completedPostStub(...id, ['image'])).toBeNull()
   })
 })
 
