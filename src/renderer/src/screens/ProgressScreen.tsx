@@ -115,21 +115,28 @@ export function ProgressScreen() {
   const cur = !done ? p.current : undefined
   const activity = cur
     ? (() => {
-        const label =
-          cur.phase === 'counting'
+        const waiting = cur.phase === 'waiting'
+        const label = waiting
+          ? L.activityWaiting
+          : cur.phase === 'counting'
             ? L.activityCounting
             : cur.phase === 'downloading'
               ? L.activityDownloading
               : L.activityScanning
         let detail = ''
-        if (cur.phase === 'downloading' && cur.activeFiles?.length) {
+        if (waiting && cur.retry) {
+          // e.g. "HTTP 429 · 8s · #3" — what was detected and how long we wait.
+          const code = cur.retry.status ? `HTTP ${cur.retry.status}` : L.networkError
+          const secs = Math.max(1, Math.ceil(cur.retry.waitMs / 1000))
+          detail = `${code} · ${secs}s · #${cur.retry.attempt}`
+        } else if (cur.phase === 'downloading' && cur.activeFiles?.length) {
           const fs = cur.activeFiles
           detail = fs.slice(0, 2).join(', ') + (fs.length > 2 ? ` +${fs.length - 2}` : '')
         } else {
           const post = cur.postTitle || (cur.postId ? `#${cur.postId}` : '')
           detail = [cur.creatorName, post].filter(Boolean).join(' — ')
         }
-        return { label, detail }
+        return { label, detail, color: waiting ? 'var(--warn)' : 'var(--accent)' }
       })()
     : null
 
@@ -296,9 +303,9 @@ export function ProgressScreen() {
           >
             <span
               className="fc-pulse"
-              style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--accent)', flexShrink: 0 }}
+              style={{ width: 7, height: 7, borderRadius: 99, background: activity.color, flexShrink: 0 }}
             />
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: activity.color, flexShrink: 0 }}>
               {activity.label}
             </span>
             {activity.detail && (

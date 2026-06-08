@@ -102,8 +102,9 @@ export interface DownloadItem {
  */
 export interface DownloadActivity {
   /** counting = up-front post count; scanning = walking posts (fetching detail /
-   *  checking already-downloaded); downloading = fetching file(s). */
-  phase: 'counting' | 'scanning' | 'downloading'
+   *  checking already-downloaded); downloading = fetching file(s); waiting =
+   *  backing off before retrying a rate-limited / failed request. */
+  phase: 'counting' | 'scanning' | 'downloading' | 'waiting'
   /** Creator currently being processed (display name, if known). */
   creatorName?: string
   /** Post currently being processed. */
@@ -111,6 +112,17 @@ export interface DownloadActivity {
   postTitle?: string
   /** Files currently being fetched (in-flight downloads). */
   activeFiles?: string[]
+  /** Present while backing off before a retry (e.g. after an HTTP 429). Lets
+   *  the UI show "rate-limited, retrying in Ns" instead of looking stuck. */
+  retry?: {
+    /** HTTP status that triggered the wait (e.g. 429), or undefined for a
+     *  network error. */
+    status?: number
+    /** 1-based retry attempt about to be made. */
+    attempt: number
+    /** Milliseconds being waited before the retry. */
+    waitMs: number
+  }
 }
 
 /** Aggregate progress for a download run. */

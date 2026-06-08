@@ -1,18 +1,23 @@
 /** Builds a ServiceContext bound to a service's isolated session. */
-import { requestForWithRetry } from '@main/session/manager'
+import { requestForWithRetry, type RetryHook } from '@main/session/manager'
 import { completedPostStub } from '@main/storage/db'
 import type { PostFileKind, ServiceId } from '@shared/types'
 import type { ServiceContext } from './types'
 
-/**
- * @param skip  When set (skip-existing download runs), wires `completedPostStub`
- *   so adapters can skip the detail fetch for posts already fully downloaded
- *   under `includeKinds`. Omitted for non-download contexts (auth, listing).
- */
+export interface ServiceContextOpts {
+  /** When set (skip-existing download runs), wires `completedPostStub` so
+   *  adapters can skip the detail fetch for posts already fully downloaded
+   *  under these kinds. */
+  includeKinds?: PostFileKind[]
+  /** Invoked just before each request backoff wait (e.g. an HTTP 429), so the
+   *  engine can surface "rate-limited, retrying in Ns" in the progress UI. */
+  onRetry?: RetryHook
+}
+
 export function createServiceContext(
   serviceId: ServiceId,
   signal: AbortSignal,
-  skip?: { includeKinds: PostFileKind[] }
+  opts: ServiceContextOpts = {}
 ): ServiceContext {
   const log: ServiceContext['log'] = (level, msg, meta) => {
     const line = `[${serviceId}] ${msg}`
@@ -21,23 +26,24 @@ export function createServiceContext(
     else console.log(line, meta ?? '')
   }
 
+  const { includeKinds, onRetry } = opts
   return {
     signal,
     log,
     async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-      const res = await requestForWithRetry(serviceId, url, { ...init, signal })
+      const res = await requestForWithRetry(serviceId, url, { ...init, signal, onRetry })
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`)
       return res.json<T>()
     },
     async fetchText(url: string, init?: RequestInit): Promise<string> {
-      const res = await requestForWithRetry(serviceId, url, { ...init, signal })
+      const res = await requestForWithRetry(serviceId, url, { ...init, signal, onRetry })
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`)
       return res.text()
     },
-    ...(skip
+    ...(includeKinds
       ? {
           completedPostStub: (creatorId: string, postId: string) =>
-            completedPostStub(serviceId, creatorId, postId, skip.includeKinds)
+            completedPostStub(serviceId, creatorId, postId, includeKinds)
         }
       : {})
   }

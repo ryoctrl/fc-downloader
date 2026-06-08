@@ -64,11 +64,14 @@ export class DownloadEngine {
     this.progress.inFlight = this.activeFiles.size
     const downloading = this.activeFiles.size > 0
     this.progress.current = {
-      phase: downloading ? 'downloading' : this.cur.phase,
+      // A pending retry takes visual priority over scanning/counting so a 429
+      // backoff reads as "waiting" rather than looking stuck.
+      phase: downloading ? 'downloading' : this.cur.retry ? 'waiting' : this.cur.phase,
       creatorName: this.cur.creatorName,
       postId: this.cur.postId,
       postTitle: this.cur.postTitle,
-      activeFiles: downloading ? [...this.activeFiles] : undefined
+      activeFiles: downloading ? [...this.activeFiles] : undefined,
+      retry: this.cur.retry
     }
     cb.onProgress({ ...this.progress })
   }
@@ -88,11 +91,14 @@ export class DownloadEngine {
     const signal = this.abort.signal
     // On skip-existing runs, give the context the ledger-backed skip helper so
     // adapters can avoid a per-post detail fetch for posts already downloaded.
-    const ctx = createServiceContext(
-      serviceId,
-      signal,
-      options.skipExisting ? { includeKinds: options.includeKinds } : undefined
-    )
+    // onRetry surfaces request backoff (e.g. HTTP 429) in the activity line.
+    const ctx = createServiceContext(serviceId, signal, {
+      includeKinds: options.skipExisting ? options.includeKinds : undefined,
+      onRetry: (notice) => {
+        this.cur.retry = notice
+        this.emit(cb)
+      }
+    })
     const service = getService(serviceId)
 
     try {
