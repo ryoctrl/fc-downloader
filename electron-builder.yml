@@ -4,6 +4,13 @@
 appId: app.fcdownloader
 productName: fc-downloader
 
+# Override the bundled package.json `description` at build time ONLY. The
+# Windows exe's version-info FileDescription (shown as the process "Name" in
+# Task Manager) is derived from `description`; without this it would show the
+# long npm description. The repo's package.json keeps its full description.
+extraMetadata:
+  description: fc-downloader
+
 directories:
   output: release
   buildResources: build
