@@ -4,24 +4,30 @@
  * This app makes automated requests against third-party support sites on the
  * user's behalf (enumerating their supported creators/posts and downloading
  * the content they already pay for). To avoid putting undue load on those
- * services, every automated request — metadata fetch *and* file download —
- * passes through here first, which spaces successive request *starts* for a
- * given service at least `MIN_GAP_MS` apart.
+ * services, every **metadata** request (creator/post enumeration and post
+ * detail) passes through here first, which spaces successive request *starts*
+ * for a given service at least `MIN_GAP_MS` apart — capping the metadata
+ * request rate at roughly `1000 / MIN_GAP_MS` per second (≈1/s at 1000ms),
+ * independent of the download-concurrency setting.
  *
- * This is intentionally independent of the download concurrency setting: even
- * with N parallel download workers, their requests are released one every
- * `MIN_GAP_MS`, capping the effective request rate per service at roughly
- * `1000 / MIN_GAP_MS` requests per second. Large file transfers dwarf this gap,
- * so it costs throughput nothing in practice while keeping bursty metadata
- * enumeration gentle.
+ * NOTE: large **file downloads** (`downloadToFile`) intentionally do NOT pass
+ * through here — they are bounded instead by the user's concurrency setting
+ * (the engine's worker pool). The gap would otherwise serialize parallel
+ * transfers into one every `MIN_GAP_MS` and tank throughput.
  *
  * The user's own browsing in the embedded WebView is NOT throttled here; this
  * only governs the requests the app issues itself.
  */
 import type { ServiceId } from '@shared/types'
 
-/** Minimum spacing between successive automated request starts, per service. */
-export const MIN_GAP_MS = 300
+/**
+ * Minimum spacing between successive automated metadata request starts, per
+ * service (≈1 req/s). Kept conservative because some sites (e.g. Fantia)
+ * rate-limit their post-detail API fairly aggressively; pair this with the
+ * "skip already-downloaded posts' detail fetch" optimization so long runs stay
+ * both gentle and reasonably fast.
+ */
+export const MIN_GAP_MS = 1000
 
 /** Earliest timestamp (ms epoch) at which the next request for a service may start. */
 const nextAllowedAt = new Map<ServiceId, number>()
