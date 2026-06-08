@@ -17,7 +17,7 @@ const TOKENS = `
   --sans:'IBM Plex Sans',system-ui,'Segoe UI',sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
   --bg:oklch(0.168 0.012 262); --surface:oklch(0.213 0.014 262); --surface-2:oklch(0.262 0.016 262);
-  --border:oklch(0.3 0.014 262); --border-2:oklch(0.38 0.016 262);
+  --border:oklch(0.3 0.014 262); --border-2:oklch(0.38 0.016 262); --hairline:oklch(0.4 0.012 262 / 0.4);
   --text:oklch(0.95 0.006 262); --text-2:oklch(0.74 0.012 262); --text-3:oklch(0.56 0.014 262);
   --ok:oklch(0.72 0.14 155); --warn:oklch(0.78 0.13 72); --danger:oklch(0.66 0.17 25);
   --accent:#2f6df0; --accent-tint:color-mix(in srgb,#2f6df0 16%,transparent);
@@ -25,11 +25,44 @@ const TOKENS = `
   --shadow-sm:0 1px 2px rgba(0,0,0,.22),0 2px 8px rgba(0,0,0,.2);
 `
 
+// Real bundled service logos (read from the app's assets so the rail matches).
+const LOGO_DIR = path.resolve(__dirname, '..', 'src', 'renderer', 'src', 'assets', 'logos')
+function logoUri(file, mime) {
+  return `data:${mime};base64,${fs.readFileSync(path.join(LOGO_DIR, file)).toString('base64')}`
+}
+const LOGOS = {
+  fantia: logoUri('fantia.png', 'image/png'),
+  fanbox: logoUri('fanbox.png', 'image/png'),
+  patreon: logoUri('patreon.png', 'image/png'),
+  cien: logoUri('cien.ico', 'image/x-icon')
+}
+// The exact icon paths the app uses (src/renderer/src/design/icons.tsx).
+const ICON = {
+  download: 'M12 3v12m0 0 4-4m-4 4-4-4M5 19h14',
+  search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H2a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 3.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H8a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V8a1.65 1.65 0 0 0 1.51 1H22a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z',
+  hdd: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3H3zM3 10v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M7 15h.01',
+  library: 'M4 4h4v16H4zM10 4h4v16h-4zM17 5l3 .6-2.3 14.2-3-.6z',
+  check: 'M5 12l4.5 4.5L19 7',
+  x: 'M6 6l12 12M18 6 6 18'
+}
+const FILLED = new Set(['heart'])
+function icon(name, size, color, sw = 1.7) {
+  const d = ICON[name]
+  const fill = FILLED.has(name)
+  const paths = d
+    .split(' M')
+    .map((seg, i) => `<path d="${i === 0 ? seg : 'M' + seg}"/>`)
+    .join('')
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill ? color : 'none'}" stroke="${fill ? 'none' : color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="display:block">${paths}</svg>`
+}
+
 const SERVICES = [
-  ['F', 'oklch(0.62 0.16 16)'],
-  ['fb', 'oklch(0.62 0.14 250)'],
-  ['P', 'oklch(0.62 0.15 30)'],
-  ['ci', 'oklch(0.66 0.15 145)']
+  ['fantia', 'Fantia'],
+  ['fanbox', 'FANBOX'],
+  ['patreon', 'Patreon'],
+  ['cien', 'ci-en']
 ]
 
 // Neutral, SFW mock creators + illustration-ish gradient covers.
@@ -46,28 +79,41 @@ const TITLES = [
   '線画＆PSD 配布', 'ボイスドラマ 第3話', '設定資料まとめ'
 ]
 
+// One rail button: a 38x38 icon box (logo or nav icon) + label below, with the
+// accent bar + tint when active — matching src/renderer/src/components/Rail.tsx.
+function railItem({ mark, iconName, label, on, busy }) {
+  const box = `<div style="position:relative;display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:${on && !mark ? 'var(--accent-tint)' : 'transparent'}">
+      ${mark || icon(iconName, 21, on ? 'var(--accent)' : 'var(--text-3)')}
+      ${busy ? '<span style="position:absolute;top:1px;right:1px;width:12px;height:12px;border-radius:99px;border:2px solid var(--accent);border-top-color:transparent"></span>' : ''}
+    </div>`
+  return `<div style="position:relative;width:100%;display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;border-radius:12px;color:${on ? 'var(--text)' : 'var(--text-3)'}">
+      ${on ? '<span style="position:absolute;left:-8px;top:50%;transform:translateY(-50%);width:3.5px;height:22px;border-radius:99px;background:var(--accent)"></span>' : ''}
+      ${box}
+      <span style="font-size:9.5px;font-weight:600;letter-spacing:.01em;white-space:nowrap">${label}</span>
+    </div>`
+}
+
+function svcMark(key, on) {
+  return `<div style="width:34px;height:34px;border-radius:9.5px;overflow:hidden;background:#fff;box-shadow:${on ? '0 4px 12px rgba(0,0,0,.4)' : 'inset 0 0 0 1px var(--hairline)'}">
+      <img src="${LOGOS[key]}" style="width:100%;height:100%;object-fit:cover;display:block"></div>`
+}
+
 function rail(active) {
-  const item = (inner, on, ring) => `
-    <div style="width:44px;height:44px;border-radius:13px;display:grid;place-items:center;margin:0 auto;
-      background:${on ? 'var(--accent-tint)' : 'transparent'};
-      box-shadow:${ring ? 'inset 0 0 0 1.5px var(--border-2)' : 'none'};position:relative">
-      ${on ? '<span style="position:absolute;left:-10px;top:11px;width:3px;height:22px;border-radius:9px;background:var(--accent)"></span>' : ''}
-      ${inner}</div>`
-  const svc = SERVICES.map(([t, c]) =>
-    item(`<span style="width:30px;height:30px;border-radius:9px;background:${c};color:#fff;font-weight:700;font-size:12px;display:grid;place-items:center">${t}</span>`, false, true)
-  ).join('<div style="height:10px"></div>')
-  const navIcon = (d, on) => item(`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${on ? 'var(--accent)' : 'var(--text-3)'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`, on)
+  const svc = SERVICES.map(([k, l]) =>
+    railItem({ mark: svcMark(k, active === 'svc-' + k), label: l, on: active === 'svc-' + k })
+  ).join('')
+  const storage = `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 2px 8px;color:var(--text-3)">
+      ${icon('hdd', 13, 'var(--text-3)')}<span style="font-size:9px;font-family:var(--mono)">12.4 GB</span></div>`
   return `<div style="width:72px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
-      display:flex;flex-direction:column;padding:16px 0;gap:0">
+      display:flex;flex-direction:column;padding:10px 8px;gap:2px">
       ${svc}
-      <div style="height:1px;background:var(--border);margin:16px 14px"></div>
-      ${navIcon('<path d="M4 5h16M4 12h16M4 19h16"/>', active === 'library')}
-      <div style="height:10px"></div>
-      ${navIcon('<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.5 1-1a5.5 5.5 0 0 0 0-7.9z"/>', active === 'fav')}
-      <div style="height:10px"></div>
-      ${navIcon('<path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/>', active === 'download')}
+      <div style="height:1px;background:var(--border);margin:8px 6px"></div>
+      ${railItem({ iconName: 'library', label: 'ライブラリ', on: active === 'library' })}
+      ${railItem({ iconName: 'heart', label: 'お気に入り', on: active === 'fav' })}
+      ${railItem({ iconName: 'download', label: 'ダウンロード', on: active === 'download', busy: active === 'download' })}
       <div style="flex:1"></div>
-      ${navIcon('<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1l-.4-2.5h-4l-.4 2.5a7 7 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6a7 7 0 0 0 .1-1z"/>', active === 'settings')}
+      ${storage}
+      ${railItem({ iconName: 'gear', label: '設定', on: active === 'settings' })}
   </div>`
 }
 
@@ -105,7 +151,7 @@ function libraryScreen() {
       <div style="font-size:16px;font-weight:700">ライブラリ</div>
       <div style="flex:1"></div>
       <div style="display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:7px 12px;width:240px;color:var(--text-3);font-size:12.5px">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>検索…</div>
+        ${icon('search', 15, 'var(--text-3)')}検索…</div>
       <div style="display:flex;gap:4px;background:var(--surface-2);border-radius:9px;padding:3px">
         <span style="padding:6px 13px;border-radius:7px;background:var(--surface);color:var(--accent);font-size:12px;font-weight:600;box-shadow:var(--shadow-sm)">新しい順</span>
         <span style="padding:6px 13px;border-radius:7px;color:var(--text-3);font-size:12px;font-weight:600">古い順</span></div>
@@ -125,13 +171,13 @@ function progressScreen() {
     const map = { done: ['取得済み', 'var(--ok)'], dl: ['ダウンロード中', 'var(--accent)'], skip: ['スキップ', 'var(--text-3)'] }
     const [lbl, col] = map[status]
     return `<div style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${status === 'dl' ? '<path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/>' : '<path d="M20 6 9 17l-5-5"/>'}</svg>
+      ${icon(status === 'dl' ? 'download' : 'check', 15, col)}
       <div style="flex:1;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
       <span style="font-size:11.5px;font-weight:600;color:${col};font-family:var(--mono)">${lbl}</span></div>`
   }
   const header = `<div style="padding:26px 30px 22px;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
-        <span style="width:42px;height:42px;border-radius:12px;background:oklch(0.62 0.16 16);color:#fff;font-weight:700;display:grid;place-items:center">F</span>
+        <div style="width:42px;height:42px;border-radius:12px;overflow:hidden;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.35)"><img src="${LOGOS.fantia}" style="width:100%;height:100%;object-fit:cover;display:block"></div>
         <div style="flex:1"><div style="font-size:12.5px;color:var(--text-3);font-weight:500">Fantia</div>
           <div style="font-size:20px;font-weight:700;display:flex;align-items:center;gap:10px">ダウンロード中
             <span style="width:8px;height:8px;border-radius:99px;background:var(--accent)"></span></div></div>
@@ -141,7 +187,7 @@ function progressScreen() {
       <div style="display:flex;gap:8px;margin-top:22px">
         ${stat('投稿', '4612/11185', 'var(--accent)')}${stat('ファイル', '8230/8412')}${stat('完了', '512', 'var(--ok)')}${stat('スキップ', '7701')}${stat('失敗', '0')}${stat('サイズ', '1.8 GB')}${stat('速度', '6.4 MB/s')}${stat('残り', '7分')}
       </div>
-      <div style="display:flex;gap:10px;margin-top:20px"><span style="padding:8px 16px;border-radius:9px;background:color-mix(in srgb,var(--danger) 90%,#000);color:#fff;font-size:12.5px;font-weight:600;display:inline-flex;gap:6px;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M18 6 6 18M6 6l12 12"/></svg>キャンセル</span></div>
+      <div style="display:flex;gap:10px;margin-top:20px"><span style="padding:8px 16px;border-radius:9px;background:color-mix(in srgb,var(--danger) 90%,#000);color:#fff;font-size:12.5px;font-weight:600;display:inline-flex;gap:6px;align-items:center">${icon('x', 14, '#fff')}キャンセル</span></div>
       <div style="margin-top:14px;display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--surface-2);border-radius:10px">
         <span style="width:7px;height:7px;border-radius:99px;background:var(--accent)"></span>
         <span style="font-size:11.5px;font-weight:700;color:var(--accent)">ダウンロード中</span>
@@ -156,15 +202,15 @@ function settingsScreen() {
   const card = (title, desc, inner) => `<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow-sm);margin-bottom:18px">
       <div style="font-size:14.5px;font-weight:700">${title}</div>${desc ? `<div style="font-size:12px;color:var(--text-3);margin-top:3px">${desc}</div>` : ''}<div style="margin-top:16px">${inner}</div></div>`
   const toggle = (on) => `<span style="width:40px;height:23px;border-radius:99px;position:relative;display:inline-block;background:${on ? 'var(--accent)' : 'var(--border-2)'}"><span style="position:absolute;top:2px;left:${on ? 19 : 2}px;width:19px;height:19px;border-radius:99px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)"></span></span>`
-  const svcRow = (mark, color, name, on) => `<div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid var(--border)">
-      <span style="width:34px;height:34px;border-radius:10px;background:${color};color:#fff;font-weight:700;font-size:13px;display:grid;place-items:center">${mark}</span>
+  const svcRow = (key, name, on) => `<div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid var(--border)">
+      <div style="width:34px;height:34px;border-radius:10px;overflow:hidden;background:#fff;box-shadow:inset 0 0 0 1px var(--hairline)"><img src="${LOGOS[key]}" style="width:100%;height:100%;object-fit:cover;display:block"></div>
       <div style="flex:1"><div style="font-size:13.5px;font-weight:600">${name}</div>
         <div style="font-size:11.5px;color:${on ? 'var(--ok)' : 'var(--text-3)'};display:flex;align-items:center;gap:6px;font-family:var(--mono);margin-top:2px"><span style="width:6px;height:6px;border-radius:99px;background:${on ? 'var(--ok)' : 'var(--text-3)'}"></span>${on ? '接続済み' : '未接続'}</div></div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font-size:10px;color:var(--text-3)">有効</span>${toggle(true)}</div>
       <span style="padding:6px 13px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);font-size:12px;color:var(--text-2);font-weight:600">${on ? 'Cookie を削除' : 'ログイン'}</span></div>`
   const setRow = (label, hint, ctl, last) => `<div style="display:flex;align-items:center;gap:16px;padding:13px 0;border-bottom:${last ? 'none' : '1px solid var(--border)'}">
       <div style="flex:1"><div style="font-size:13px;font-weight:500">${label}</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px">${hint}</div></div>${ctl}</div>`
-  const services = svcRow('F', 'oklch(0.62 0.16 16)', 'Fantia', true) + svcRow('fb', 'oklch(0.62 0.14 250)', 'pixiv FANBOX', true) + svcRow('ci', 'oklch(0.66 0.15 145)', 'ci-en', false)
+  const services = svcRow('fantia', 'Fantia', true) + svcRow('fanbox', 'pixiv FANBOX', true) + svcRow('cien', 'ci-en', false)
   const general = setRow('同時ダウンロード数', '並行して取得するファイル数', '<span style="font-family:var(--mono);font-size:13px;color:var(--text-2)">3</span>') +
     setRow('重複をスキップ', '取得済みの投稿は再取得しない', toggle(true)) +
     setRow('スタートアップ起動', 'PC へのログイン時にアプリを自動起動', toggle(true), true)
