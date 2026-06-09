@@ -4,7 +4,15 @@
   "description": "Local-first desktop downloader & viewer for fan-club support sites (Fantia, Pixiv Fanbox, Patreon, ci-en).",
   "private": true,
   "author": "ryoctrl",
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ryoctrl/fc-downloader.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ryoctrl/fc-downloader/issues"
+  },
+  "homepage": "https://github.com/ryoctrl/fc-downloader#readme",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
