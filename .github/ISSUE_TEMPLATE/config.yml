@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 利用上の注意（個人利用・私的バックアップ）
+    url: https://github.com/ryoctrl/fc-downloader#%EF%B8%8F-%E5%85%8D%E8%B2%AC%E4%BA%8B%E9%A0%85%E5%BF%85%E3%81%9A%E3%81%8A%E8%AA%AD%E3%81%BF%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84
+    about: 本アプリは個人利用・私的バックアップ目的です。免責事項を必ずご確認ください。
