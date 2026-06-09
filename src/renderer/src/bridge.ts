@@ -9,6 +9,7 @@ import type { IpcEvents, RendererApi } from '@shared/ipc'
 import type {
   AppSettings,
   Creator,
+  DownloadItem,
   DownloadOptions,
   LibraryFile,
   LibraryPost,
@@ -49,6 +50,10 @@ export const bridge = {
   startDownload: (id: ServiceId, opts: DownloadOptions): Promise<void> =>
     api?.['download:start'](id, opts) ?? Promise.resolve(),
   cancelDownload: (): Promise<void> => api?.['download:cancel']() ?? Promise.resolve(),
+  /** The current run's per-file results buffered in the main process, so the
+   *  progress screen can restore the list after navigating away and back. */
+  downloadStatus: (): Promise<DownloadItem[]> =>
+    api?.['download:status']() ?? Promise.resolve([]),
   onDownloadProgress: (cb: (p: IpcEvents['download:progress']) => void): (() => void) =>
     api ? api.on('download:progress', cb) : noop,
   onDownloadItem: (cb: (p: IpcEvents['download:item']) => void): (() => void) =>

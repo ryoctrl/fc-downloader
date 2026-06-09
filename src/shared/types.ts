@@ -86,7 +86,13 @@ export interface DownloadItem {
   id: string
   serviceId: ServiceId
   creatorId: string
+  /** Creator display name, for grouping the file list by post. */
+  creatorName?: string
   postId: string
+  /** Post title, for the per-post heading in the file list. */
+  postTitle?: string
+  /** Total in-scope files in this post (the "Total" in an "X / Total" badge). */
+  postFileTotal?: number
   fileId: string
   fileName: string
   status: DownloadStatus

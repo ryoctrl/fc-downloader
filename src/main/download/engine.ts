@@ -34,7 +34,12 @@ export interface DownloadCallbacks {
   /** Called when a file finishes (any terminal status). */
   onItem?(item: {
     serviceId: ServiceId
+    creatorId: string
+    creatorName?: string
     postId: string
+    postTitle?: string
+    /** Total in-scope files in this post (for an "X / Total" badge). */
+    postFileTotal: number
     fileId: string
     fileName: string
     status: 'completed' | 'skipped' | 'failed'
@@ -208,8 +213,9 @@ export class DownloadEngine {
 
     // Bounded concurrency over this post's files.
     const queue = [...targets]
+    const meta = { creatorName, postFileTotal: targets.length }
     const workers = Array.from({ length: Math.max(1, options.concurrency) }, () =>
-      this.worker(serviceId, root, loc, post, queue, options, cb, diskNameById)
+      this.worker(serviceId, root, loc, post, queue, options, cb, diskNameById, meta)
     )
     await Promise.all(workers)
     refreshPostCompletion(post, options.includeKinds)
@@ -223,8 +229,27 @@ export class DownloadEngine {
     queue: PostFile[],
     options: DownloadOptions,
     cb: DownloadCallbacks,
-    diskNameById: Map<string, string>
+    diskNameById: Map<string, string>,
+    meta: { creatorName?: string; postFileTotal: number }
   ): Promise<void> {
+    const item = (
+      file: PostFile,
+      status: 'completed' | 'skipped' | 'failed',
+      error?: string
+    ): void =>
+      cb.onItem?.({
+        serviceId,
+        creatorId: post.creatorId,
+        creatorName: meta.creatorName,
+        postId: post.postId,
+        postTitle: post.title,
+        postFileTotal: meta.postFileTotal,
+        fileId: file.fileId,
+        fileName: file.name,
+        status,
+        error
+      })
+
     for (;;) {
       if (this.abort.signal.aborted) return
       const file = queue.shift()
@@ -235,13 +260,7 @@ export class DownloadEngine {
         isFileDownloaded(serviceId, post.creatorId, post.postId, file.fileId)
       ) {
         this.progress.skipped += 1
-        cb.onItem?.({
-          serviceId,
-          postId: post.postId,
-          fileId: file.fileId,
-          fileName: file.name,
-          status: 'skipped'
-        })
+        item(file, 'skipped')
         this.emit(cb)
         continue
       }
@@ -253,13 +272,7 @@ export class DownloadEngine {
           markFileDownloaded(post, file.fileId, diskName, undefined, file.kind)
           warmThumbnail(file.kind, dest)
           this.progress.skipped += 1
-          cb.onItem?.({
-            serviceId,
-            postId: post.postId,
-            fileId: file.fileId,
-            fileName: file.name,
-            status: 'skipped'
-          })
+          item(file, 'skipped')
         } else {
           // Mark as in-flight so the activity line shows the live download.
           this.activeFiles.add(file.name)
@@ -274,24 +287,11 @@ export class DownloadEngine {
           warmThumbnail(file.kind, dest)
           this.progress.completed += 1
           this.progress.bytesDownloaded += size
-          cb.onItem?.({
-            serviceId,
-            postId: post.postId,
-            fileId: file.fileId,
-            fileName: file.name,
-            status: 'completed'
-          })
+          item(file, 'completed')
         }
       } catch (err) {
         this.progress.failed += 1
-        cb.onItem?.({
-          serviceId,
-          postId: post.postId,
-          fileId: file.fileId,
-          fileName: file.name,
-          status: 'failed',
-          error: err instanceof Error ? err.message : String(err)
-        })
+        item(file, 'failed', err instanceof Error ? err.message : String(err))
       }
       this.emit(cb)
     }
