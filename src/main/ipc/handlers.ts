@@ -126,8 +126,11 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
           const dlItem: DownloadItem = {
             id: `${it.postId}:${it.fileId}`,
             serviceId: it.serviceId,
-            creatorId: '',
+            creatorId: it.creatorId,
+            creatorName: it.creatorName,
             postId: it.postId,
+            postTitle: it.postTitle,
+            postFileTotal: it.postFileTotal,
             fileId: it.fileId,
             fileName: it.fileName,
             status: it.status,
@@ -135,6 +138,8 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
             error: it.error
           }
           recentItems.push(dlItem)
+          // Bound the buffer (and the download:status payload) for huge runs.
+          if (recentItems.length > 600) recentItems.shift()
           if (win) emit(win, 'download:item', dlItem)
         }
       })

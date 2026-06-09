@@ -1,6 +1,6 @@
 /* fc-downloader — bulk download progress, driven by real main-process events */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import type { DownloadItem, DownloadProgress } from '@shared/types'
+import type { DownloadItem, DownloadProgress, ServiceId } from '@shared/types'
 import { FC, fmtSize } from '../design/data'
 import {
   estimateEtaSec,
@@ -15,6 +15,16 @@ import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
 import { bridge } from '../bridge'
 import { FilterChip } from './LibraryScreen'
+
+/** A post's file results, grouped for the download list. */
+interface PostGroup {
+  postId: string
+  serviceId: ServiceId
+  creatorName?: string
+  postTitle?: string
+  total: number
+  items: DownloadItem[]
+}
 
 const STATUS_COLOR: Record<string, string> = {
   completed: 'var(--ok)',
@@ -63,14 +73,31 @@ export function ProgressScreen() {
       const elapsed = (now - startRef.current.t) / 1000
       setEtaSec(estimateEtaSec(elapsed, processed, p.total, startRef.current.processed))
     })
-    const offItem = bridge.onDownloadItem((it) => setItems((list) => [it, ...list].slice(0, 300)))
+    const offItem = bridge.onDownloadItem((it) =>
+      setItems((list) => (list.some((i) => i.id === it.id) ? list : [it, ...list].slice(0, 600)))
+    )
     const offDone = bridge.onDownloadDone((p) => {
       setProgress(p)
       setSpeedBps(0)
       setEtaSec(null)
       app.actions.markDownloadDone()
     })
+
+    // Restore the file list after navigating away and back: the main process
+    // keeps the run's per-file buffer, so seed from it (merging any live items
+    // that arrived first, de-duped by id).
+    let cancelled = false
+    void bridge.downloadStatus().then((buffered) => {
+      if (cancelled || buffered.length === 0) return
+      setItems((live) => {
+        const seen = new Set(live.map((i) => i.id))
+        const seed = [...buffered].reverse().filter((i) => !seen.has(i.id))
+        return [...live, ...seed].slice(0, 600)
+      })
+    })
+
     return () => {
+      cancelled = true
       offProgress()
       offItem()
       offDone()
@@ -339,76 +366,165 @@ export function ProgressScreen() {
           </div>
         )}
         {(() => {
-          const shown = failedOnly ? items.filter((it) => it.status === 'failed') : items
-          if (shown.length === 0) {
+          // Group the per-file results by post (most recently active first), so
+          // the list reads as "service › creator › post (id)  X / Total".
+          const order: string[] = []
+          const byPost = new Map<string, PostGroup>()
+          for (const it of items) {
+            let g = byPost.get(it.postId)
+            if (!g) {
+              g = {
+                postId: it.postId,
+                serviceId: it.serviceId,
+                creatorName: it.creatorName,
+                postTitle: it.postTitle,
+                total: it.postFileTotal ?? 0,
+                items: []
+              }
+              byPost.set(it.postId, g)
+              order.push(it.postId)
+            }
+            g.items.push(it)
+            if (it.postFileTotal && it.postFileTotal > g.total) g.total = it.postFileTotal
+          }
+          const groups = order
+            .map((pid) => byPost.get(pid)!)
+            .map((g) => ({ g, rows: failedOnly ? g.items.filter((i) => i.status === 'failed') : g.items }))
+            .filter((x) => x.rows.length > 0)
+
+          if (groups.length === 0) {
             return (
               <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
                 {done ? L.doneShort : activity ? `${activity.label}…` : L.loading}
               </div>
             )
           }
-          return shown.map((it) => (
-            <div
-              key={it.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '8px 12px',
-                borderRadius: 10
-              }}
-            >
-              <Icon
-                name={it.status === 'failed' ? 'x' : it.status === 'skipped' ? 'check' : 'check'}
-                size={15}
-                style={{ color: STATUS_COLOR[it.status] ?? 'var(--text-3)' }}
-              />
-              <div style={{ flex: 1, minWidth: 0 }}>
+          return groups.map(({ g, rows }) => {
+            const svc = FC.serviceById(g.serviceId)
+            return (
+              <div key={g.postId} style={{ marginBottom: 4 }}>
                 <div
                   style={{
-                    fontSize: 12.5,
-                    color: 'var(--text)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 12px 5px',
+                    minWidth: 0
                   }}
                 >
-                  {it.fileName}
-                </div>
-                {it.error && (
-                  <div
+                  <ServiceMark svc={svc} size={16} />
+                  <span
                     style={{
-                      fontSize: 11,
-                      color: 'var(--danger)',
-                      fontFamily: 'var(--mono)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: 'var(--text)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
-                      textOverflow: 'ellipsis'
+                      textOverflow: 'ellipsis',
+                      maxWidth: 150,
+                      flexShrink: 0
                     }}
                   >
-                    {it.error}
+                    {g.creatorName ?? svc.name}
+                  </span>
+                  <span style={{ color: 'var(--text-3)', flexShrink: 0 }}>›</span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: 'var(--text-2)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      flex: 1,
+                      minWidth: 0
+                    }}
+                  >
+                    {g.postTitle || `#${g.postId}`}
+                  </span>
+                  <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                    #{g.postId}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      fontFamily: 'var(--mono)',
+                      color: 'var(--text-2)',
+                      background: 'var(--surface-2)',
+                      borderRadius: 99,
+                      padding: '2px 8px',
+                      flexShrink: 0
+                    }}
+                  >
+                    {g.items.length}
+                    {g.total ? ` / ${g.total}` : ''}
+                  </span>
+                </div>
+                {rows.map((it) => (
+                  <div
+                    key={it.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '6px 12px 6px 34px',
+                      borderRadius: 8
+                    }}
+                  >
+                    <Icon
+                      name={it.status === 'failed' ? 'x' : 'check'}
+                      size={14}
+                      style={{ color: STATUS_COLOR[it.status] ?? 'var(--text-3)', flexShrink: 0 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: 'var(--text-2)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {it.fileName}
+                      </div>
+                      {it.error && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--danger)',
+                            fontFamily: 'var(--mono)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}
+                        >
+                          {it.error}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: STATUS_COLOR[it.status] ?? 'var(--text-3)',
+                        fontFamily: 'var(--mono)',
+                        flexShrink: 0
+                      }}
+                    >
+                      {it.status === 'completed'
+                        ? L.doneShort
+                        : it.status === 'skipped'
+                          ? L.skipped
+                          : it.status === 'failed'
+                            ? L.failed
+                            : it.status}
+                    </span>
                   </div>
-                )}
+                ))}
               </div>
-              <span
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  color: STATUS_COLOR[it.status] ?? 'var(--text-3)',
-                  fontFamily: 'var(--mono)',
-                  flexShrink: 0
-                }}
-              >
-                {it.status === 'completed'
-                  ? L.doneShort
-                  : it.status === 'skipped'
-                    ? L.skipped
-                    : it.status === 'failed'
-                      ? L.failed
-                      : it.status}
-              </span>
-            </div>
-          ))
+            )
+          })
         })()}
       </div>
     </div>
