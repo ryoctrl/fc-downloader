@@ -153,14 +153,18 @@ function treeAvatar(i) {
 }
 
 // A tree row (service → creator), matching LibraryScreen's TreeRow.
-function treeRow({ depth = 0, mark, iconName, label, count, selected, expandable, open }) {
+function treeRow({ depth = 0, mark, iconName, label, count, size, selected, expandable, open }) {
   const rowColor = selected ? 'var(--accent)' : 'var(--text-2)'
   const chev = expandable ? icon(open ? 'chevD' : 'chevR', 13, 'var(--text-3)') : ''
+  const meta =
+    count != null || size != null
+      ? `<span style="font-size:10.5px;font-family:var(--mono);color:var(--text-3);flex-shrink:0;text-align:right">${count != null ? count : ''}${size ? `<span style="margin-left:6px;opacity:.9">${size}</span>` : ''}</span>`
+      : ''
   return `<div style="display:flex;align-items:center;gap:7px;padding:6px 8px;padding-left:${8 + depth * 15}px;border-radius:8px;background:${selected ? 'var(--accent-tint)' : 'transparent'};color:${rowColor}">
       <span style="width:14px;display:grid;place-items:center;flex-shrink:0">${chev}</span>
       ${mark || ''}${iconName ? icon(iconName, 15, rowColor) : ''}
       <span style="flex:1;font-size:12.5px;font-weight:${selected ? 600 : 500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</span>
-      ${count != null ? `<span style="font-size:10.5px;font-family:var(--mono);color:var(--text-3)">${count}</span>` : ''}
+      ${meta}
     </div>`
 }
 
@@ -191,19 +195,27 @@ function chip(label, on, iconName) {
 }
 
 function libraryScreen() {
-  // Tree: 3 services, Fantia expanded to show its creators.
+  // Tree: 3 services, Fantia expanded to show its creators (with total sizes).
+  const creatorSizes = ['180 MB', '64 MB', '68 MB']
   const fantiaCreators = [0, 1, 2].map((i) =>
-    treeRow({ depth: 1, mark: treeAvatar(i), label: CREATORS[i][0], count: i === 0 ? 2 : 1, expandable: true })
+    treeRow({
+      depth: 1,
+      mark: treeAvatar(i),
+      label: CREATORS[i][0],
+      count: i === 0 ? 2 : 1,
+      size: creatorSizes[i],
+      expandable: true
+    })
   ).join('')
   const tree = `<div style="width:246px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0">
       <div style="padding:16px 16px 10px"><div style="font-size:15px;font-weight:700">ライブラリ</div>
-        <div style="font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px">${POSTS.length} 投稿 · 312.4MB</div></div>
+        <div style="font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px">${POSTS.length} 投稿 · 558 MB</div></div>
       <div style="flex:1;overflow:hidden;padding:0 8px 14px">
         ${treeRow({ iconName: 'library', label: 'すべての投稿', count: POSTS.length, selected: true })}
-        ${treeRow({ mark: logoImg('fantia', 20), label: 'Fantia', count: 4, expandable: true, open: true })}
+        ${treeRow({ mark: logoImg('fantia', 20), label: 'Fantia', count: 4, size: '312 MB', expandable: true, open: true })}
         ${fantiaCreators}
-        ${treeRow({ mark: logoImg('fanbox', 20), label: 'pixiv FANBOX', count: 2, expandable: true })}
-        ${treeRow({ mark: logoImg('cien', 20), label: 'ci-en', count: 2, expandable: true })}
+        ${treeRow({ mark: logoImg('fanbox', 20), label: 'pixiv FANBOX', count: 2, size: '150 MB', expandable: true })}
+        ${treeRow({ mark: logoImg('cien', 20), label: 'ci-en', count: 2, size: '96 MB', expandable: true })}
       </div>
     </div>`
 

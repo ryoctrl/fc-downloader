@@ -26,6 +26,7 @@ function TreeRow({
   mark,
   label,
   count,
+  size,
   open,
   onToggle,
   onSelect,
@@ -37,6 +38,8 @@ function TreeRow({
   mark?: ReactNode
   label: string
   count?: number
+  /** Total downloaded size for this node, in MB (shown next to the count). */
+  size?: number
   open?: boolean
   onToggle?: () => void
   onSelect?: () => void
@@ -84,8 +87,21 @@ function TreeRow({
       >
         {label}
       </span>
-      {count != null && (
-        <span style={{ fontSize: 10.5, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>{count}</span>
+      {(count != null || size != null) && (
+        <span
+          style={{
+            fontSize: 10.5,
+            fontFamily: 'var(--mono)',
+            color: 'var(--text-3)',
+            flexShrink: 0,
+            textAlign: 'right'
+          }}
+        >
+          {count != null && count}
+          {size != null && (
+            <span style={{ marginLeft: count != null ? 6 : 0, opacity: 0.9 }}>{fmtSize(size)}</span>
+          )}
+        </span>
       )}
     </div>
   )
@@ -183,6 +199,7 @@ function LibraryTree({
                 mark={<ServiceMark svc={svc} size={20} />}
                 label={svc.name}
                 count={sPosts.length}
+                size={sPosts.reduce((s, p) => s + p.sizeMB, 0)}
                 expandable
                 open={sopen}
                 onToggle={() => toggle(sk)}
@@ -204,6 +221,7 @@ function LibraryTree({
                         mark={<CreatorAvatar iconUrl={crIcon} />}
                         label={crName === cr ? cr : `${crName} (${cr})`}
                         count={cPosts.length}
+                        size={cPosts.reduce((s, p) => s + p.sizeMB, 0)}
                         expandable
                         open={copen}
                         onToggle={() => toggle(ck)}
