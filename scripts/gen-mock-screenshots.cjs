@@ -85,16 +85,16 @@ const CREATORS = [
   ['ほしぞら制作', 'cien', 'oklch(0.58 0.16 280)', 'oklch(0.68 0.13 240)'],
   ['Studio Komorebi', 'cien', 'oklch(0.62 0.15 160)', 'oklch(0.72 0.13 130)']
 ]
-// Posts in the grid: [title, creatorIndex, fileCount, type, status, 'YYYY/MM'].
+// Posts in the grid: [title, creatorIndex, fileCount, type, status, 'YYYY/MM/DD'].
 const POSTS = [
-  ['春の新作イラスト集', 0, 12, 'image', 'done', '2026/05'],
-  ['立ち絵差分セット', 0, 8, 'image', 'done', '2026/04'],
-  ['メイキング動画 #12', 1, 3, 'video', 'partial', '2026/05'],
-  ['線画＆PSD 配布', 2, 6, 'file', 'done', '2026/03'],
-  ['高解像度 壁紙パック', 3, 5, 'image', 'done', '2026/05'],
-  ['ボイスドラマ 第3話', 4, 4, 'audio', 'partial', '2026/04'],
-  ['設定資料まとめ', 5, 9, 'file', 'done', '2026/05'],
-  ['月例レポート 5月号', 6, 2, 'file', 'done', '2026/05']
+  ['春の新作イラスト集', 0, 12, 'image', 'done', '2026/05/24'],
+  ['立ち絵差分セット', 0, 8, 'image', 'done', '2026/04/30'],
+  ['メイキング動画 #12', 1, 3, 'video', 'partial', '2026/05/17'],
+  ['線画＆PSD 配布', 2, 6, 'file', 'done', '2026/03/08'],
+  ['高解像度 壁紙パック', 3, 5, 'image', 'done', '2026/05/02'],
+  ['ボイスドラマ 第3話', 4, 4, 'audio', 'partial', '2026/04/12'],
+  ['設定資料まとめ', 5, 9, 'file', 'done', '2026/05/21'],
+  ['月例レポート 5月号', 6, 2, 'file', 'done', '2026/05/01']
 ]
 
 // A white rounded logo tile (used in the rail, tree and post cards).
@@ -154,17 +154,24 @@ function treeAvatar(i) {
 }
 
 // A tree row (service → creator), matching LibraryScreen's TreeRow.
-function treeRow({ depth = 0, mark, iconName, label, count, size, selected, expandable, open }) {
+function treeRow({ depth = 0, mark, iconName, label, sub, count, size, selected, expandable, open }) {
   const rowColor = selected ? 'var(--accent)' : 'var(--text-2)'
   const chev = expandable ? icon(open ? 'chevD' : 'chevR', 13, 'var(--text-3)') : ''
+  // Fixed-width right-aligned columns so counts align regardless of size width.
   const meta =
     count != null || size != null
-      ? `<span style="font-size:10.5px;font-family:var(--mono);color:var(--text-3);flex-shrink:0;text-align:right">${count != null ? count : ''}${size ? `<span style="margin-left:6px;opacity:.9">${size}</span>` : ''}</span>`
+      ? `<span style="display:flex;font-size:10.5px;font-family:var(--mono);color:var(--text-3);flex-shrink:0;font-variant-numeric:tabular-nums">${count != null ? `<span style="min-width:${size != null ? '4ch' : 'auto'};text-align:right">${count}</span>` : ''}${size ? `<span style="min-width:7ch;text-align:right;opacity:.9">${size}</span>` : ''}</span>`
       : ''
+  const subLine = sub
+    ? `<span style="font-size:9.5px;color:var(--text-3);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${sub}</span>`
+    : ''
   return `<div style="display:flex;align-items:center;gap:7px;padding:6px 8px;padding-left:${8 + depth * 15}px;border-radius:8px;background:${selected ? 'var(--accent-tint)' : 'transparent'};color:${rowColor}">
       <span style="width:14px;display:grid;place-items:center;flex-shrink:0">${chev}</span>
       ${mark || ''}${iconName ? icon(iconName, 15, rowColor) : ''}
-      <span style="flex:1;font-size:12.5px;font-weight:${selected ? 600 : 500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</span>
+      <span style="flex:1;min-width:0;display:flex;flex-direction:column">
+        <span style="font-size:12.5px;font-weight:${selected ? 600 : 500};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</span>
+        ${subLine}
+      </span>
       ${meta}
     </div>`
 }
@@ -210,14 +217,13 @@ function libraryScreen() {
   ).join('')
   const tree = `<div style="width:246px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0">
       <div style="padding:16px 16px 10px"><div style="font-size:15px;font-weight:700">ライブラリ</div>
-        <div style="font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px">${POSTS.length} 投稿 · 558 MB</div>
-        <div style="font-size:11px;color:var(--text-3);margin-top:4px;display:flex;align-items:center;gap:5px">${icon('clock', 11, 'var(--text-3)')}<span>最終同期: 2026/06/09 12:34</span></div></div>
+        <div style="font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px">${POSTS.length} 投稿 · 558 MB</div></div>
       <div style="flex:1;overflow:hidden;padding:0 8px 14px">
         ${treeRow({ iconName: 'library', label: 'すべての投稿', count: POSTS.length, selected: true })}
-        ${treeRow({ mark: logoImg('fantia', 20), label: 'Fantia', count: 4, size: '312 MB', expandable: true, open: true })}
+        ${treeRow({ mark: logoImg('fantia', 20), label: 'Fantia', sub: '2026/06/10 03:00', count: 4, size: '312 MB', expandable: true, open: true })}
         ${fantiaCreators}
-        ${treeRow({ mark: logoImg('fanbox', 20), label: 'pixiv FANBOX', count: 2, size: '150 MB', expandable: true })}
-        ${treeRow({ mark: logoImg('cien', 20), label: 'ci-en', count: 2, size: '96 MB', expandable: true })}
+        ${treeRow({ mark: logoImg('fanbox', 20), label: 'pixiv FANBOX', sub: '2026/06/09 21:12', count: 2, size: '150 MB', expandable: true })}
+        ${treeRow({ mark: logoImg('cien', 20), label: 'ci-en', sub: '2026/06/08 18:45', count: 2, size: '96 MB', expandable: true })}
       </div>
     </div>`
 
