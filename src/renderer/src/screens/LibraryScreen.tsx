@@ -33,6 +33,7 @@ function TreeRow({
   icon,
   mark,
   label,
+  sub,
   count,
   size,
   title,
@@ -46,6 +47,8 @@ function TreeRow({
   icon?: string
   mark?: ReactNode
   label: string
+  /** Small muted second line under the label (e.g. a service's last sync). */
+  sub?: string
   count?: number
   /** Total downloaded size for this node, in MB (shown next to the count). */
   size?: number
@@ -87,31 +90,56 @@ function TreeRow({
       </span>
       {mark}
       {icon && <Icon name={icon} size={15} style={{ flexShrink: 0 }} />}
-      <span
-        style={{
-          flex: 1,
-          fontSize: 12.5,
-          fontWeight: selected ? 600 : 500,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }}
-      >
-        {label}
+      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <span
+          style={{
+            fontSize: 12.5,
+            fontWeight: selected ? 600 : 500,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}
+        >
+          {label}
+        </span>
+        {sub && (
+          <span
+            style={{
+              fontSize: 9.5,
+              color: 'var(--text-3)',
+              fontFamily: 'var(--mono)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              marginTop: 1
+            }}
+          >
+            {sub}
+          </span>
+        )}
       </span>
       {(count != null || size != null) && (
         <span
           style={{
+            display: 'flex',
             fontSize: 10.5,
             fontFamily: 'var(--mono)',
             color: 'var(--text-3)',
             flexShrink: 0,
-            textAlign: 'right'
+            fontVariantNumeric: 'tabular-nums'
           }}
         >
-          {count != null && count}
+          {/* Fixed-width, right-aligned columns so counts stay vertically
+              aligned regardless of how wide the size string next to them is. */}
+          {count != null && (
+            <span style={{ minWidth: size != null ? '4ch' : undefined, textAlign: 'right' }}>
+              {count}
+            </span>
+          )}
           {size != null && (
-            <span style={{ marginLeft: count != null ? 6 : 0, opacity: 0.9 }}>{fmtSize(size)}</span>
+            // 7ch fits the widest normal value ("1023 MB"); larger strings
+            // simply extend, and they're the widest column anyway.
+            <span style={{ minWidth: '7ch', textAlign: 'right', opacity: 0.9 }}>{fmtSize(size)}</span>
           )}
         </span>
       )}
@@ -171,11 +199,6 @@ function LibraryTree({
   const totals = libraryTotals(posts)
   const services = FC.SERVICES.filter((svc) => posts.some((p) => p.service === svc.id))
   const lastSync = app.state.lastSync
-  // Most-recent sync across all services (ISO strings sort chronologically).
-  const latestSync = Object.values(lastSync).reduce<string | undefined>(
-    (a, b) => (a && a > b ? a : b),
-    undefined
-  )
 
   return (
     <div
@@ -194,23 +217,6 @@ function LibraryTree({
         <div style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--mono)', marginTop: 2 }}>
           {totals.posts} {L.postsUnit} · {fmtSize(totals.sizeMB)}
         </div>
-        {latestSync && (
-          <div
-            style={{
-              fontSize: 11,
-              color: 'var(--text-3)',
-              marginTop: 4,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5
-            }}
-          >
-            <Icon name="clock" size={11} style={{ flexShrink: 0 }} />
-            <span>
-              {L.lastSync}: {fmtSyncTime(latestSync)}
-            </span>
-          </div>
-        )}
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 14px' }}>
         <TreeRow
@@ -233,6 +239,7 @@ function LibraryTree({
                 depth={0}
                 mark={<ServiceMark svc={svc} size={20} />}
                 label={svc.name}
+                sub={lastSync[svc.id] ? fmtSyncTime(lastSync[svc.id]) : undefined}
                 count={sPosts.length}
                 size={sPosts.reduce((s, p) => s + p.sizeMB, 0)}
                 title={lastSync[svc.id] ? `${L.lastSync}: ${fmtSyncTime(lastSync[svc.id])}` : undefined}
@@ -489,8 +496,8 @@ export function PostCard({
           >
             {post.creatorName}
           </span>
-          <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-            {post.year}/{String(post.month).padStart(2, '0')}
+          <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'var(--mono)', flexShrink: 0 }}>
+            {post.date.replace(/-/g, '/')}
           </span>
         </div>
       </div>
