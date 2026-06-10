@@ -1,5 +1,14 @@
 /* fc-downloader — file viewer (library): tree + grid/list + filters, real data */
-import { Fragment, useEffect, useMemo, useState, type ReactNode, type UIEvent } from 'react'
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type UIEvent
+} from 'react'
 import { THUMBNAIL_WIDTH } from '@shared/constants'
 import type { Dict, ServiceId, ViewMode } from '../design/types'
 import { FC, fmtSize } from '../design/data'
@@ -18,6 +27,31 @@ interface TreeNode {
 
 function uniq<T>(xs: T[]): T[] {
   return [...new Set(xs)]
+}
+
+/* Resizable tree sidebar: width persisted locally; drag the right edge,
+   double-click it to reset. */
+const TREE_WIDTH_KEY = 'fc_library_tree_width'
+const TREE_WIDTH_DEFAULT = 246
+const TREE_WIDTH_MIN = 170
+const TREE_WIDTH_MAX = 480
+
+function loadTreeWidth(): number {
+  try {
+    const n = Number(localStorage.getItem(TREE_WIDTH_KEY))
+    if (Number.isFinite(n) && n >= TREE_WIDTH_MIN && n <= TREE_WIDTH_MAX) return n
+  } catch {
+    /* ignore */
+  }
+  return TREE_WIDTH_DEFAULT
+}
+
+function saveTreeWidth(w: number): void {
+  try {
+    localStorage.setItem(TREE_WIDTH_KEY, String(w))
+  } catch {
+    /* ignore */
+  }
 }
 
 /** "2026/06/09 12:34" from an ISO timestamp (empty for an invalid one). */
@@ -200,11 +234,36 @@ function LibraryTree({
   const services = FC.SERVICES.filter((svc) => posts.some((p) => p.service === svc.id))
   const lastSync = app.state.lastSync
 
+  // Resizable width: drag the right edge (pointer-captured), double-click resets.
+  const [width, setWidth] = useState(loadTreeWidth)
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null)
+  const clampW = (w: number): number => Math.min(TREE_WIDTH_MAX, Math.max(TREE_WIDTH_MIN, w))
+  const onHandleDown = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    dragRef.current = { startX: e.clientX, startW: width }
+    setDragging(true)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    e.preventDefault() // keep the drag from starting a text selection
+  }
+  const onHandleMove = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    const d = dragRef.current
+    if (!d) return
+    setWidth(clampW(d.startW + (e.clientX - d.startX)))
+  }
+  const onHandleUp = (e: ReactPointerEvent<HTMLDivElement>): void => {
+    const d = dragRef.current
+    if (!d) return
+    dragRef.current = null
+    setDragging(false)
+    saveTreeWidth(clampW(d.startW + (e.clientX - d.startX)))
+  }
+
   return (
     <div
       style={{
-        width: 246,
+        width,
         flexShrink: 0,
+        position: 'relative',
         borderRight: '1px solid var(--border)',
         background: 'var(--surface)',
         display: 'flex',
@@ -323,6 +382,18 @@ function LibraryTree({
           )
         })}
       </div>
+      <div
+        className="fc-resize-handle"
+        data-dragging={dragging || undefined}
+        onPointerDown={onHandleDown}
+        onPointerMove={onHandleMove}
+        onPointerUp={onHandleUp}
+        onPointerCancel={onHandleUp}
+        onDoubleClick={() => {
+          setWidth(TREE_WIDTH_DEFAULT)
+          saveTreeWidth(TREE_WIDTH_DEFAULT)
+        }}
+      />
     </div>
   )
 }
