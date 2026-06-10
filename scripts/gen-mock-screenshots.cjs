@@ -54,7 +54,8 @@ const ICON = {
   file: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
   sort: 'M7 4v16M7 20l-3-3M7 4l3 3M17 20V4M17 4l3 3M17 4l-3 3',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
-  list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'
+  list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2'
 }
 const FILLED = new Set(['heart', 'play'])
 function icon(name, size, color, sw = 1.7) {
@@ -209,7 +210,8 @@ function libraryScreen() {
   ).join('')
   const tree = `<div style="width:246px;flex-shrink:0;border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0">
       <div style="padding:16px 16px 10px"><div style="font-size:15px;font-weight:700">ライブラリ</div>
-        <div style="font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px">${POSTS.length} 投稿 · 558 MB</div></div>
+        <div style="font-size:11.5px;color:var(--text-3);font-family:var(--mono);margin-top:2px">${POSTS.length} 投稿 · 558 MB</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:4px;display:flex;align-items:center;gap:5px">${icon('clock', 11, 'var(--text-3)')}<span>最終同期: 2026/06/09 12:34</span></div></div>
       <div style="flex:1;overflow:hidden;padding:0 8px 14px">
         ${treeRow({ iconName: 'library', label: 'すべての投稿', count: POSTS.length, selected: true })}
         ${treeRow({ mark: logoImg('fantia', 20), label: 'Fantia', count: 4, size: '312 MB', expandable: true, open: true })}

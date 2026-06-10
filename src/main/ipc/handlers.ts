@@ -145,6 +145,11 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
       })
       .catch((err) => console.error('[download] run failed', err))
       .finally(() => {
+        // Record when this service was last synced (before signalling done, so
+        // a renderer re-fetch of settings sees the new value).
+        updateSettings({
+          lastSync: { ...getSettings().lastSync, [item.serviceId]: new Date().toISOString() }
+        })
         const win = getWindow()
         if (win) emit(win, 'download:done', lastProgress)
         processNext()
