@@ -170,6 +170,9 @@ export interface AppSettings {
   defaultConcurrency: number
   /** Last window size/position, restored on launch. */
   windowBounds?: { width: number; height: number; x?: number; y?: number }
+  /** ISO timestamp of the last completed download run, per service ("last
+   *  synced"). Surfaced in the library so the user knows how fresh it is. */
+  lastSync?: Partial<Record<ServiceId, string>>
 }
 
 /**

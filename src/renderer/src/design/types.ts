@@ -118,6 +118,8 @@ export interface AppState {
   schedule: ScheduleConfig
   /** Whether the app launches automatically at OS login (login item). */
   launchAtStartup: boolean
+  /** ISO timestamp of the last completed download per service ("last synced"). */
+  lastSync: Record<string, string>
 }
 
 export interface AppActions {

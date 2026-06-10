@@ -167,6 +167,7 @@ export function App() {
   const bulkRef = useRef<() => void>(() => {})
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const [launchAtStartup, setLaunchAtStartupState] = useState(false)
+  const [lastSync, setLastSync] = useState<Record<string, string>>({})
   const sysDark = useSystemDark()
 
   // Load persisted settings from the main process (no-op without a backend).
@@ -175,6 +176,7 @@ export function App() {
       if (!s) return
       setSaveDir(s.downloadRoot)
       setConcurrencyState(s.defaultConcurrency)
+      setLastSync(s.lastSync ?? {})
     })
   }, [])
 
@@ -238,6 +240,8 @@ export function App() {
       setLastProgress(p)
       setDownload((d) => (d && !d.done ? { ...d, done: true } : d))
       void bridge.listPosts().then(setRawPosts)
+      // The run just recorded its "last synced" time; refresh it for the library.
+      void bridge.getSettings().then((s) => s && setLastSync(s.lastSync ?? {}))
     })
     return () => {
       offProgress()
@@ -539,7 +543,8 @@ export function App() {
       creatorSel,
       enabledServices,
       schedule,
-      launchAtStartup
+      launchAtStartup,
+      lastSync
     },
     actions,
     posts

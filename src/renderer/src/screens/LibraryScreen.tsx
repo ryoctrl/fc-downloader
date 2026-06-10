@@ -20,6 +20,14 @@ function uniq<T>(xs: T[]): T[] {
   return [...new Set(xs)]
 }
 
+/** "2026/06/09 12:34" from an ISO timestamp (empty for an invalid one). */
+function fmtSyncTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 function TreeRow({
   depth,
   icon,
@@ -27,6 +35,7 @@ function TreeRow({
   label,
   count,
   size,
+  title,
   open,
   onToggle,
   onSelect,
@@ -40,6 +49,8 @@ function TreeRow({
   count?: number
   /** Total downloaded size for this node, in MB (shown next to the count). */
   size?: number
+  /** Native tooltip (e.g. a service's last-sync time). */
+  title?: string
   open?: boolean
   onToggle?: () => void
   onSelect?: () => void
@@ -49,6 +60,7 @@ function TreeRow({
   return (
     <div
       onClick={onSelect}
+      title={title}
       className="fc-tree-row"
       style={{
         display: 'flex',
@@ -158,6 +170,12 @@ function LibraryTree({
 
   const totals = libraryTotals(posts)
   const services = FC.SERVICES.filter((svc) => posts.some((p) => p.service === svc.id))
+  const lastSync = app.state.lastSync
+  // Most-recent sync across all services (ISO strings sort chronologically).
+  const latestSync = Object.values(lastSync).reduce<string | undefined>(
+    (a, b) => (a && a > b ? a : b),
+    undefined
+  )
 
   return (
     <div
@@ -176,6 +194,23 @@ function LibraryTree({
         <div style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--mono)', marginTop: 2 }}>
           {totals.posts} {L.postsUnit} · {fmtSize(totals.sizeMB)}
         </div>
+        {latestSync && (
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--text-3)',
+              marginTop: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5
+            }}
+          >
+            <Icon name="clock" size={11} style={{ flexShrink: 0 }} />
+            <span>
+              {L.lastSync}: {fmtSyncTime(latestSync)}
+            </span>
+          </div>
+        )}
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '0 8px 14px' }}>
         <TreeRow
@@ -200,6 +235,7 @@ function LibraryTree({
                 label={svc.name}
                 count={sPosts.length}
                 size={sPosts.reduce((s, p) => s + p.sizeMB, 0)}
+                title={lastSync[svc.id] ? `${L.lastSync}: ${fmtSyncTime(lastSync[svc.id])}` : undefined}
                 expandable
                 open={sopen}
                 onToggle={() => toggle(sk)}
