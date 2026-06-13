@@ -1,5 +1,5 @@
 /* fc-downloader — app shell: prefs, state, routing, theme */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type {
   Creator,
   DownloadOptions,
@@ -23,6 +23,7 @@ import { LANG } from './design/i18n'
 import { FC } from './design/data'
 import { Icon } from './design/icons'
 import { toViewPost } from './design/library'
+import { dayKey, isScheduleDue, minutesOf } from './design/schedule'
 import { bridge } from './bridge'
 import { Rail } from './components/Rail'
 import { ServiceScreen } from './screens/ServiceScreen'
@@ -41,14 +42,6 @@ const SCHEDULE_KEY = 'fc_schedule'
 const SCHEDULE_LASTRUN_KEY = 'fc_schedule_lastrun'
 
 const DEFAULT_SCHEDULE: ScheduleConfig = { enabled: false, time: '03:00' }
-
-function todayStr(d = new Date()): string {
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
-}
-function minutesOf(time: string): number {
-  const [h, m] = time.split(':').map((n) => parseInt(n, 10))
-  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0)
-}
 
 const DEFAULT_DL_PREFS: DownloadPrefs = { image: true, video: true, file: true, skipDup: true }
 
@@ -164,7 +157,7 @@ export function App() {
   const scheduleRef = useRef(schedule)
   scheduleRef.current = schedule
   const lastRunRef = useRef<string>(localStorage.getItem(SCHEDULE_LASTRUN_KEY) ?? '')
-  const bulkRef = useRef<() => void>(() => {})
+  const bulkRef = useRef<() => boolean>(() => false)
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const [launchAtStartup, setLaunchAtStartupState] = useState(false)
   const [lastSync, setLastSync] = useState<Record<string, string>>({})
@@ -311,30 +304,34 @@ export function App() {
     }
   }, [])
 
-  // Daily auto-download scheduler (runs while the app is open). A 1-minute clock
-  // tick (no network) checks the configured time; fires at most once per day,
-  // catching up if the app is opened after the scheduled time.
-  useEffect(() => {
-    const tick = (): void => {
-      const sch = scheduleRef.current
-      if (!sch.enabled) return
-      const today = todayStr()
-      if (lastRunRef.current === today) return
-      const now = new Date()
-      if (now.getHours() * 60 + now.getMinutes() >= minutesOf(sch.time)) {
-        lastRunRef.current = today
-        try {
-          localStorage.setItem(SCHEDULE_LASTRUN_KEY, today)
-        } catch {
-          /* ignore */
-        }
-        bulkRef.current()
-      }
+  // Daily auto-download scheduler (runs while the app is open). Fires at most
+  // once per day, catching up if the app was opened after the scheduled time.
+  const runScheduledIfDue = useCallback((): void => {
+    if (!isScheduleDue(scheduleRef.current, lastRunRef.current, new Date())) return
+    // Only consume today's slot once a run actually started — at launch the
+    // login state is still loading, so an early catch-up would otherwise mark
+    // the day done having downloaded nothing.
+    if (!bulkRef.current()) return
+    lastRunRef.current = dayKey(new Date())
+    try {
+      localStorage.setItem(SCHEDULE_LASTRUN_KEY, lastRunRef.current)
+    } catch {
+      /* ignore */
     }
-    tick() // catch up on launch
-    const interval = setInterval(tick, 60_000)
-    return () => clearInterval(interval)
   }, [])
+
+  // A 1-minute clock for live firing while the app stays open.
+  useEffect(() => {
+    const interval = setInterval(runScheduledIfDue, 60_000)
+    return () => clearInterval(interval)
+  }, [runScheduledIfDue])
+
+  // Re-evaluate as soon as login / enabled / schedule state settles, so a
+  // launch catch-up fires the moment auth is known (not up to a minute later,
+  // and not skipped because auth was still loading on the first tick).
+  useEffect(() => {
+    runScheduledIfDue()
+  }, [logins, enabledServices, schedule, runScheduledIfDue])
 
   const setConcurrency = (n: number): void => {
     setConcurrencyState(n)
@@ -429,13 +426,16 @@ export function App() {
     startBulkDownload: () => {
       let started = false
       for (const svc of FC.SERVICES) {
-        if (enabledServices[svc.id] === false || !logins[svc.id]) continue
+        // Read login state from the ref so a scheduled/catch-up run sees the
+        // latest auth (the closure's `logins` is stale right after launch).
+        if (enabledServices[svc.id] === false || !loginsRef.current[svc.id]) continue
         const opts = buildDownloadOptions(svc.id)
         if (!opts) continue
         doStartDownload(svc, opts)
         started = true
       }
       if (started) go({ screen: 'progress' })
+      return started
     },
     retryDownload: () => {
       if (!download) return
@@ -502,7 +502,7 @@ export function App() {
         // doesn't fire immediately (starts at the next occurrence).
         if (patch.enabled === true) {
           const now = new Date()
-          const t = todayStr()
+          const t = dayKey(now)
           if (now.getHours() * 60 + now.getMinutes() >= minutesOf(next.time) && lastRunRef.current !== t) {
             lastRunRef.current = t
             try {

@@ -151,8 +151,9 @@ export interface AppActions {
    *  keeps the login session). Persisted. */
   setServiceEnabled: (serviceId: ServiceId, enabled: boolean) => void
   /** Queue a download for every enabled + logged-in service, using each
-   *  service's saved settings (creator selection + file types + skip). */
-  startBulkDownload: () => void
+   *  service's saved settings. Returns whether any run actually started (so the
+   *  scheduler doesn't mark the day done when nothing was eligible yet). */
+  startBulkDownload: () => boolean
   /** Update + persist the daily auto-download schedule. */
   setSchedule: (patch: Partial<ScheduleConfig>) => void
   /** Enable/disable launch-at-login (OS login item). */
