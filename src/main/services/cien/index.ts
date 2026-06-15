@@ -1,5 +1,12 @@
 /**
- * ci-en (ci-en.net) service adapter.
+ * ci-en (ci-en.dlsite.com) service adapter.
+ *
+ * NOTE: ci-en migrated from `ci-en.net` to `ci-en.dlsite.com`. `ci-en.net` now
+ * 301-redirects to the new domain, but session cookies do NOT survive that
+ * cross-domain redirect — fetching the old domain returns the logged-out
+ * (guest) page, so new posts' gated media is missing. We therefore target the
+ * new domain directly; users must re-login once so the persist:cien partition
+ * holds ci-en.dlsite.com cookies. Media is still served from media.ci-en.jp.
  *
  * ci-en renders server-side HTML rather than exposing a JSON API, so this
  * adapter scrapes it using the user's interactive-login session cookies
@@ -29,7 +36,7 @@ import {
   parseCreatorName
 } from './parse'
 
-const BASE = 'https://ci-en.net'
+const BASE = 'https://ci-en.dlsite.com'
 
 export const cienService: Service = {
   id: 'cien',

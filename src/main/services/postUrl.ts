@@ -17,7 +17,7 @@ export function webPostUrl(
     case 'fantia':
       return `https://fantia.jp/posts/${postId}`
     case 'cien':
-      return `https://ci-en.net/creator/${creatorId}/article/${postId}`
+      return `https://ci-en.dlsite.com/creator/${creatorId}/article/${postId}`
     case 'patreon':
       return `https://www.patreon.com/posts/${postId}`
     default:

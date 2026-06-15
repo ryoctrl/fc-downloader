@@ -1,5 +1,5 @@
 /**
- * Pure HTML parsing for the ci-en (ci-en.net) adapter.
+ * Pure HTML parsing for the ci-en (ci-en.dlsite.com) adapter.
  *
  * ci-en has no clean JSON API — it renders server-side HTML — so the adapter
  * scrapes it. Parsing is isolated here (no network) so it can be unit-tested
