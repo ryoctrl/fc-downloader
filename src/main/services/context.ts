@@ -27,16 +27,20 @@ export function createServiceContext(
   }
 
   const { includeKinds, onRetry } = opts
+  // ci-en serves its rate-limit/bot-block as HTTP 403 (normally a permanent
+  // error). For ci-en only, treat 403 as transient so it backs off and retries
+  // like a 429 instead of silently dropping the request.
+  const retriableStatuses = serviceId === 'cien' ? [403] : undefined
   return {
     signal,
     log,
     async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-      const res = await requestForWithRetry(serviceId, url, { ...init, signal, onRetry })
+      const res = await requestForWithRetry(serviceId, url, { ...init, signal, onRetry, retriableStatuses })
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`)
       return res.json<T>()
     },
     async fetchText(url: string, init?: RequestInit): Promise<string> {
-      const res = await requestForWithRetry(serviceId, url, { ...init, signal, onRetry })
+      const res = await requestForWithRetry(serviceId, url, { ...init, signal, onRetry, retriableStatuses })
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`)
       return res.text()
     },

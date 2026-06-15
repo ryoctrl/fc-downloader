@@ -143,10 +143,15 @@ function variantScore(variant: string): number {
  * Public covers/icons (`/public/...`) are ignored.
  */
 export function parseAttachments(html: string): PostFile[] {
+  // Some article pages embed media URLs inside JSON/JS with escaped slashes
+  // (`https:\/\/media.ci-en.jp\/...`); normalize those so the matcher catches
+  // them too, not only plain `<a href>` URLs. (Newer/most-recent articles can
+  // render this way, which made them look like they had no content.)
+  const text = html.replace(/\\\//g, '/')
   const re =
     /https:\/\/media\.ci-en\.jp\/private\/(?:attachment|file)\/creator\/\d+\/([0-9a-f]+)\/([^"'\\ )]+)/gi
   const byHash = new Map<string, Variant[]>()
-  for (const m of html.matchAll(re)) {
+  for (const m of text.matchAll(re)) {
     const hash = m[1]
     const url = decodeEntities(m[0])
     const variant = m[2].split('?')[0]

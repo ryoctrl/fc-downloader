@@ -149,6 +149,10 @@ export interface DownloadProgress {
   /** Bytes across the whole run. */
   bytesDownloaded: number
   bytesTotal: number
+  /** True once any request hit a rate-limit/transient backoff during this run.
+   *  Combined with postsCompleted < postsTotal, the UI flags an access-limited,
+   *  possibly-incomplete run instead of a clean "complete". */
+  rateLimited?: boolean
 }
 
 /** User-tunable settings for a download run. */
