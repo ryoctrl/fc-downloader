@@ -1,0 +1,14 @@
+# GitGuardian (ggshield) config for the secret-scan gate.
+#
+# Exclude the local git metadata: actions/checkout writes a short-lived auth
+# token into .git/config (http.<host>.extraheader), which ggshield otherwise
+# flags as a "Base64 Generic High Entropy Secret". That is GitHub's ephemeral
+# CI token in the runner — not a secret in our code. gitleaks already ignores
+# .git (it runs with --no-git); this keeps ggshield consistent.
+version: 2
+secret:
+  ignored-paths:
+    - ".git"
+    - ".git/*"
+    - ".git/**"
+    - "**/.git/**"
