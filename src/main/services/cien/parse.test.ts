@@ -148,6 +148,15 @@ describe('parseAttachments', () => {
     const html = `<a href="${base}/${h3}/upload/track%20one.mp3${SIG}">audio</a>`
     expect(parseAttachments(html)[0]).toMatchObject({ kind: 'audio', name: 'track one.mp3' })
   })
+
+  it('matches media URLs embedded with escaped slashes (JSON/JS payloads)', () => {
+    const h4 = 'beef1234cafe5678'
+    // e.g. inside <script> JSON: "url":"https:\/\/media.ci-en.jp\/private\/..."
+    const html = `{"url":"https:\\/\\/media.ci-en.jp\\/private\\/attachment\\/creator\\/00023364\\/${h4}\\/upload\\/clip.mp4${SIG}"}`
+    const files = parseAttachments(html)
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ fileId: h4, kind: 'video', name: 'clip.mp4' })
+  })
 })
 
 describe('decodeEntities', () => {

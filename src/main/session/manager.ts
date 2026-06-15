@@ -170,14 +170,22 @@ export type RetryHook = (notice: RetryNotice) => void
 export async function requestForWithRetry(
   serviceId: ServiceId,
   url: string,
-  init: RequestInit & { signal?: AbortSignal; onRetry?: RetryHook } = {}
+  init: RequestInit & {
+    signal?: AbortSignal
+    onRetry?: RetryHook
+    /** Extra statuses to treat as transient for THIS service (e.g. ci-en serves
+     *  its rate-limit as 403, which is normally permanent). */
+    retriableStatuses?: number[]
+  } = {}
 ): Promise<SessionResponse> {
   const signal = init.signal
+  const retriable = (status: number): boolean =>
+    isRetriableStatus(status) || (init.retriableStatuses?.includes(status) ?? false)
   for (let attempt = 0; ; attempt++) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     try {
       const res = await requestFor(serviceId, url, init)
-      if (isRetriableStatus(res.status) && attempt < META_MAX_RETRIES) {
+      if (retriable(res.status) && attempt < META_MAX_RETRIES) {
         const wait = parseRetryAfterMs(res.headers) ?? backoffMs(attempt + 1)
         init.onRetry?.({ status: res.status, attempt: attempt + 1, waitMs: wait })
         await sleepMs(wait, signal)

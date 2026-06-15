@@ -136,7 +136,11 @@ export function ProgressScreen() {
   // Determinate progress once the up-front post count is known.
   const hasTotal = p.postsTotal > 0
   const postPct = hasTotal ? Math.min(100, (p.postsCompleted / p.postsTotal) * 100) : 0
-  const pct = done ? 100 : postPct
+  // A run that hit rate-limiting AND didn't reach every post finished
+  // *incomplete* — don't paint it as a clean 100% "complete".
+  const incomplete = done && p.rateLimited === true && hasTotal && p.postsCompleted < p.postsTotal
+  const pct = done ? (incomplete ? postPct : 100) : postPct
+  const headColor = incomplete ? 'var(--warn)' : done ? 'var(--ok)' : 'var(--accent)'
 
   // Live "what's happening now" line: counting / walking posts / downloading.
   const cur = !done ? p.current : undefined
@@ -200,7 +204,7 @@ export function ProgressScreen() {
                 gap: 10
               }}
             >
-              {done ? L.downloadComplete : L.downloading}
+              {done ? (incomplete ? L.downloadIncomplete : L.downloadComplete) : L.downloading}
               {!done && (
                 <span
                   className="fc-pulse"
@@ -208,13 +212,16 @@ export function ProgressScreen() {
                 />
               )}
             </div>
+            {incomplete && (
+              <div style={{ fontSize: 12, color: 'var(--warn)', marginTop: 3 }}>{L.rateLimitedHint}</div>
+            )}
           </div>
           <div
             style={{
               fontFamily: 'var(--mono)',
               fontSize: 38,
               fontWeight: 700,
-              color: done ? 'var(--ok)' : 'var(--accent)',
+              color: headColor,
               fontVariantNumeric: 'tabular-nums',
               display: 'flex',
               alignItems: 'baseline',
@@ -251,7 +258,7 @@ export function ProgressScreen() {
                 height: '100%',
                 width: pct + '%',
                 borderRadius: 99,
-                background: done ? 'var(--ok)' : 'var(--accent)',
+                background: headColor,
                 transition: 'width .2s linear'
               }}
             />

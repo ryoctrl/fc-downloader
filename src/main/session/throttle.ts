@@ -21,13 +21,27 @@
 import type { ServiceId } from '@shared/types'
 
 /**
- * Minimum spacing between successive automated metadata request starts, per
- * service (≈1 request every 2s). Kept conservative because some sites (e.g.
+ * Default minimum spacing between successive automated metadata request starts,
+ * per service (≈1 request every 2s). Kept conservative because some sites (e.g.
  * Fantia) rate-limit their post-detail API aggressively; pair this with the
  * "skip already-downloaded posts' detail fetch" optimization so long runs stay
  * both gentle and reasonably fast.
  */
 export const MIN_GAP_MS = 2000
+
+/**
+ * Per-service overrides for sites that rate-limit (or bot-block, e.g. via 403)
+ * more aggressively than the default. ci-en blocks fairly quickly, so give it a
+ * wider gap.
+ */
+const GAP_OVERRIDES: Partial<Record<ServiceId, number>> = {
+  cien: 5000
+}
+
+/** The polite request gap for a service. */
+export function gapFor(serviceId: ServiceId): number {
+  return GAP_OVERRIDES[serviceId] ?? MIN_GAP_MS
+}
 
 /** Earliest timestamp (ms epoch) at which the next request for a service may start. */
 const nextAllowedAt = new Map<ServiceId, number>()
@@ -44,7 +58,7 @@ export function awaitPoliteSlot(serviceId: ServiceId, signal?: AbortSignal): Pro
   const now = Date.now()
   const earliest = nextAllowedAt.get(serviceId) ?? 0
   const startAt = Math.max(now, earliest)
-  nextAllowedAt.set(serviceId, startAt + MIN_GAP_MS)
+  nextAllowedAt.set(serviceId, startAt + gapFor(serviceId))
 
   const wait = startAt - now
   if (wait <= 0) return Promise.resolve()

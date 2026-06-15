@@ -101,6 +101,7 @@ export class DownloadEngine {
       includeKinds: options.skipExisting ? options.includeKinds : undefined,
       onRetry: (notice) => {
         this.cur.retry = notice
+        this.progress.rateLimited = true // sticky: surfaces "access-limited" at the end
         this.emit(cb)
       }
     })

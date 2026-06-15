@@ -97,6 +97,13 @@ export const cienService: Service = {
       for (const id of fresh) {
         seen.add(id)
         ctx.signal.throwIfAborted()
+        // Already fully downloaded for this run's kinds? Skip the per-article
+        // detail fetch (the main thing that trips ci-en's 403 rate-limit).
+        const stub = ctx.completedPostStub?.(creatorId, id)
+        if (stub) {
+          yield stub
+          continue
+        }
         const post = await fetchArticle(ctx, creatorId, id)
         if (post) yield post
       }
@@ -136,7 +143,13 @@ async function fetchArticle(
     return null
   }
   const files = parseAttachments(html)
-  if (files.length === 0) return null // no gated content the viewer can fetch
+  if (files.length === 0) {
+    // Either the article genuinely has no gated content, or its media uses a
+    // shape the parser missed. Log the URL so the case is diagnosable (this is
+    // why an occasional post — e.g. the newest — can look "not downloaded").
+    ctx.log('warn', `article ${articleId}: no downloadable attachments parsed`, `${BASE}/creator/${creatorId}/article/${articleId}`)
+    return null
+  }
   const postedAt = parseArticleDate(html)
   const { year, month } = toLocationParts(postedAt)
   return {
