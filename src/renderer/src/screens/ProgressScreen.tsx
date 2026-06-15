@@ -289,7 +289,14 @@ export function ProgressScreen() {
         <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
           {done ? (
             <>
-              <Btn variant="primary" icon="library" onClick={() => app.go({ screen: 'library', svc: svc.id })}>
+              <Btn
+                variant="primary"
+                icon="library"
+                onClick={() => {
+                  app.actions.setLibNode({ kind: 'service', service: svc.id })
+                  app.go({ screen: 'library' })
+                }}
+              >
                 {L.viewInLibrary}
               </Btn>
               <Btn variant="solid" icon="folder" onClick={() => bridge.openPath(app.state.saveDir)}>

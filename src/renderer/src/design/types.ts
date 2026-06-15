@@ -64,6 +64,16 @@ export type Nav =
   | { screen: 'post'; postKey: string; from?: string }
   | { screen: 'settings' }
 
+/** A node in the library tree (the selected scope of the grid). Lifted to app
+ *  state so the library restores its view when you return to it. */
+export interface TreeNode {
+  kind: 'all' | 'service' | 'creator' | 'year' | 'month'
+  service?: ServiceId
+  creator?: string
+  year?: number
+  month?: number
+}
+
 /** Daily auto-download schedule (runs while the app is open). */
 export interface ScheduleConfig {
   enabled: boolean
@@ -120,6 +130,11 @@ export interface AppState {
   launchAtStartup: boolean
   /** ISO timestamp of the last completed download per service ("last synced"). */
   lastSync: Record<string, string>
+  /** Library tree selection, kept here so returning to the library (via the
+   *  rail button or back) restores the view instead of resetting to "all". */
+  libNode: TreeNode
+  /** Expanded library-tree node keys (kept for the same reason). */
+  libExpanded: string[]
 }
 
 export interface AppActions {
@@ -158,6 +173,10 @@ export interface AppActions {
   setSchedule: (patch: Partial<ScheduleConfig>) => void
   /** Enable/disable launch-at-login (OS login item). */
   setLaunchAtStartup: (enabled: boolean) => void
+  /** Set the library tree selection (persisted across navigation). */
+  setLibNode: (node: TreeNode) => void
+  /** Set the expanded library-tree node keys. */
+  setLibExpanded: (keys: string[]) => void
 }
 
 /** Language dictionary — flat string map (keys defined in i18n.ts). */
@@ -171,6 +190,9 @@ export interface AppContextValue {
   lang: Lang
   nav: Nav
   go: (nav: Nav) => void
+  /** History navigation (mouse back/forward buttons, etc.). */
+  goBack: () => void
+  goForward: () => void
   state: AppState
   actions: AppActions
   /** Downloaded posts (real data), mapped for the library views. */
