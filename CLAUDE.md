@@ -96,6 +96,15 @@ npm run dist       # package installers via electron-builder
   saved fixture." Don't present them as confirmed.
 - Security: `contextIsolation: true`, `nodeIntegration: false`. The renderer
   never gets Node access; everything goes through the typed `window.api`.
+- **Never commit real user data, content identifiers, or credentials.** This is
+  a public repo. Tests/fixtures MUST use **synthetic** values (fake creator ids,
+  fake hashes, placeholder tokens) — never a real creator name, article id,
+  content hash, or signed URL captured from a live account. Diagnostic probes
+  go in throwaway `scripts/_*.cjs` (gitignored prefix), are run, then deleted —
+  never committed. A secret scan (`.github/workflows/secret-scan.yml`:
+  gitleaks + ggshield) runs in CI on every PR **and is a hard gate before every
+  release** — a finding blocks the build. Add `GITGUARDIAN_API_KEY` as a repo
+  secret to enforce the GitGuardian (ggshield) check.
 
 ## Current status & next steps
 
