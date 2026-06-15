@@ -16,7 +16,8 @@ import type {
   Nav,
   Prefs,
   ScheduleConfig,
-  ServiceId
+  ServiceId,
+  TreeNode
 } from './design/types'
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
@@ -123,7 +124,17 @@ export function App() {
     })
   const L = LANG[prefs.lang] || LANG.ja
 
-  const [nav, setNav] = useState<Nav>({ screen: 'service', serviceId: 'fantia' })
+  // Navigation history (a stack + cursor) so mouse back/forward and the in-app
+  // back button can return to the previous view.
+  const [navState, setNavState] = useState<{ stack: Nav[]; i: number }>({
+    stack: [{ screen: 'service', serviceId: 'fantia' }],
+    i: 0
+  })
+  const nav = navState.stack[navState.i]
+  // Library view, kept at app level so returning to it (rail button / back)
+  // restores the selected node + expanded tree instead of resetting to "all".
+  const [libNode, setLibNode] = useState<TreeNode>({ kind: 'all' })
+  const [libExpanded, setLibExpanded] = useState<string[]>([])
   // Real login state per service, populated from services:checkAuth.
   const [logins, setLogins] = useState<Record<string, boolean>>({})
   // Services whose session was detected as expired (were logged in, now not) —
@@ -206,9 +217,26 @@ export function App() {
     if (nav.screen !== 'service') return
     if (enabledServices[nav.serviceId] === false) {
       const firstEnabled = FC.SERVICES.find((s) => enabledServices[s.id] !== false)
-      setNav(firstEnabled ? { screen: 'service', serviceId: firstEnabled.id } : { screen: 'library' })
+      go(firstEnabled ? { screen: 'service', serviceId: firstEnabled.id } : { screen: 'library' })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nav, enabledServices])
+
+  // Mouse back/forward (X1/X2) buttons drive history navigation.
+  useEffect(() => {
+    const onMouseUp = (e: MouseEvent): void => {
+      if (e.button === 3) {
+        e.preventDefault()
+        goBack()
+      } else if (e.button === 4) {
+        e.preventDefault()
+        goForward()
+      }
+    }
+    window.addEventListener('mouseup', onMouseUp)
+    return () => window.removeEventListener('mouseup', onMouseUp)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // App-level download lifecycle (so it works regardless of which screen is
   // shown): keep the latest progress snapshot, mark the run done on completion,
@@ -349,8 +377,20 @@ export function App() {
   // window on Windows. Capture the bounds first so main can restore them.
   const go = (n: Nav): void => {
     if (n.screen === 'service') void bridge.pinWindowBounds()
-    setNav(n)
+    setNavState((s) => ({ stack: [...s.stack.slice(0, s.i + 1), n], i: s.i + 1 }))
   }
+  const goBack = (): void =>
+    setNavState((s) => {
+      if (s.i <= 0) return s
+      if (s.stack[s.i - 1].screen === 'service') void bridge.pinWindowBounds()
+      return { stack: s.stack, i: s.i - 1 }
+    })
+  const goForward = (): void =>
+    setNavState((s) => {
+      if (s.i >= s.stack.length - 1) return s
+      if (s.stack[s.i + 1].screen === 'service') void bridge.pinWindowBounds()
+      return { stack: s.stack, i: s.i + 1 }
+    })
 
   const reloadPosts = (): void => {
     void bridge.listPosts().then(setRawPosts)
@@ -518,7 +558,9 @@ export function App() {
       // Optimistic flip; reconcile with whatever the OS actually reports.
       setLaunchAtStartupState(enabled)
       void bridge.setStartupEnabled(enabled).then(setLaunchAtStartupState)
-    }
+    },
+    setLibNode,
+    setLibExpanded
   }
   bulkRef.current = actions.startBulkDownload
 
@@ -529,6 +571,8 @@ export function App() {
     lang: prefs.lang,
     nav,
     go,
+    goBack,
+    goForward,
     state: {
       logins,
       creators,
@@ -544,7 +588,9 @@ export function App() {
       enabledServices,
       schedule,
       launchAtStartup,
-      lastSync
+      lastSync,
+      libNode,
+      libExpanded
     },
     actions,
     posts
@@ -669,7 +715,7 @@ export function App() {
                 {[...reloginNeeded].map((id) => (
                   <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     <button
-                      onClick={() => setNav({ screen: 'service', serviceId: id })}
+                      onClick={() => go({ screen: 'service', serviceId: id })}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',

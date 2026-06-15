@@ -10,20 +10,12 @@ import {
   type UIEvent
 } from 'react'
 import { THUMBNAIL_WIDTH } from '@shared/constants'
-import type { Dict, ServiceId, ViewMode } from '../design/types'
+import type { Dict, TreeNode, ViewMode } from '../design/types'
 import { FC, fmtSize } from '../design/data'
 import { libraryTotals, type ViewPost } from '../design/library'
 import { Icon } from '../design/icons'
 import { ServiceMark, StatusBadge, Thumb } from '../design/primitives'
 import { useApp } from '../design/context'
-
-interface TreeNode {
-  kind: 'all' | 'service' | 'creator' | 'year' | 'month'
-  service?: ServiceId
-  creator?: string
-  year?: number
-  month?: number
-}
 
 function uniq<T>(xs: T[]): T[] {
   return [...new Set(xs)]
@@ -215,14 +207,14 @@ function LibraryTree({
 }) {
   const app = useApp()
   const L = app.L
-  const [exp, setExp] = useState<Set<string>>(() => new Set())
-  const toggle = (k: string) =>
-    setExp((s) => {
-      const n = new Set(s)
-      if (n.has(k)) n.delete(k)
-      else n.add(k)
-      return n
-    })
+  // Expanded tree state lives in app state so it survives leaving the library.
+  const exp = useMemo(() => new Set(app.state.libExpanded), [app.state.libExpanded])
+  const toggle = (k: string): void => {
+    const n = new Set(app.state.libExpanded)
+    if (n.has(k)) n.delete(k)
+    else n.add(k)
+    app.actions.setLibExpanded([...n])
+  }
   const same = (a: TreeNode, b: TreeNode) =>
     a.kind === b.kind &&
     a.service === b.service &&
@@ -694,10 +686,10 @@ export function LibraryScreen() {
   const app = useApp()
   const L = app.L
   const allPosts = app.posts
-  const startSvc = app.nav.screen === 'library' ? app.nav.svc : undefined
-  const [node, setNode] = useState<TreeNode>(
-    startSvc ? { kind: 'service', service: startSvc } : { kind: 'all' }
-  )
+  // The selected tree node lives in app state so returning to the library
+  // (rail button / back) restores it instead of resetting to "all posts".
+  const node = app.state.libNode
+  const setNode = app.actions.setLibNode
   const [view, setView] = useState<ViewMode>(app.t.viewerView)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('all')
