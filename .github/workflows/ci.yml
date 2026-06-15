@@ -17,6 +17,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Block secrets / real credentials from entering the codebase. Scans the
+  # working tree (not git history) so a NEW secret fails the PR, while the
+  # existing history (kept as-is; nothing there is a live secret) doesn't
+  # perpetually fail. The release workflow runs the same gate before building.
+  secret-scan:
+    uses: ./.github/workflows/secret-scan.yml
+    secrets: inherit
+
   check:
     runs-on: ubuntu-latest
     steps:

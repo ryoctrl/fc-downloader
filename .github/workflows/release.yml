@@ -29,7 +29,13 @@ permissions:
   contents: write
 
 jobs:
+  # Mandatory secret-scan gate: nothing builds or publishes unless this passes.
+  secret-scan:
+    uses: ./.github/workflows/secret-scan.yml
+    secrets: inherit
+
   build:
+    needs: secret-scan
     strategy:
       fail-fast: false
       matrix:

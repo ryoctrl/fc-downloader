@@ -28,3 +28,7 @@ Thumbs.db
 
 # Icon/design input artifacts (not source)
 fc-downloader.zip
+
+# Throwaway diagnostic/probe scripts (run against live accounts, then deleted).
+# Never commit these — they tend to contain real ids/tokens. See CLAUDE.md.
+scripts/_*
