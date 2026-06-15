@@ -149,6 +149,24 @@ describe('parseAttachments', () => {
     expect(parseAttachments(html)[0]).toMatchObject({ kind: 'audio', name: 'track one.mp3' })
   })
 
+  it('captures <vue-file-player> videos (signed URL built from base-path + upload + auth-key)', () => {
+    const h = 'b468de82175e00db258a676ab9d049eab12388424907abf01670c9c16a299153'
+    const html = `<p><vue-file-player vue-is="file_player" id="7883955" file-type="video" file-name="26.6.1 2.mp4" base-path="https://media.ci-en.jp/private/attachment/creator/00023364/${h}/" auth-key="px-time=1781517077&amp;px-hash=e0c26a7c"></vue-file-player></p>`
+    const files = parseAttachments(html)
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({ fileId: h, kind: 'video', name: '26.6.1 2.mp4' })
+    expect(files[0].url).toBe(
+      `https://media.ci-en.jp/private/attachment/creator/00023364/${h}/upload/26.6.1%202.mp4?px-time=1781517077&px-hash=e0c26a7c`
+    )
+  })
+
+  it('does not double-count a file-player whose hash already has a direct URL', () => {
+    const h = 'aaaa1111bbbb2222cccc3333'
+    const html = `<a href="${base}/${h}/upload/pic.jpg${SIG}">o</a>
+      <vue-file-player file-type="image" file-name="pic.jpg" base-path="${base}/${h}/" auth-key="px-time=1&amp;px-hash=z"></vue-file-player>`
+    expect(parseAttachments(html)).toHaveLength(1)
+  })
+
   it('matches media URLs embedded with escaped slashes (JSON/JS payloads)', () => {
     const h4 = 'beef1234cafe5678'
     // e.g. inside <script> JSON: "url":"https:\/\/media.ci-en.jp\/private\/..."

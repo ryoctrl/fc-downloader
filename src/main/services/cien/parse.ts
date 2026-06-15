@@ -182,5 +182,26 @@ export function parseAttachments(html: string): PostFile[] {
     }
     files.push({ fileId: hash, kind: kindForName(name), name, url: best.url })
   }
+
+  // Videos (and some files) are rendered as a <vue-file-player> custom element
+  // whose signed media URL is NOT in the static HTML — the player builds it from
+  // base-path + variant + auth-key. The auth-key is valid for the whole hash
+  // dir, so request the original `upload/<name>`. (These never appear as plain
+  // <img>/href URLs, hence the separate pass.)
+  for (const m of text.matchAll(/<vue-file-player\b[^>]*>/gi)) {
+    const tag = m[0]
+    const attr = (n: string): string => {
+      const mm = tag.match(new RegExp(`${n}="([^"]*)"`, 'i'))
+      return mm ? decodeEntities(mm[1]) : ''
+    }
+    const basePath = attr('base-path')
+    const authKey = attr('auth-key')
+    const fileName = attr('file-name')
+    if (!basePath || !authKey || !fileName) continue
+    const hash = basePath.match(/\/creator\/\d+\/([0-9a-f]+)\//i)?.[1]
+    if (!hash || byHash.has(hash)) continue // skip if already captured directly
+    const url = `${basePath.replace(/\/$/, '')}/upload/${encodeURIComponent(fileName)}?${authKey}`
+    files.push({ fileId: hash, kind: kindForName(fileName), name: fileName, url })
+  }
   return files
 }
