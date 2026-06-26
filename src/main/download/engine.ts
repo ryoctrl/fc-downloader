@@ -206,7 +206,12 @@ export class DownloadEngine {
     // Assign collision-free on-disk names across the *whole* post (stable,
     // independent of includeKinds) so distinct files never overwrite each other
     // and the ledger records the real on-disk name (for the viewer/cover URLs).
-    const diskNames = dedupeFileNames(post.files.map((f) => f.name))
+    // Prefix each with a zero-padded post-order index ("001_…") so the viewer —
+    // which lists a folder sorted by name — shows files in the post's display
+    // order rather than alphabetically (FANBOX/ci-en use non-ordered names).
+    const deduped = dedupeFileNames(post.files.map((f) => f.name))
+    const width = Math.max(2, String(post.files.length).length)
+    const diskNames = deduped.map((n, i) => `${String(i + 1).padStart(width, '0')}_${n}`)
     const diskNameById = new Map(post.files.map((f, i) => [f.fileId, diskNames[i]]))
 
     const targets = post.files.filter((f) => options.includeKinds.includes(f.kind))
