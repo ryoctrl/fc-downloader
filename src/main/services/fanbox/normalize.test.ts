@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { collectFiles, normalizePost, type RawFanboxPost } from './normalize'
+import {
+  collectDownloadableCreators,
+  collectFiles,
+  normalizePost,
+  type RawFanboxPost
+} from './normalize'
 
 const base = {
   creatorId: 'aotsuki',
@@ -114,5 +119,40 @@ describe('normalizePost', () => {
       body: { images: [{ id: 'x', extension: 'png', originalUrl: '' }] }
     }
     expect(collectFiles(raw.body!)).toHaveLength(0)
+  })
+})
+
+describe('collectDownloadableCreators', () => {
+  const user = (name: string) => ({ userId: `u_${name}`, name, iconUrl: `https://x/${name}.png` })
+
+  it('includes both supported and merely-followed creators', () => {
+    const supporting = [{ creatorId: 'paid', user: user('Paid') }]
+    const following = [
+      // free plan / plain follow — the case plan.listSupporting misses
+      { creatorId: 'free', user: user('Free'), isFollowed: true, isSupported: false, isStopped: false },
+      // support stopped but valid until month-end
+      { creatorId: 'grace', user: user('Grace'), isFollowed: true, isSupported: false, isStopped: true }
+    ]
+    const out = collectDownloadableCreators(supporting, following)
+    expect(out.map((c) => c.creatorId)).toEqual(['paid', 'free', 'grace'])
+    expect(out.every((c) => c.serviceId === 'fanbox')).toBe(true)
+    expect(out[1]).toMatchObject({ creatorId: 'free', name: 'Free', iconUrl: 'https://x/Free.png' })
+  })
+
+  it('de-dupes a creator present in both sources, keeping the supporting entry', () => {
+    const supporting = [{ creatorId: 'dup', user: user('FromPlan') }]
+    const following = [{ creatorId: 'dup', user: user('FromFollow'), isSupported: true }]
+    const out = collectDownloadableCreators(supporting, following)
+    expect(out).toHaveLength(1)
+    expect(out[0].name).toBe('FromPlan')
+  })
+
+  it('falls back to creatorId when no display name is present, and skips blank ids', () => {
+    const out = collectDownloadableCreators([], [
+      { creatorId: 'noname' },
+      { creatorId: '' }
+    ])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ creatorId: 'noname', name: 'noname', iconUrl: undefined })
   })
 })
