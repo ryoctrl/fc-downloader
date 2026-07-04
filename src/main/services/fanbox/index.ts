@@ -12,7 +12,13 @@
  */
 import type { Creator, Post } from '@shared/types'
 import type { Service, ServiceContext } from '../types'
-import { normalizePost, type RawFanboxPost } from './normalize'
+import {
+  collectDownloadableCreators,
+  normalizePost,
+  type RawFanboxPost,
+  type RawFollowedCreator,
+  type RawSupportingPlan
+} from './normalize'
 
 const API = 'https://api.fanbox.cc'
 const ORIGIN = 'https://www.fanbox.cc'
@@ -42,32 +48,35 @@ export const fanboxService: Service = {
   },
 
   async listCreators(ctx: ServiceContext): Promise<Creator[]> {
-    // Verified: plan.listSupporting -> `{ body: [{ creatorId, user: { name,
-    // iconUrl }, ... }] }`. (Free follows would come from creator.listFollowing;
-    // supported plans are the downloadable case.)
-    try {
-      const res = await ctx.fetchJson<{ body?: RawSupportingPlan[] }>(
-        `${API}/plan.listSupporting`,
+    // Downloadable creators come from two sources, merged & de-duped:
+    //   1. plan.listSupporting     -> `{ body: [{ creatorId, user, ... }] }`
+    //      creators with an active PAID plan.
+    //   2. creator.listFollowing   -> `{ body: { creators: [{ creatorId, user,
+    //      isSupported, isStopped, ... }] } }` — everyone the user follows.
+    // (1) alone misses creators whose paid support was stopped but is still
+    // valid until month-end, and creators downgraded to a free plan (now just
+    // followed) — those only appear in (2). Each source is fetched
+    // independently so one failing still yields the other's creators.
+    const supporting = await ctx
+      .fetchJson<{ body?: RawSupportingPlan[] }>(`${API}/plan.listSupporting`, {
+        headers: apiHeaders
+      })
+      .then((res) => res.body ?? [])
+      .catch((err) => {
+        ctx.log('error', 'plan.listSupporting failed', err)
+        return [] as RawSupportingPlan[]
+      })
+    const following = await ctx
+      .fetchJson<{ body?: { creators?: RawFollowedCreator[] } | RawFollowedCreator[] }>(
+        `${API}/creator.listFollowing`,
         { headers: apiHeaders }
       )
-      const plans = res.body ?? []
-      // De-dupe by creatorId (a creator can have multiple plans).
-      const byCreator = new Map<string, Creator>()
-      for (const plan of plans) {
-        if (!byCreator.has(plan.creatorId)) {
-          byCreator.set(plan.creatorId, {
-            serviceId: 'fanbox',
-            creatorId: plan.creatorId,
-            name: plan.user?.name ?? plan.creatorId,
-            iconUrl: plan.user?.iconUrl
-          })
-        }
-      }
-      return [...byCreator.values()]
-    } catch (err) {
-      ctx.log('error', 'listCreators failed', err)
-      return []
-    }
+      .then((res) => (Array.isArray(res.body) ? res.body : res.body?.creators ?? []))
+      .catch((err) => {
+        ctx.log('warn', 'creator.listFollowing failed', err)
+        return [] as RawFollowedCreator[]
+      })
+    return collectDownloadableCreators(supporting, following)
   },
 
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
@@ -127,12 +136,6 @@ export const fanboxService: Service = {
     // listPosts already fetches full detail per post.
     return post
   }
-}
-
-/** VERIFY: shape of a plan.listSupporting entry (subset). */
-interface RawSupportingPlan {
-  creatorId: string
-  user?: { userId?: string; name?: string; iconUrl?: string }
 }
 
 async function fetchPostDetail(ctx: ServiceContext, postId: string): Promise<Post | null> {

@@ -7,9 +7,58 @@
  * internal api.fanbox.cc responses and are marked `VERIFY:` where they should
  * be confirmed against the live API with a saved fixture.
  */
-import type { Post, PostFile, PostFileKind } from '@shared/types'
+import type { Creator, Post, PostFile, PostFileKind } from '@shared/types'
 import { toLocationParts } from '@main/storage/layout'
 import { webPostUrl } from '../postUrl'
+
+/** VERIFY: a `plan.listSupporting` entry (subset) — a creator with a paid plan. */
+export interface RawSupportingPlan {
+  creatorId: string
+  user?: { userId?: string; name?: string; iconUrl?: string }
+}
+
+/**
+ * VERIFY: a `creator.listFollowing` entry (subset). Every followed creator is
+ * a download target: a paid supporter sees restricted posts, and a plain
+ * follower still sees the creator's free-plan / public posts. The flags below
+ * exist so we can tell those apart:
+ *  - `isSupported`  active paid plan (also true for a ¥0 "free plan").
+ *  - `isStopped`    support cancelled but access remains until month-end.
+ * Neither flag is required to include the creator — following alone is enough.
+ */
+export interface RawFollowedCreator {
+  creatorId: string
+  user?: { userId?: string; name?: string; iconUrl?: string }
+  isFollowed?: boolean
+  isSupported?: boolean
+  isStopped?: boolean
+}
+
+/**
+ * Merge the two enumeration sources into the downloadable creator list,
+ * de-duped by creatorId (a creator can be both supported and followed).
+ * `plan.listSupporting` alone misses creators whose paid support was stopped
+ * (still accessible until month-end) or downgraded to a free plan — those come
+ * in via `creator.listFollowing`.
+ */
+export function collectDownloadableCreators(
+  supporting: RawSupportingPlan[],
+  following: RawFollowedCreator[]
+): Creator[] {
+  const byCreator = new Map<string, Creator>()
+  const add = (creatorId: string, user?: { name?: string; iconUrl?: string }): void => {
+    if (!creatorId || byCreator.has(creatorId)) return
+    byCreator.set(creatorId, {
+      serviceId: 'fanbox',
+      creatorId,
+      name: user?.name ?? creatorId,
+      iconUrl: user?.iconUrl
+    })
+  }
+  for (const p of supporting) add(p.creatorId, p.user)
+  for (const c of following) add(c.creatorId, c.user)
+  return [...byCreator.values()]
+}
 
 /** VERIFY: subset of the api.fanbox.cc `post.info` response body. */
 export interface RawFanboxImage {
