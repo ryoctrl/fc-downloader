@@ -651,8 +651,25 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
           >
             {L.creators}
             {creators.length > 0 ? ` · ${sel.size}/${creators.length}` : ''}
+            {loadingCreators && creators.length > 0 && (
+              // Background refresh over cached creators — a live "updating" hint.
+              <span
+                className="fc-spin"
+                title={L.loading}
+                style={{
+                  display: 'inline-block',
+                  verticalAlign: 'middle',
+                  marginLeft: 7,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 99,
+                  border: '1.5px solid var(--border-2)',
+                  borderTopColor: 'var(--accent)'
+                }}
+              />
+            )}
           </SectionLabel>
-          {loggedIn && !loadingCreators && showTabs && (
+          {loggedIn && showTabs && creators.length > 0 && (
             <TierTabs value={tier} onChange={setTier} counts={tierCounts} L={L} />
           )}
           <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '4px 12px' }}>
@@ -660,7 +677,7 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
               <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>
                 {L.loginToSeeCreators}
               </div>
-            ) : loadingCreators ? (
+            ) : loadingCreators && creators.length === 0 ? (
               <div
                 style={{
                   padding: '12px 0',

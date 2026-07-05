@@ -41,6 +41,18 @@ const CREATOR_SEL_KEY = 'fc_creator_sel'
 const ENABLED_KEY = 'fc_enabled_services'
 const SCHEDULE_KEY = 'fc_schedule'
 const SCHEDULE_LASTRUN_KEY = 'fc_schedule_lastrun'
+const CREATORS_CACHE_KEY = 'fc_creators_cache'
+/** Cached creator lists older than this are refreshed in the background on open
+ *  (the cache is still shown instantly meanwhile). ci-en/Fantia enumeration is
+ *  slow + rate-limited, so we avoid re-fetching on every quick service switch. */
+const CREATORS_TTL_MS = 10 * 60 * 1000
+
+/** Persisted per-service creator list + when it was last fetched. */
+interface CreatorsCacheEntry {
+  list: Creator[]
+  at: number
+}
+type CreatorsCache = Record<string, CreatorsCacheEntry>
 
 const DEFAULT_SCHEDULE: ScheduleConfig = { enabled: false, time: '03:00' }
 
@@ -143,7 +155,20 @@ export function App() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null)
   const loginsRef = useRef(logins)
   loginsRef.current = logins
-  const [creators, setCreators] = useState<Record<string, Creator[]>>({})
+  // Creator lists are cached to localStorage so they show instantly on launch
+  // (the enumeration itself takes tens of seconds for ci-en/Fantia). The cache
+  // is shown immediately and refreshed in the background when stale.
+  const creatorsCache0 = useRef<CreatorsCache>(loadJson<CreatorsCache>(CREATORS_CACHE_KEY, {}))
+  const [creators, setCreators] = useState<Record<string, Creator[]>>(() => {
+    const out: Record<string, Creator[]> = {}
+    for (const [k, v] of Object.entries(creatorsCache0.current)) if (v?.list) out[k] = v.list
+    return out
+  })
+  const creatorsFetchedAt = useRef<Record<string, number>>(
+    Object.fromEntries(
+      Object.entries(creatorsCache0.current).map(([k, v]) => [k, v?.at ?? 0])
+    )
+  )
   const [creatorsLoading, setCreatorsLoading] = useState<Record<string, boolean>>({})
   const [favs, setFavs] = useState<Set<string>>(loadFavs)
   const [rawPosts, setRawPosts] = useState<LibraryPost[]>([])
@@ -451,12 +476,27 @@ export function App() {
       })
     },
     loadCreators: (id, force) => {
-      if (!force && creators[id]) return // cached
-      if (creatorsLoading[id]) return // already loading
+      if (creatorsLoading[id]) return // a refresh is already in flight
+      // The cached list (if any) is already shown from state. Only hit the
+      // network when explicitly forced, when there's no cache, or when the
+      // cache has gone stale — otherwise a quick service switch is instant.
+      const fresh = (creatorsFetchedAt.current[id] ?? 0) > Date.now() - CREATORS_TTL_MS
+      if (!force && creators[id] && fresh) return
       setCreatorsLoading((s) => ({ ...s, [id]: true }))
       void bridge
         .listCreators(id)
-        .then((list) => setCreators((s) => ({ ...s, [id]: list })))
+        .then((list) => {
+          setCreators((s) => ({ ...s, [id]: list }))
+          const at = Date.now()
+          creatorsFetchedAt.current[id] = at
+          try {
+            const cache = loadJson<CreatorsCache>(CREATORS_CACHE_KEY, {})
+            cache[id] = { list, at }
+            localStorage.setItem(CREATORS_CACHE_KEY, JSON.stringify(cache))
+          } catch {
+            /* cache is best-effort; a write failure just means a slow next load */
+          }
+        })
         .finally(() => setCreatorsLoading((s) => ({ ...s, [id]: false })))
     },
     startDownload: (svc, options) => {
