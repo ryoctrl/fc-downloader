@@ -44,6 +44,26 @@ export interface RawFantiaPostResponse {
   post?: RawFantiaPost
 }
 
+/** VERIFY: a fanclub plan as returned by `/api/v1/fanclubs/{id}`. The plan the
+ *  user is on has `order.status === 'joined'`; a ¥0 plan is the free tier. */
+export interface RawFantiaPlan {
+  price?: number
+  order?: { status?: string } | null
+}
+
+/**
+ * Paid vs free relationship for a fanclub, from its plans.
+ * The user's current plan is the one with `order.status === 'joined'`:
+ *  - a joined plan with `price > 0`  → 支援中 (paid)  → true
+ *  - only a ¥0 joined plan (無料プラン) → フォロー中 (free) → false
+ *  - no joined plan found            → unknown        → undefined
+ */
+export function fanclubSupporting(plans: RawFantiaPlan[] | undefined): boolean | undefined {
+  const joined = (plans ?? []).filter((p) => p?.order?.status === 'joined')
+  if (joined.length === 0) return undefined
+  return joined.some((p) => (p.price ?? 0) > 0)
+}
+
 /** Make a possibly root-relative Fantia URL absolute. */
 export function absolutize(uri: string): string {
   if (!uri) return ''

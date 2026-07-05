@@ -17,7 +17,12 @@
  */
 import type { Creator, Post } from '@shared/types'
 import type { Service, ServiceContext } from '../types'
-import { normalizePost, type RawFantiaPostResponse } from './normalize'
+import {
+  fanclubSupporting,
+  normalizePost,
+  type RawFantiaPlan,
+  type RawFantiaPostResponse
+} from './normalize'
 
 const BASE = 'https://fantia.jp'
 const API = `${BASE}/api/v1`
@@ -69,16 +74,24 @@ export const fantiaService: Service = {
         ctx.signal.throwIfAborted()
         let name = String(id)
         let iconUrl: string | undefined
+        let supporting: boolean | undefined
         try {
           const fc = await ctx.fetchJson<{
-            fanclub?: { fanclub_name?: string; creator_name?: string; icon?: { main?: string } }
+            fanclub?: {
+              fanclub_name?: string
+              creator_name?: string
+              icon?: { main?: string }
+              plans?: RawFantiaPlan[]
+            }
           }>(`${API}/fanclubs/${id}`, { headers: XHR })
           name = fc.fanclub?.fanclub_name || fc.fanclub?.creator_name || String(id)
           iconUrl = fc.fanclub?.icon?.main
+          // Paid(支援中) vs free(フォロー中) from the joined plan's price.
+          supporting = fanclubSupporting(fc.fanclub?.plans)
         } catch (err) {
           ctx.log('debug', `fanclub ${id} name lookup failed`, err)
         }
-        creators[i] = { serviceId: 'fantia', creatorId: String(id), name, iconUrl }
+        creators[i] = { serviceId: 'fantia', creatorId: String(id), name, iconUrl, supporting }
       }
     }
     await Promise.all(Array.from({ length: Math.min(LIMIT, ids.length) }, worker))
