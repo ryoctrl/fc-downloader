@@ -1,5 +1,37 @@
 import { describe, expect, it } from 'vitest'
-import { absolutize, collectFiles, normalizePost, type RawFantiaPost } from './normalize'
+import {
+  absolutize,
+  collectFiles,
+  fanclubSupporting,
+  normalizePost,
+  type RawFantiaPost
+} from './normalize'
+
+describe('fanclubSupporting', () => {
+  it('is paid(true) when the joined plan has a price', () => {
+    expect(
+      fanclubSupporting([
+        { price: 500, order: { status: 'joined' } },
+        { price: 1000, order: { status: 'change' } }
+      ])
+    ).toBe(true)
+  })
+
+  it('is free(false) when only a ¥0 plan is joined', () => {
+    expect(
+      fanclubSupporting([
+        { price: 0, order: { status: 'joined' } },
+        { price: 500, order: { status: 'change' } }
+      ])
+    ).toBe(false)
+  })
+
+  it('is unknown(undefined) when no plan is joined', () => {
+    expect(fanclubSupporting([{ price: 500, order: { status: 'change' } }])).toBeUndefined()
+    expect(fanclubSupporting([])).toBeUndefined()
+    expect(fanclubSupporting(undefined)).toBeUndefined()
+  })
+})
 
 describe('absolutize', () => {
   it('prefixes the Fantia origin onto relative paths', () => {

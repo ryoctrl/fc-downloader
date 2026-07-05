@@ -26,6 +26,14 @@ export interface Creator {
   name: string
   /** Optional avatar/thumbnail URL. */
   iconUrl?: string
+  /**
+   * Paid vs free relationship, when the service exposes it:
+   *  - `true`   支援中 — an active (or grace-period) PAID plan; the user can see
+   *             the creator's restricted posts.
+   *  - `false`  フォロー中 — a free follow / ¥0 plan; only free/public posts.
+   *  - `undefined`  unknown — the service can't cheaply tell the two apart.
+   */
+  supporting?: boolean
 }
 
 /** A single post (the unit of dedup and of a viewer folder). */

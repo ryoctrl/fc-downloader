@@ -40,23 +40,34 @@ export interface RawFollowedCreator {
  * `plan.listSupporting` alone misses creators whose paid support was stopped
  * (still accessible until month-end) or downgraded to a free plan — those come
  * in via `creator.listFollowing`.
+ *
+ * `supporting` is set so the UI can split 支援中 (paid) from フォロー中 (free):
+ *  - every plan.listSupporting entry is a paid supporter → true
+ *  - a followed creator is paid when `isSupported` (active plan) or `isStopped`
+ *    (cancelled but valid until month-end); a plain follow is free → false
+ * The supporting source is applied first, so a creator in both stays `true`.
  */
 export function collectDownloadableCreators(
   supporting: RawSupportingPlan[],
   following: RawFollowedCreator[]
 ): Creator[] {
   const byCreator = new Map<string, Creator>()
-  const add = (creatorId: string, user?: { name?: string; iconUrl?: string }): void => {
+  const add = (
+    creatorId: string,
+    isSupporting: boolean,
+    user?: { name?: string; iconUrl?: string }
+  ): void => {
     if (!creatorId || byCreator.has(creatorId)) return
     byCreator.set(creatorId, {
       serviceId: 'fanbox',
       creatorId,
       name: user?.name ?? creatorId,
-      iconUrl: user?.iconUrl
+      iconUrl: user?.iconUrl,
+      supporting: isSupporting
     })
   }
-  for (const p of supporting) add(p.creatorId, p.user)
-  for (const c of following) add(c.creatorId, c.user)
+  for (const p of supporting) add(p.creatorId, true, p.user)
+  for (const c of following) add(c.creatorId, !!(c.isSupported || c.isStopped), c.user)
   return [...byCreator.values()]
 }
 

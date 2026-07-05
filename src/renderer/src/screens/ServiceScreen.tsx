@@ -281,6 +281,7 @@ function Check({
   label,
   sub,
   mark,
+  badge,
   count
 }: {
   on: boolean
@@ -288,6 +289,7 @@ function Check({
   label: string
   sub?: string
   mark?: React.ReactNode
+  badge?: React.ReactNode
   count?: number
 }) {
   return (
@@ -327,12 +329,93 @@ function Check({
           <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>{sub}</span>
         )}
       </span>
+      {badge}
       {count != null && (
         <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
           {count}
         </span>
       )}
     </label>
+  )
+}
+
+type TierFilter = 'all' | 'paid' | 'free'
+
+/** Small pill marking a creator as 支援中 (paid) or フォロー中 (free). */
+function TierBadge({ supporting, L }: { supporting: boolean; L: Dict }) {
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        fontSize: 10,
+        fontWeight: 600,
+        lineHeight: 1,
+        padding: '3px 6px',
+        borderRadius: 99,
+        whiteSpace: 'nowrap',
+        color: supporting ? 'var(--accent)' : 'var(--text-3)',
+        background: supporting ? 'var(--accent-tint)' : 'var(--surface)',
+        border: '1px solid ' + (supporting ? 'var(--accent)' : 'var(--border)')
+      }}
+    >
+      {supporting ? L.tierPaid : L.tierFree}
+    </span>
+  )
+}
+
+/** Segmented [すべて|支援中|フォロー中] filter for the creator list. */
+function TierTabs({
+  value,
+  onChange,
+  counts,
+  L
+}: {
+  value: TierFilter
+  onChange: (v: TierFilter) => void
+  counts: Record<TierFilter, number>
+  L: Dict
+}) {
+  const tabs: [TierFilter, string][] = [
+    ['all', L.tierAll],
+    ['paid', L.tierPaid],
+    ['free', L.tierFree]
+  ]
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 2,
+        padding: 2,
+        marginBottom: 8,
+        background: 'var(--surface-2)',
+        borderRadius: 8
+      }}
+    >
+      {tabs.map(([k, lbl]) => {
+        const active = value === k
+        return (
+          <button
+            key={k}
+            onClick={() => onChange(k)}
+            style={{
+              flex: 1,
+              padding: '5px 4px',
+              borderRadius: 6,
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 11.5,
+              fontWeight: active ? 700 : 500,
+              fontFamily: 'inherit',
+              color: active ? 'var(--text)' : 'var(--text-3)',
+              background: active ? 'var(--surface)' : 'transparent',
+              boxShadow: active ? 'var(--shadow-sm)' : 'none'
+            }}
+          >
+            {lbl} <span style={{ fontFamily: 'var(--mono)', opacity: 0.7 }}>{counts[k]}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -452,7 +535,30 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
     else n.add(id)
     persistSel(n)
   }
-  const allSel = creators.length > 0 && sel.size === creators.length
+
+  // Paid(支援中) vs free(フォロー中) filter. Tabs only appear when the service
+  // reports both kinds; otherwise the flat list (matching services that can't
+  // tell tiers apart, e.g. ci-en/Patreon) is shown as before.
+  const [tier, setTier] = useState<TierFilter>('all')
+  const tierCounts: Record<TierFilter, number> = {
+    all: creators.length,
+    paid: creators.filter((c) => c.supporting === true).length,
+    free: creators.filter((c) => c.supporting === false).length
+  }
+  const showTabs = tierCounts.paid > 0 && tierCounts.free > 0
+  const visible =
+    showTabs && tier !== 'all'
+      ? creators.filter((c) => (tier === 'paid' ? c.supporting === true : c.supporting === false))
+      : creators
+
+  // Select-all operates on the currently-visible (filtered) creators.
+  const allSel = visible.length > 0 && visible.every((c) => sel.has(c.creatorId))
+  const toggleAll = (): void => {
+    const next = new Set(sel)
+    if (allSel) visible.forEach((c) => next.delete(c.creatorId))
+    else visible.forEach((c) => next.add(c.creatorId))
+    persistSel(next)
+  }
   const anyType = types.image || types.video || types.file
   const canStart = loggedIn && anyType && sel.size > 0
 
@@ -523,11 +629,9 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
           <SectionLabel
             action={
               <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {creators.length > 0 && (
+                {visible.length > 0 && (
                   <span
-                    onClick={() =>
-                      persistSel(allSel ? new Set() : new Set(creators.map((c) => c.creatorId)))
-                    }
+                    onClick={toggleAll}
                     style={{ fontSize: 11.5, color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
                   >
                     {allSel ? L.deselectAll : L.selectAll}
@@ -548,6 +652,9 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
             {L.creators}
             {creators.length > 0 ? ` · ${sel.size}/${creators.length}` : ''}
           </SectionLabel>
+          {loggedIn && !loadingCreators && showTabs && (
+            <TierTabs value={tier} onChange={setTier} counts={tierCounts} L={L} />
+          )}
           <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: '4px 12px' }}>
             {!loggedIn ? (
               <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>
@@ -578,8 +685,10 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
               </div>
             ) : creators.length === 0 ? (
               <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.noCreators}</div>
+            ) : visible.length === 0 ? (
+              <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.noCreators}</div>
             ) : (
-              creators.map((c) => (
+              visible.map((c) => (
                 <Check
                   key={c.creatorId}
                   on={sel.has(c.creatorId)}
@@ -587,6 +696,11 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
                   mark={<CreatorIcon serviceId={c.serviceId} iconUrl={c.iconUrl} />}
                   label={c.name === c.creatorId ? c.creatorId : c.name}
                   sub={c.name === c.creatorId ? undefined : c.creatorId}
+                  badge={
+                    c.supporting === undefined ? undefined : (
+                      <TierBadge supporting={c.supporting} L={L} />
+                    )
+                  }
                 />
               ))
             )}

@@ -125,26 +125,35 @@ describe('normalizePost', () => {
 describe('collectDownloadableCreators', () => {
   const user = (name: string) => ({ userId: `u_${name}`, name, iconUrl: `https://x/${name}.png` })
 
-  it('includes both supported and merely-followed creators', () => {
+  it('includes both supported and merely-followed creators, flagging paid vs free', () => {
     const supporting = [{ creatorId: 'paid', user: user('Paid') }]
     const following = [
       // free plan / plain follow — the case plan.listSupporting misses
       { creatorId: 'free', user: user('Free'), isFollowed: true, isSupported: false, isStopped: false },
-      // support stopped but valid until month-end
+      // support stopped but valid until month-end — still paid access
       { creatorId: 'grace', user: user('Grace'), isFollowed: true, isSupported: false, isStopped: true }
     ]
     const out = collectDownloadableCreators(supporting, following)
     expect(out.map((c) => c.creatorId)).toEqual(['paid', 'free', 'grace'])
     expect(out.every((c) => c.serviceId === 'fanbox')).toBe(true)
     expect(out[1]).toMatchObject({ creatorId: 'free', name: 'Free', iconUrl: 'https://x/Free.png' })
+    // paid & grace are 支援中; plain follow is フォロー中
+    expect(out.map((c) => c.supporting)).toEqual([true, false, true])
   })
 
   it('de-dupes a creator present in both sources, keeping the supporting entry', () => {
     const supporting = [{ creatorId: 'dup', user: user('FromPlan') }]
-    const following = [{ creatorId: 'dup', user: user('FromFollow'), isSupported: true }]
+    const following = [{ creatorId: 'dup', user: user('FromFollow'), isSupported: false }]
     const out = collectDownloadableCreators(supporting, following)
     expect(out).toHaveLength(1)
     expect(out[0].name).toBe('FromPlan')
+    // supporting source wins the de-dupe, so it stays flagged paid
+    expect(out[0].supporting).toBe(true)
+  })
+
+  it('flags an isSupported follow as paid even when not in plan.listSupporting', () => {
+    const out = collectDownloadableCreators([], [{ creatorId: 'sup', isSupported: true }])
+    expect(out[0].supporting).toBe(true)
   })
 
   it('falls back to creatorId when no display name is present, and skips blank ids', () => {
@@ -153,6 +162,6 @@ describe('collectDownloadableCreators', () => {
       { creatorId: '' }
     ])
     expect(out).toHaveLength(1)
-    expect(out[0]).toMatchObject({ creatorId: 'noname', name: 'noname', iconUrl: undefined })
+    expect(out[0]).toMatchObject({ creatorId: 'noname', name: 'noname', iconUrl: undefined, supporting: false })
   })
 })
