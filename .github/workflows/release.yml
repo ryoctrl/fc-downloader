@@ -10,10 +10,15 @@ name: Release
 # Builds are UNSIGNED (no signing cert). The release stays a draft so the
 # artifacts can be smoke-tested before publishing.
 #
-# Distribution: the Windows .exe files are shipped INSIDE per-file .zip archives
-# (not as bare .exe). A directly-downloaded .exe gets a Mark-of-the-Web that
-# trips SmartScreen on every launch; shipping the .exe in a .zip lets the user
-# unblock the single .zip once before extracting. The macOS .dmg ships as-is.
+# Distribution (Windows):
+#  - The NSIS INSTALLER (.exe) ships as a bare .exe for a one-click download.
+#    A directly-downloaded .exe carries a Mark-of-the-Web, so SmartScreen warns
+#    once at install ("More info" -> "Run anyway"); the app it installs is
+#    written fresh (no MotW) and launches cleanly thereafter.
+#  - The PORTABLE build ships INSIDE a .zip: it IS the app exe and runs directly
+#    every time, so a bare download's MotW would trip SmartScreen on each launch.
+#    Extracting from a once-unblocked .zip avoids that.
+# The macOS .dmg ships as-is.
 
 on:
   push:
@@ -58,17 +63,25 @@ jobs:
           # keychain (would hang/fail on the macOS runner).
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      # Windows: ship each .exe inside its own .zip so a direct .exe download
-      # doesn't carry a Mark-of-the-Web that trips SmartScreen on every launch.
-      - name: Package Windows artifacts (zip each .exe)
+      # Windows: ship the NSIS installer as a bare .exe (one-click download);
+      # zip the portable build so a direct download's Mark-of-the-Web doesn't
+      # trip SmartScreen on every launch. Portable artifacts carry "portable"
+      # in the file name (see electron-builder.yml); everything else is the
+      # installer.
+      - name: Package Windows artifacts
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist-out | Out-Null
           Get-ChildItem release\*.exe | ForEach-Object {
-            $zip = Join-Path 'dist-out' ($_.BaseName + '.zip')
-            Compress-Archive -Path $_.FullName -DestinationPath $zip -Force
-            Write-Host "zipped $($_.Name) -> $zip"
+            if ($_.Name -like '*portable*') {
+              $zip = Join-Path 'dist-out' ($_.BaseName + '.zip')
+              Compress-Archive -Path $_.FullName -DestinationPath $zip -Force
+              Write-Host "zipped $($_.Name) -> $zip"
+            } else {
+              Copy-Item $_.FullName -Destination 'dist-out'
+              Write-Host "copied $($_.Name) (direct installer .exe)"
+            }
           }
           Get-ChildItem dist-out
 
