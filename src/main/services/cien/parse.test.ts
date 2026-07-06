@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canonicalCreatorId,
   decodeEntities,
+  mergeSubscriptionTiers,
   parseArticleDate,
   parseArticleIds,
   parseArticleTitle,
@@ -26,6 +27,37 @@ describe('parseCreatorIds', () => {
     const html = `<a href="/creator/12345">x</a><a href="/creator/00012345">y</a>
       <a href="/creator/8600/article/1">z</a>`
     expect(parseCreatorIds(html).sort()).toEqual(['12345', '8600'])
+  })
+})
+
+describe('mergeSubscriptionTiers', () => {
+  it('tags each creator by its tab, in first-seen order', () => {
+    const out = mergeSubscriptionTiers([
+      { ids: ['1', '2'], supporting: true }, // サポート中
+      { ids: ['3'], supporting: false }, // サポート経験あり
+      { ids: ['4'], supporting: false } // フォロー
+    ])
+    expect(out).toEqual([
+      { creatorId: '1', supporting: true },
+      { creatorId: '2', supporting: true },
+      { creatorId: '3', supporting: false },
+      { creatorId: '4', supporting: false }
+    ])
+  })
+
+  it('de-dupes across tabs, letting the paid tier win', () => {
+    const out = mergeSubscriptionTiers([
+      { ids: ['1'], supporting: true },
+      { ids: ['1', '2'], supporting: false }
+    ])
+    expect(out).toEqual([
+      { creatorId: '1', supporting: true },
+      { creatorId: '2', supporting: false }
+    ])
+  })
+
+  it('is empty for no pages', () => {
+    expect(mergeSubscriptionTiers([])).toEqual([])
   })
 })
 

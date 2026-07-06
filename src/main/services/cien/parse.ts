@@ -62,6 +62,31 @@ export function parseCreatorIds(html: string): string[] {
   return [...ids]
 }
 
+/**
+ * Merge the creator ids scraped from the subscription tab pages into one
+ * tier-tagged, de-duped list (document order, first occurrence wins for order).
+ * `supporting` is a paid supporter (サポート中); a past supporter (サポート経験
+ * あり) and a plain follower (フォロー) are both free. If a creator somehow
+ * appears on both a paid and a free tab, the paid tier wins.
+ */
+export function mergeSubscriptionTiers(
+  pages: Array<{ ids: string[]; supporting: boolean }>
+): Array<{ creatorId: string; supporting: boolean }> {
+  const byId = new Map<string, boolean>()
+  const order: string[] = []
+  for (const page of pages) {
+    for (const id of page.ids) {
+      if (byId.has(id)) {
+        if (page.supporting && !byId.get(id)) byId.set(id, true) // paid wins
+        continue
+      }
+      byId.set(id, page.supporting)
+      order.push(id)
+    }
+  }
+  return order.map((id) => ({ creatorId: id, supporting: byId.get(id) as boolean }))
+}
+
 /** Creator display name from a `/creator/<id>` profile page `<title>`. */
 export function parseCreatorName(html: string, fallback: string): string {
   const title = html.match(/<title>([^<]+)<\/title>/i)?.[1]

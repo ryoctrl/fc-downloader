@@ -27,6 +27,7 @@ import type { Service, ServiceContext } from '../types'
 import { toLocationParts } from '@main/storage/layout'
 import { webPostUrl } from '../postUrl'
 import {
+  mergeSubscriptionTiers,
   parseArticleDate,
   parseArticleIds,
   parseArticleTitle,
@@ -59,28 +60,48 @@ export const cienService: Service = {
   },
 
   async listCreators(ctx: ServiceContext): Promise<Creator[]> {
-    let html: string
-    try {
-      html = await ctx.fetchText(`${BASE}/mypage/subscription`)
-    } catch (err) {
-      ctx.log('error', 'listCreators: subscription page failed', err)
-      return []
-    }
-    const ids = parseCreatorIds(html)
-    const creators: Creator[] = []
-    for (const id of ids) {
+    // The subscription page is split into tabs, each its own URL:
+    //   /mypage/subscription          サポート中      (paid, supporting)
+    //   /mypage/subscription/history  サポート経験あり (past support — free now)
+    //   /mypage/subscription/following フォロー        (free follow)
+    // The default page alone misses the last two, so walk all three and tag the
+    // tier by source. Each tab is fetched independently so one failing still
+    // yields the others.
+    const tabs: Array<{ url: string; supporting: boolean }> = [
+      { url: `${BASE}/mypage/subscription`, supporting: true },
+      { url: `${BASE}/mypage/subscription/history`, supporting: false },
+      { url: `${BASE}/mypage/subscription/following`, supporting: false }
+    ]
+    const pages: Array<{ ids: string[]; supporting: boolean }> = []
+    for (const tab of tabs) {
       ctx.signal.throwIfAborted()
       try {
-        const page = await ctx.fetchText(`${BASE}/creator/${id}`)
+        const html = await ctx.fetchText(tab.url)
+        pages.push({ ids: parseCreatorIds(html), supporting: tab.supporting })
+      } catch (err) {
+        ctx.log('warn', `listCreators: subscription tab failed (${tab.url})`, err)
+      }
+    }
+    if (pages.length === 0) {
+      ctx.log('error', 'listCreators: all subscription tabs failed')
+      return []
+    }
+
+    const creators: Creator[] = []
+    for (const { creatorId, supporting } of mergeSubscriptionTiers(pages)) {
+      ctx.signal.throwIfAborted()
+      try {
+        const page = await ctx.fetchText(`${BASE}/creator/${creatorId}`)
         creators.push({
           serviceId: 'cien',
-          creatorId: id,
-          name: parseCreatorName(page, id),
-          iconUrl: parseCreatorIcon(page)
+          creatorId,
+          name: parseCreatorName(page, creatorId),
+          iconUrl: parseCreatorIcon(page),
+          supporting
         })
       } catch (err) {
-        ctx.log('warn', `creator ${id} profile failed; using id as name`, err)
-        creators.push({ serviceId: 'cien', creatorId: id, name: id })
+        ctx.log('warn', `creator ${creatorId} profile failed; using id as name`, err)
+        creators.push({ serviceId: 'cien', creatorId, name: creatorId, supporting })
       }
     }
     return creators
