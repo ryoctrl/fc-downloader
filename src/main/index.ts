@@ -86,6 +86,18 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
+  // Same for links inside the embedded service <webview>s (e.g. a creator's
+  // X / social link). A target=_blank / window.open there otherwise does
+  // nothing — the popup is swallowed — so route it to the system browser.
+  // Regular in-webview navigation (logins, OAuth redirects, browsing) is left
+  // untouched so those flows keep working.
+  mainWindow.webContents.on('did-attach-webview', (_event, guest) => {
+    guest.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
+      return { action: 'deny' }
+    })
+  })
+
   if (process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
