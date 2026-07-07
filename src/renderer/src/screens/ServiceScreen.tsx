@@ -7,6 +7,25 @@ import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
 
+/** Public web page for a creator, for jumping the embedded browser to it.
+ *  Patreon's creatorId is a campaign id with no clean public URL → not linkable. */
+function creatorPageUrl(serviceId: ServiceId, creatorId: string): string | null {
+  const id = encodeURIComponent(creatorId)
+  switch (serviceId) {
+    case 'fanbox':
+      return `https://www.fanbox.cc/@${id}`
+    case 'fantia':
+      return `https://fantia.jp/fanclubs/${id}`
+    case 'cien':
+      return `https://ci-en.dlsite.com/creator/${id}`
+    default:
+      return null
+  }
+}
+
+/** Imperative handle the creator list uses to drive the embedded browser. */
+type WebviewNavRef = React.MutableRefObject<((url: string) => void) | null>
+
 /** The subset of Electron's <webview> element API the toolbar drives. */
 interface WebviewEl extends HTMLElement {
   src: string
@@ -63,11 +82,13 @@ function BrowserPane({
   svc,
   loggedIn,
   onRecheck,
+  navRef,
   L
 }: {
   svc: DesignService
   loggedIn: boolean
   onRecheck: () => void
+  navRef: WebviewNavRef
   L: Dict
 }) {
   const ref = useRef<WebviewEl | null>(null)
@@ -129,6 +150,12 @@ function BrowserPane({
     if (!/^https?:\/\//i.test(u)) u = `https://${u}`
     drive((el) => void el.loadURL(u))
     setDraft(null)
+  }
+
+  // Let the creator list drive this webview (jump to a creator's page).
+  navRef.current = (url: string): void => {
+    setUrl(url)
+    drive((el) => void el.loadURL(url))
   }
 
   return (
@@ -282,7 +309,9 @@ function CreatorIcon({ serviceId, iconUrl }: { serviceId: ServiceId; iconUrl?: s
 
 function Check({
   on,
-  onClick,
+  onToggle,
+  onOpen,
+  openTitle,
   label,
   sub,
   mark,
@@ -290,7 +319,12 @@ function Check({
   count
 }: {
   on: boolean
-  onClick: () => void
+  /** Toggle DL selection (the checkbox only). */
+  onToggle: () => void
+  /** Open this creator's page in the left browser (the name area). Absent =
+   *  not navigable (e.g. Patreon), and the name is not clickable. */
+  onOpen?: () => void
+  openTitle?: string
   label: string
   sub?: string
   mark?: React.ReactNode
@@ -298,16 +332,17 @@ function Check({
   count?: number
 }) {
   return (
-    <label
-      onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px', cursor: 'pointer' }}
-    >
+    <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '6px 4px' }}>
       <span
+        onClick={onToggle}
+        role="checkbox"
+        aria-checked={on}
         style={{
           width: 17,
           height: 17,
           borderRadius: 5,
           flexShrink: 0,
+          cursor: 'pointer',
           border: '1.5px solid ' + (on ? 'var(--accent)' : 'var(--text-3)'),
           background: on ? 'var(--accent)' : 'transparent',
           color: '#fff',
@@ -317,30 +352,43 @@ function Check({
       >
         {on && <Icon name="check" size={12} strokeWidth={2.6} />}
       </span>
-      {mark}
-      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <span
-          style={{
-            fontSize: 13,
-            color: 'var(--text)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}
-        >
-          {label}
+      <div
+        onClick={onOpen}
+        title={onOpen ? openTitle : undefined}
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          cursor: onOpen ? 'pointer' : 'default'
+        }}
+      >
+        {mark}
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <span
+            style={{
+              fontSize: 13,
+              color: 'var(--text)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
+            {label}
+          </span>
+          {sub && (
+            <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>{sub}</span>
+          )}
         </span>
-        {sub && (
-          <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>{sub}</span>
-        )}
-      </span>
-      {badge}
+        {badge}
+      </div>
       {count != null && (
         <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
           {count}
         </span>
       )}
-    </label>
+    </div>
   )
 }
 
@@ -502,7 +550,15 @@ function OptToggle({
   )
 }
 
-function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolean }) {
+function SettingsPanel({
+  svc,
+  loggedIn,
+  navRef
+}: {
+  svc: DesignService
+  loggedIn: boolean
+  navRef: WebviewNavRef
+}) {
   const app = useApp()
   const L = app.L
   // Creators come from the app-level cache (survives service switches).
@@ -710,21 +766,26 @@ function SettingsPanel({ svc, loggedIn }: { svc: DesignService; loggedIn: boolea
             ) : visible.length === 0 ? (
               <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.noCreators}</div>
             ) : (
-              visible.map((c) => (
-                <Check
-                  key={c.creatorId}
-                  on={sel.has(c.creatorId)}
-                  onClick={() => toggleSel(c.creatorId)}
-                  mark={<CreatorIcon serviceId={c.serviceId} iconUrl={c.iconUrl} />}
-                  label={c.name === c.creatorId ? c.creatorId : c.name}
-                  sub={c.name === c.creatorId ? undefined : c.creatorId}
-                  badge={
-                    c.supporting === undefined ? undefined : (
-                      <TierBadge supporting={c.supporting} L={L} />
-                    )
-                  }
-                />
-              ))
+              visible.map((c) => {
+                const url = creatorPageUrl(c.serviceId, c.creatorId)
+                return (
+                  <Check
+                    key={c.creatorId}
+                    on={sel.has(c.creatorId)}
+                    onToggle={() => toggleSel(c.creatorId)}
+                    onOpen={url ? () => navRef.current?.(url) : undefined}
+                    openTitle={L.openCreatorPage}
+                    mark={<CreatorIcon serviceId={c.serviceId} iconUrl={c.iconUrl} />}
+                    label={c.name === c.creatorId ? c.creatorId : c.name}
+                    sub={c.name === c.creatorId ? undefined : c.creatorId}
+                    badge={
+                      c.supporting === undefined ? undefined : (
+                        <TierBadge supporting={c.supporting} L={L} />
+                      )
+                    }
+                  />
+                )
+              })
             )}
           </div>
         </div>
@@ -806,6 +867,8 @@ export function ServiceScreen({ serviceId }: { serviceId: DesignService['id'] })
   const L = app.L
   const svc = FC.serviceById(serviceId)
   const loggedIn = !!app.state.logins[serviceId]
+  // Bridge: SettingsPanel's creator names drive BrowserPane's <webview>.
+  const navRef = useRef<((url: string) => void) | null>(null)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -814,6 +877,7 @@ export function ServiceScreen({ serviceId }: { serviceId: DesignService['id'] })
           svc={svc}
           loggedIn={loggedIn}
           L={L}
+          navRef={navRef}
           onRecheck={() => app.actions.recheckAuth(serviceId)}
         />
         <div
@@ -827,7 +891,7 @@ export function ServiceScreen({ serviceId }: { serviceId: DesignService['id'] })
             boxShadow: 'var(--shadow-sm)'
           }}
         >
-          <SettingsPanel svc={svc} loggedIn={loggedIn} />
+          <SettingsPanel svc={svc} loggedIn={loggedIn} navRef={navRef} />
         </div>
       </div>
     </div>
