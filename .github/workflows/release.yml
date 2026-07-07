@@ -127,6 +127,10 @@ jobs:
           # static install / warning guide.
           gh api "repos/${{ github.repository }}/releases/generate-notes" \
             -f tag_name="$TAG" --jq .body > changelog.md || : > changelog.md
+          # Drop the release-bump PR line(s) — they just record the version
+          # tick and add noise to the changelog.
+          grep -vE '^\* chore\(release\): bump version' changelog.md > changelog.tmp || true
+          mv changelog.tmp changelog.md
           {
             cat changelog.md
             echo
