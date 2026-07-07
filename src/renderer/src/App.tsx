@@ -42,6 +42,7 @@ const ENABLED_KEY = 'fc_enabled_services'
 const SCHEDULE_KEY = 'fc_schedule'
 const SCHEDULE_LASTRUN_KEY = 'fc_schedule_lastrun'
 const CREATORS_CACHE_KEY = 'fc_creators_cache'
+const NEW_CACHE_KEY = 'fc_new_cache'
 /** Cached creator lists older than this are refreshed in the background on open
  *  (the cache is still shown instantly meanwhile). ci-en/Fantia enumeration is
  *  slow + rate-limited, so we avoid re-fetching on every quick service switch. */
@@ -53,6 +54,13 @@ interface CreatorsCacheEntry {
   at: number
 }
 type CreatorsCache = Record<string, CreatorsCacheEntry>
+
+/** Persisted per-service "has new posts" creator ids + when last computed. */
+interface NewCacheEntry {
+  ids: string[]
+  at: number
+}
+type NewCache = Record<string, NewCacheEntry>
 
 const DEFAULT_SCHEDULE: ScheduleConfig = { enabled: false, time: '03:00' }
 
@@ -170,6 +178,18 @@ export function App() {
     )
   )
   const [creatorsLoading, setCreatorsLoading] = useState<Record<string, boolean>>({})
+  // Per-service creator ids with a downloadable post newer than what's on disk
+  // ("new posts" indicator), cached like the creator list.
+  const newCache0 = useRef<NewCache>(loadJson<NewCache>(NEW_CACHE_KEY, {}))
+  const [newByService, setNewByService] = useState<Record<string, string[]>>(() => {
+    const out: Record<string, string[]> = {}
+    for (const [k, v] of Object.entries(newCache0.current)) if (v?.ids) out[k] = v.ids
+    return out
+  })
+  const newFetchedAt = useRef<Record<string, number>>(
+    Object.fromEntries(Object.entries(newCache0.current).map(([k, v]) => [k, v?.at ?? 0]))
+  )
+  const newLoadingRef = useRef<Record<string, boolean>>({})
   const [favs, setFavs] = useState<Set<string>>(loadFavs)
   const [rawPosts, setRawPosts] = useState<LibraryPost[]>([])
   const posts = useMemo(() => rawPosts.map(toViewPost), [rawPosts])
@@ -290,6 +310,9 @@ export function App() {
       void bridge.listPosts().then(setRawPosts)
       // The run just recorded its "last synced" time; refresh it for the library.
       void bridge.getSettings().then((s) => s && setLastSync(s.lastSync ?? {}))
+      // Downloaded posts are no longer "new" — force the indicator to recompute
+      // the next time a service screen opens (cheap: one feed walk per revisit).
+      newFetchedAt.current = {}
     })
     return () => {
       offProgress()
@@ -515,6 +538,29 @@ export function App() {
         })
         .finally(() => setCreatorsLoading((s) => ({ ...s, [id]: false })))
     },
+    loadNew: (id, force) => {
+      if (newLoadingRef.current[id]) return
+      const fresh = (newFetchedAt.current[id] ?? 0) > Date.now() - CREATORS_TTL_MS
+      if (!force && newByService[id] && fresh) return
+      newLoadingRef.current[id] = true
+      void bridge
+        .checkNewCreators(id)
+        .then((ids) => {
+          setNewByService((s) => ({ ...s, [id]: ids }))
+          const at = Date.now()
+          newFetchedAt.current[id] = at
+          try {
+            const cache = loadJson<NewCache>(NEW_CACHE_KEY, {})
+            cache[id] = { ids, at }
+            localStorage.setItem(NEW_CACHE_KEY, JSON.stringify(cache))
+          } catch {
+            /* best-effort cache */
+          }
+        })
+        .finally(() => {
+          newLoadingRef.current[id] = false
+        })
+    },
     startDownload: (svc, options) => {
       doStartDownload(svc, options)
       go({ screen: 'progress' })
@@ -633,6 +679,7 @@ export function App() {
       logins,
       creators,
       creatorsLoading,
+      newByService,
       favs,
       download,
       lastProgress,

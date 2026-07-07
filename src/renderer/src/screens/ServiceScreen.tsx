@@ -394,6 +394,28 @@ function Check({
 
 type TierFilter = 'all' | 'paid' | 'free'
 
+/** Pill marking a creator that has a downloadable post newer than on disk. */
+function NewBadge({ L }: { L: Dict }) {
+  return (
+    <span
+      title={L.newPostsHint}
+      style={{
+        flexShrink: 0,
+        fontSize: 10,
+        fontWeight: 700,
+        lineHeight: 1,
+        padding: '3px 6px',
+        borderRadius: 99,
+        whiteSpace: 'nowrap',
+        color: '#fff',
+        background: 'var(--accent)'
+      }}
+    >
+      {L.newPosts}
+    </span>
+  )
+}
+
 /** Small pill marking a creator as 支援中 (paid) or フォロー中 (free). */
 function TierBadge({ supporting, L }: { supporting: boolean; L: Dict }) {
   return (
@@ -567,6 +589,11 @@ function SettingsPanel({
     [app.state.creators, svc.id]
   )
   const loadingCreators = !!app.state.creatorsLoading[svc.id]
+  // Creators with a downloadable post newer than what's on disk.
+  const newSet = useMemo(
+    () => new Set(app.state.newByService[svc.id] ?? []),
+    [app.state.newByService, svc.id]
+  )
   // File-type + skip selections persist across services and launches.
   const prefs = app.state.downloadPrefs
   const types: Record<PostType, boolean> = { image: prefs.image, video: prefs.video, file: prefs.file }
@@ -586,7 +613,10 @@ function SettingsPanel({
 
   // Trigger a (cached) load when logged in.
   useEffect(() => {
-    if (loggedIn) app.actions.loadCreators(svc.id)
+    if (loggedIn) {
+      app.actions.loadCreators(svc.id)
+      app.actions.loadNew(svc.id)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [svc.id, loggedIn])
 
@@ -700,7 +730,10 @@ function SettingsPanel({
                 )}
                 {loggedIn && (
                   <span
-                    onClick={() => app.actions.loadCreators(svc.id, true)}
+                    onClick={() => {
+                      app.actions.loadCreators(svc.id, true)
+                      app.actions.loadNew(svc.id, true)
+                    }}
                     title={L.recheck}
                     style={{ display: 'flex', color: 'var(--text-3)', cursor: 'pointer' }}
                   >
@@ -779,9 +812,12 @@ function SettingsPanel({
                     label={c.name === c.creatorId ? c.creatorId : c.name}
                     sub={c.name === c.creatorId ? undefined : c.creatorId}
                     badge={
-                      c.supporting === undefined ? undefined : (
-                        <TierBadge supporting={c.supporting} L={L} />
-                      )
+                      newSet.has(c.creatorId) || c.supporting !== undefined ? (
+                        <>
+                          {newSet.has(c.creatorId) && <NewBadge L={L} />}
+                          {c.supporting !== undefined && <TierBadge supporting={c.supporting} L={L} />}
+                        </>
+                      ) : undefined
                     }
                   />
                 )

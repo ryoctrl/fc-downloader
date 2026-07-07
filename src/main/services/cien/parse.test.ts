@@ -9,7 +9,8 @@ import {
   parseAttachments,
   parseCreatorIcon,
   parseCreatorIds,
-  parseCreatorName
+  parseCreatorName,
+  parseRecentArticleRefs
 } from './parse'
 
 const SIG = '?px-time=1&px-hash=0000000000000000'
@@ -58,6 +59,25 @@ describe('mergeSubscriptionTiers', () => {
 
   it('is empty for no pages', () => {
     expect(mergeSubscriptionTiers([])).toEqual([])
+  })
+})
+
+describe('parseRecentArticleRefs', () => {
+  it('collects (creator, article) pairs newest-first, de-duped and canonicalized', () => {
+    const html = `
+      <a href="/creator/00008600/article/500">a</a>
+      <a href="/creator/8600/article/500">dup</a>
+      <a href="/creator/12345/article/900">b</a>
+      <a href="/creator/8600/article/499">older</a>`
+    expect(parseRecentArticleRefs(html)).toEqual([
+      { creatorId: '8600', articleId: '500' },
+      { creatorId: '12345', articleId: '900' },
+      { creatorId: '8600', articleId: '499' }
+    ])
+  })
+
+  it('is empty when the feed has no article links', () => {
+    expect(parseRecentArticleRefs('<a href="/creator/8600">profile</a>')).toEqual([])
   })
 })
 

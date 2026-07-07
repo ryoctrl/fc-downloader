@@ -23,7 +23,7 @@
  *     signed px-time/px-hash params; the `upload/<name>` variant is the original.
  */
 import type { Creator, Post } from '@shared/types'
-import type { Service, ServiceContext } from '../types'
+import type { RecentPost, Service, ServiceContext } from '../types'
 import { toLocationParts } from '@main/storage/layout'
 import { webPostUrl } from '../postUrl'
 import {
@@ -34,7 +34,8 @@ import {
   parseAttachments,
   parseCreatorIcon,
   parseCreatorIds,
-  parseCreatorName
+  parseCreatorName,
+  parseRecentArticleRefs
 } from './parse'
 
 const BASE = 'https://ci-en.dlsite.com'
@@ -105,6 +106,32 @@ export const cienService: Service = {
       }
     }
     return creators
+  },
+
+  async *recentPosts(ctx: ServiceContext, maxPages: number): AsyncIterable<RecentPost> {
+    // /mypage/recent is the "New Articles" feed — recent articles across the
+    // user's subscriptions, newest-first, as /creator/<id>/article/<id> links.
+    // Accessibility isn't exposed in the feed, so it's left undefined (a paid
+    // article a free follower can't open may show as "new" — acceptable).
+    const seen = new Set<string>()
+    for (let page = 1; page <= maxPages; page++) {
+      ctx.signal.throwIfAborted()
+      let html: string
+      try {
+        html = await ctx.fetchText(`${BASE}/mypage/recent?page=${page}`)
+      } catch (err) {
+        ctx.log('warn', `recent feed page ${page} failed`, err)
+        return
+      }
+      const refs = parseRecentArticleRefs(html).filter((r) => {
+        const key = `${r.creatorId}/${r.articleId}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      if (refs.length === 0) return
+      for (const r of refs) yield { creatorId: r.creatorId, postId: r.articleId }
+    }
   },
 
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
