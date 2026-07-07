@@ -6,6 +6,15 @@
  */
 import type { Creator, Post, ServiceId } from '@shared/types'
 
+/** One entry from a service's recent/home feed, for the "new posts" indicator. */
+export interface RecentPost {
+  creatorId: string
+  postId: string
+  /** Whether the logged-in user can download this post. Restricted/paywalled
+   *  posts are not "downloadable new". Undefined = unknown (treated as maybe). */
+  accessible?: boolean
+}
+
 /** Context handed to service methods (session-scoped fetch + logging). */
 export interface ServiceContext {
   /**
@@ -50,6 +59,15 @@ export interface Service {
 
   /** Enumerate the creators the logged-in user supports / follows. */
   listCreators(ctx: ServiceContext): Promise<Creator[]>
+
+  /**
+   * Recent posts across the user's subscriptions, newest-first, by walking the
+   * service's home/recent feed (cheap — NOT one request per creator). Used by
+   * the "new posts" indicator to find creators whose newest downloadable post
+   * isn't on disk yet. Walk at most `maxPages` feed pages. Optional: a service
+   * without such a feed omits it (no indicator shown).
+   */
+  recentPosts?(ctx: ServiceContext, maxPages: number): AsyncIterable<RecentPost>
 
   /**
    * Enumerate posts for a creator. Implementations should paginate internally

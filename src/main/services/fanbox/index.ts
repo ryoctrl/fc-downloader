@@ -11,7 +11,7 @@
  * scripts/probe-fanbox.cjs and docs/spec/service-abstraction.md.
  */
 import type { Creator, Post } from '@shared/types'
-import type { Service, ServiceContext } from '../types'
+import type { RecentPost, Service, ServiceContext } from '../types'
 import {
   collectDownloadableCreators,
   normalizePost,
@@ -79,6 +79,30 @@ export const fanboxService: Service = {
     return collectDownloadableCreators(supporting, following)
   },
 
+  async *recentPosts(ctx: ServiceContext, maxPages: number): AsyncIterable<RecentPost> {
+    // Verified: post.listHome -> `{ body: { items: [{ id, creatorId,
+    // publishedDatetime, isRestricted, ... }], nextUrl } }` — the reverse-chron
+    // timeline across supported + followed creators. `isRestricted` marks posts
+    // the viewer can't access (so they aren't "downloadable new").
+    let url: string | null = `${API}/post.listHome?limit=30`
+    for (let page = 0; page < maxPages && url; page++) {
+      ctx.signal.throwIfAborted()
+      let body: { items?: RawHomeItem[]; nextUrl?: string | null }
+      try {
+        const res = await ctx.fetchJson<{ body?: typeof body }>(url, { headers: apiHeaders })
+        body = res.body ?? {}
+      } catch (err) {
+        ctx.log('warn', 'post.listHome failed', err)
+        return
+      }
+      for (const it of body.items ?? []) {
+        if (!it.creatorId || !it.id) continue
+        yield { creatorId: it.creatorId, postId: it.id, accessible: !it.isRestricted }
+      }
+      url = body.nextUrl ?? null
+    }
+  },
+
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
     // Verified pagination: post.paginateCreator returns `{ body: [pageUrl, ...] }`
     // (cursor-based). Each page URL returns `{ body: [postSummary, ...] }`.
@@ -136,6 +160,14 @@ export const fanboxService: Service = {
     // listPosts already fetches full detail per post.
     return post
   }
+}
+
+/** VERIFY: subset of a post.listHome item. */
+interface RawHomeItem {
+  id: string
+  creatorId: string
+  publishedDatetime?: string
+  isRestricted?: boolean
 }
 
 async function fetchPostDetail(ctx: ServiceContext, postId: string): Promise<Post | null> {

@@ -29,6 +29,10 @@ export interface IpcApi {
   'services:clearSession': { args: [serviceId: ServiceId]; result: void }
 
   'creators:list': { args: [serviceId: ServiceId]; result: Creator[] }
+  /** Creator ids that have a downloadable post newer than what's on disk (a
+   * "new posts" indicator). Walks the service's recent feed; [] when the
+   * service has no feed or nothing is new. */
+  'creators:checkNew': { args: [serviceId: ServiceId]; result: string[] }
 
   'download:start': { args: [serviceId: ServiceId, options: DownloadOptions]; result: void }
   'download:cancel': { args: []; result: void }

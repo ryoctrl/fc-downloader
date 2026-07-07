@@ -118,6 +118,25 @@ export function parseArticleIds(html: string): string[] {
   return ids
 }
 
+/**
+ * (creatorId, articleId) pairs from the `/mypage/recent` new-arrivals feed, in
+ * document (newest-first) order, de-duped. Used by the "new posts" indicator:
+ * the first pair seen for a creator is their newest article.
+ */
+export function parseRecentArticleRefs(html: string): Array<{ creatorId: string; articleId: string }> {
+  const out: Array<{ creatorId: string; articleId: string }> = []
+  const seen = new Set<string>()
+  for (const m of html.matchAll(/\/creator\/(\d+)\/article\/(\d+)/g)) {
+    const creatorId = canonicalCreatorId(m[1])
+    const articleId = m[2]
+    const key = `${creatorId}/${articleId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ creatorId, articleId })
+  }
+  return out
+}
+
 /** Article title from its page `<title>` ("TITLE - CREATOR - Ci-en（シエン）"). */
 export function parseArticleTitle(html: string, fallback: string): string {
   const title = html.match(/<title>([^<]+)<\/title>/i)?.[1]

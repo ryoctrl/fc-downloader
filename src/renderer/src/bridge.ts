@@ -43,6 +43,8 @@ export const bridge = {
     api?.['services:clearSession'](id) ?? Promise.resolve(),
   listCreators: (id: ServiceId): Promise<Creator[]> =>
     api?.['creators:list'](id) ?? Promise.resolve([]),
+  checkNewCreators: (id: ServiceId): Promise<string[]> =>
+    api?.['creators:checkNew'](id) ?? Promise.resolve([]),
   onAuthChanged: (cb: (p: IpcEvents['services:authChanged']) => void): (() => void) =>
     api ? api.on('services:authChanged', cb) : noop,
 

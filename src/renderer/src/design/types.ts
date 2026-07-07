@@ -104,6 +104,9 @@ export interface AppState {
   /** Cached supported creators per service (avoids re-fetching on revisit). */
   creators: Record<string, Creator[]>
   creatorsLoading: Record<string, boolean>
+  /** Per-service creator ids that have a downloadable post newer than on disk
+   *  (the "new posts" indicator), cached like the creator list. */
+  newByService: Record<string, string[]>
   /** Favorited post keys (serviceId/creatorId/postId), persisted locally. */
   favs: Set<string>
   download: DownloadState | null
@@ -148,6 +151,8 @@ export interface AppActions {
   clearSession: (id: ServiceId) => void
   /** Load (or, with force, refresh) a service's supported creators into cache. */
   loadCreators: (id: ServiceId, force?: boolean) => void
+  /** Load (or, with force, refresh) the service's "has new posts" creator set. */
+  loadNew: (id: ServiceId, force?: boolean) => void
   /** Kick off a real download run for a service with the given options. */
   startDownload: (svc: DesignService, options: DownloadOptions) => void
   /** Mark the active run as finished (called on the download:done event). */

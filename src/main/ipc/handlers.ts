@@ -11,6 +11,7 @@ import type {
 } from '@shared/types'
 import { listServices } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
+import { findNewCreators } from '@main/services/newposts'
 import { clearSession } from '@main/session/manager'
 import { getSettings, updateSettings } from '@main/storage/settings'
 import { buildViewerTree } from '@main/storage/viewer'
@@ -79,6 +80,11 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     const ac = new AbortController()
     const ctx = createServiceContext(serviceId, ac.signal)
     return svc.listCreators(ctx)
+  })
+
+  handle('creators:checkNew', async (serviceId) => {
+    const ac = new AbortController()
+    return findNewCreators(serviceId, ac.signal)
   })
 
   // Sequential download queue: one service runs at a time; starting another
