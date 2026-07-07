@@ -122,9 +122,21 @@ jobs:
           echo "Releasing $TAG"
           # Re-runnable: drop a pre-existing release for this tag (keep the tag).
           gh release delete "$TAG" --yes 2>/dev/null || true
+          # Compose the release body: an auto-generated "What's Changed"
+          # changelog (PRs merged since the previous release) followed by the
+          # static install / warning guide.
+          gh api "repos/${{ github.repository }}/releases/generate-notes" \
+            -f tag_name="$TAG" --jq .body > changelog.md || : > changelog.md
+          {
+            cat changelog.md
+            echo
+            echo "---"
+            echo
+            cat dist-assets/release-notes.md
+          } > release-body.md
           gh release create "$TAG" \
             artifacts/* \
             --target "${{ github.sha }}" \
             --title "fc-downloader $TAG" \
             --draft \
-            --notes-file dist-assets/release-notes.md
+            --notes-file release-body.md
