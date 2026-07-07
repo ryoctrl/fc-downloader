@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dayKey, isScheduleDue, minutesOf } from './schedule'
+import { allLoginsSettled, dayKey, isScheduleDue, minutesOf } from './schedule'
 
 const at = (h: number, m: number): Date => new Date(2026, 5, 10, h, m, 0)
 const TODAY = dayKey(at(0, 0))
@@ -30,5 +30,30 @@ describe('isScheduleDue', () => {
 
   it('is not due before the configured time', () => {
     expect(isScheduleDue(sch, '', at(2, 59))).toBe(false)
+  })
+})
+
+describe('allLoginsSettled', () => {
+  const IDS = ['fantia', 'fanbox', 'cien', 'patreon']
+
+  it('is false while any enabled service login is still undefined', () => {
+    // Fantia resolved, the rest still loading — the daily run must wait.
+    expect(allLoginsSettled(IDS, {}, { fantia: true })).toBe(false)
+  })
+
+  it('is true once every enabled service has a defined login', () => {
+    expect(
+      allLoginsSettled(IDS, {}, { fantia: true, fanbox: true, cien: false, patreon: false })
+    ).toBe(true)
+  })
+
+  it('ignores disabled services (they need not have settled)', () => {
+    expect(
+      allLoginsSettled(IDS, { patreon: false, cien: false }, { fantia: true, fanbox: false })
+    ).toBe(true)
+  })
+
+  it('treats a false login as settled (logged out is a known state)', () => {
+    expect(allLoginsSettled(['fantia'], {}, { fantia: false })).toBe(true)
   })
 })

@@ -1,6 +1,21 @@
 /* Pure helpers for the daily auto-download scheduler (testable, no React). */
 import type { ScheduleConfig } from './types'
 
+/**
+ * Whether every enabled service's login state has settled — i.e. each service
+ * is either disabled or has a defined (true/false) login, not a still-loading
+ * `undefined`. The daily run must wait for this so the fastest service to
+ * authenticate doesn't fire the run (and consume the day's slot) before the
+ * slower ones' logins are known, which would download only that one service.
+ */
+export function allLoginsSettled(
+  serviceIds: readonly string[],
+  enabled: Record<string, boolean>,
+  logins: Record<string, boolean>
+): boolean {
+  return serviceIds.every((id) => enabled[id] === false || logins[id] !== undefined)
+}
+
 /** Minutes-since-midnight for a "HH:MM" string (0 on a malformed value). */
 export function minutesOf(time: string): number {
   const [h, m] = time.split(':').map((n) => parseInt(n, 10))

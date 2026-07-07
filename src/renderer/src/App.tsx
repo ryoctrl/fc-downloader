@@ -24,7 +24,7 @@ import { LANG } from './design/i18n'
 import { FC } from './design/data'
 import { Icon } from './design/icons'
 import { toViewPost } from './design/library'
-import { dayKey, isScheduleDue, minutesOf } from './design/schedule'
+import { allLoginsSettled, dayKey, isScheduleDue, minutesOf } from './design/schedule'
 import { bridge } from './bridge'
 import { Rail } from './components/Rail'
 import { ServiceScreen } from './screens/ServiceScreen'
@@ -187,6 +187,8 @@ export function App() {
   const [enabledServices, setEnabledServicesState] = useState<Record<string, boolean>>(() =>
     loadJson(ENABLED_KEY, {})
   )
+  const enabledRef = useRef(enabledServices)
+  enabledRef.current = enabledServices
   const [schedule, setScheduleState] = useState<ScheduleConfig>(() =>
     loadJson(SCHEDULE_KEY, DEFAULT_SCHEDULE)
   )
@@ -361,6 +363,20 @@ export function App() {
   // once per day, catching up if the app was opened after the scheduled time.
   const runScheduledIfDue = useCallback((): void => {
     if (!isScheduleDue(scheduleRef.current, lastRunRef.current, new Date())) return
+    // Wait until EVERY enabled service's login state has settled (defined as
+    // true/false, not still-loading `undefined`). Auth checks resolve at
+    // different speeds — Fantia's is a fast API call, FANBOX needs two, ci-en
+    // scrapes HTML — so without this gate the first one to resolve would fire
+    // the daily run and consume the day's slot before the slower services'
+    // logins are known, downloading only that service (e.g. only Fantia).
+    if (
+      !allLoginsSettled(
+        FC.SERVICES.map((s) => s.id),
+        enabledRef.current,
+        loginsRef.current
+      )
+    )
+      return
     // Only consume today's slot once a run actually started — at launch the
     // login state is still loading, so an early catch-up would otherwise mark
     // the day done having downloaded nothing.
