@@ -241,7 +241,12 @@ function BrowserPane({
         }}
         src={home}
         partition={`persist:${svc.id}`}
-        allowpopups={true}
+        // NOTE: must be the string "true", not the boolean {true}. React sets a
+        // boolean prop as a DOM *property* the <webview> ignores, leaving the
+        // `allowpopups` *attribute* absent — which silently blocks window.open /
+        // target=_blank (external links did nothing). The string renders the
+        // real attribute, which Electron reads before the guest attaches.
+        allowpopups={'true' as unknown as boolean}
         style={{ flex: 1, width: '100%', border: 'none', background: 'var(--surface)' }}
       />
     </div>
