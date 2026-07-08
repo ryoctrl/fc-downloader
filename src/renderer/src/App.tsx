@@ -178,6 +178,7 @@ export function App() {
     )
   )
   const [creatorsLoading, setCreatorsLoading] = useState<Record<string, boolean>>({})
+  const creatorsLoadingRef = useRef<Record<string, boolean>>({})
   // Per-service creator ids with a downloadable post newer than what's on disk
   // ("new posts" indicator), cached like the creator list.
   const newCache0 = useRef<NewCache>(loadJson<NewCache>(NEW_CACHE_KEY, {}))
@@ -515,12 +516,16 @@ export function App() {
       })
     },
     loadCreators: (id, force) => {
-      if (creatorsLoading[id]) return // a refresh is already in flight
+      // Ref guard (not the state) so two synchronous callers in the same tick —
+      // e.g. the startup prefetch and the service screen's mount effect — can't
+      // both start a fetch before the loading state applies.
+      if (creatorsLoadingRef.current[id]) return
       // The cached list (if any) is already shown from state. Only hit the
       // network when explicitly forced, when there's no cache, or when the
       // cache has gone stale — otherwise a quick service switch is instant.
       const fresh = (creatorsFetchedAt.current[id] ?? 0) > Date.now() - CREATORS_TTL_MS
       if (!force && creators[id] && fresh) return
+      creatorsLoadingRef.current[id] = true
       setCreatorsLoading((s) => ({ ...s, [id]: true }))
       void bridge
         .listCreators(id)
@@ -536,7 +541,10 @@ export function App() {
             /* cache is best-effort; a write failure just means a slow next load */
           }
         })
-        .finally(() => setCreatorsLoading((s) => ({ ...s, [id]: false })))
+        .finally(() => {
+          creatorsLoadingRef.current[id] = false
+          setCreatorsLoading((s) => ({ ...s, [id]: false }))
+        })
     },
     loadNew: (id, force) => {
       if (newLoadingRef.current[id]) return
@@ -665,6 +673,21 @@ export function App() {
     setLibExpanded
   }
   bulkRef.current = actions.startBulkDownload
+
+  // Prefetch every enabled + logged-in service's creator list + "new" indicator
+  // in the background at launch (and as each login resolves), so the data is
+  // fresh before the user first opens a service — instead of only fetching on
+  // that first navigation. Both calls are TTL-guarded, so this never forces a
+  // redundant refetch; logins resolve at different speeds, so the per-service
+  // fetches naturally stagger (gentle on ci-en's rate limit).
+  useEffect(() => {
+    for (const svc of FC.SERVICES) {
+      if (enabledServices[svc.id] === false || !logins[svc.id]) continue
+      actions.loadCreators(svc.id)
+      actions.loadNew(svc.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logins, enabledServices])
 
   const app = {
     t: prefs,
