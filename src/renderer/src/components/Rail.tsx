@@ -6,20 +6,60 @@ import { Icon } from '../design/icons'
 import { ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
 
+/** Corner indicator on a rail icon: a spinner while working, or a check when
+ *  the service's creator list is loaded/fresh. */
+function StatusDot({ status }: { status: 'loading' | 'ready' }) {
+  if (status === 'loading') {
+    return (
+      <span
+        className="fc-spin"
+        style={{
+          position: 'absolute',
+          top: 1,
+          right: 1,
+          width: 12,
+          height: 12,
+          borderRadius: 99,
+          border: '2px solid var(--accent)',
+          borderTopColor: 'transparent'
+        }}
+      />
+    )
+  }
+  return (
+    <span
+      style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        width: 13,
+        height: 13,
+        borderRadius: 99,
+        background: 'var(--ok)',
+        border: '1.5px solid var(--surface)',
+        display: 'grid',
+        placeItems: 'center'
+      }}
+    >
+      <Icon name="check" size={8} strokeWidth={3.5} style={{ color: '#fff' }} />
+    </span>
+  )
+}
+
 function RailItem({
   active,
   onClick,
   mark,
   icon,
   label,
-  busy
+  status
 }: {
   active: boolean
   onClick: () => void
   mark?: ReactNode
   icon?: string
   label: string
-  busy?: boolean
+  status?: 'loading' | 'ready'
 }) {
   return (
     <button
@@ -69,21 +109,7 @@ function RailItem({
         }}
       >
         {mark || (icon && <Icon name={icon} size={21} />)}
-        {busy && (
-          <span
-            className="fc-spin"
-            style={{
-              position: 'absolute',
-              top: 1,
-              right: 1,
-              width: 12,
-              height: 12,
-              borderRadius: 99,
-              border: '2px solid var(--accent)',
-              borderTopColor: 'transparent'
-            }}
-          />
-        )}
+        {status && <StatusDot status={status} />}
       </div>
       <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.01em', whiteSpace: 'nowrap' }}>
         {label}
@@ -114,11 +140,21 @@ export function Rail() {
     >
       {FC.SERVICES.filter((svc) => app.state.enabledServices[svc.id] !== false).map((svc) => {
         const active = nav.screen === 'service' && nav.serviceId === svc.id
+        // Background creator-load status, so services other than the one on
+        // screen still show progress: spinner while loading, check once the
+        // list is loaded (only meaningful when logged in).
+        const loggedIn = !!app.state.logins[svc.id]
+        const status: 'loading' | 'ready' | undefined = app.state.creatorsLoading[svc.id]
+          ? 'loading'
+          : loggedIn && app.state.creators[svc.id]
+            ? 'ready'
+            : undefined
         return (
           <RailItem
             key={svc.id}
             label={SHORT[svc.id]}
             active={active}
+            status={status}
             onClick={() => app.go({ screen: 'service', serviceId: svc.id })}
             mark={<ServiceMark svc={svc} size={34} active={active} />}
           />
@@ -144,7 +180,7 @@ export function Rail() {
       <RailItem
         label={L.downloads}
         icon="download"
-        busy={dlActive}
+        status={dlActive ? 'loading' : undefined}
         active={nav.screen === 'progress'}
         onClick={() => app.go({ screen: 'progress' })}
       />
