@@ -216,6 +216,9 @@ export function App() {
   const scheduleRef = useRef(schedule)
   scheduleRef.current = schedule
   const lastRunRef = useRef<string>(localStorage.getItem(SCHEDULE_LASTRUN_KEY) ?? '')
+  // dayKey of a scheduled run that has started but whose queue hasn't drained
+  // yet ('' = none). The day's slot is consumed only when it finishes.
+  const scheduledPendingRef = useRef<string>('')
   const bulkRef = useRef<() => boolean>(() => false)
   const [saveDir, setSaveDir] = useState('~/fc-downloads')
   const [launchAtStartup, setLaunchAtStartupState] = useState(false)
@@ -326,7 +329,21 @@ export function App() {
   useEffect(() => {
     const off = bridge.onDownloadQueue(({ active, queued: q }) => {
       setQueued(q)
-      if (!active) return
+      if (!active) {
+        // Queue fully drained. If a scheduled run was in flight, NOW consume the
+        // day's slot — so an interrupted run (app closed mid-queue) isn't
+        // recorded as done and the next launch catches up.
+        if (q.length === 0 && scheduledPendingRef.current) {
+          lastRunRef.current = scheduledPendingRef.current
+          scheduledPendingRef.current = ''
+          try {
+            localStorage.setItem(SCHEDULE_LASTRUN_KEY, lastRunRef.current)
+          } catch {
+            /* ignore */
+          }
+        }
+        return
+      }
       setDownload((d) =>
         !d || d.svcId !== active || d.done
           ? { svcId: active, options: optionsRef.current[active] ?? d?.options ?? EMPTY_OPTIONS, startedAt: Date.now(), done: false }
@@ -401,16 +418,18 @@ export function App() {
       )
     )
       return
+    // A scheduled run is already in progress — don't queue it again.
+    if (scheduledPendingRef.current) return
     // Only consume today's slot once a run actually started — at launch the
     // login state is still loading, so an early catch-up would otherwise mark
     // the day done having downloaded nothing.
     if (!bulkRef.current()) return
-    lastRunRef.current = dayKey(new Date())
-    try {
-      localStorage.setItem(SCHEDULE_LASTRUN_KEY, lastRunRef.current)
-    } catch {
-      /* ignore */
-    }
+    // Mark the day PENDING, not done: the slot is only consumed once the whole
+    // queue drains (see the download-queue handler). If the app is closed
+    // mid-run — likely for a large backlog like Fantia's, which downloads last
+    // and long — the day stays un-consumed, so the next launch catches up and
+    // finishes the starved services (skip-existing makes the redo cheap).
+    scheduledPendingRef.current = dayKey(new Date())
   }, [])
 
   // A 1-minute clock for live firing while the app stays open.
