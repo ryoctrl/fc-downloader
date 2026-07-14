@@ -1,5 +1,6 @@
 /** Registers all IPC handlers and wires download events back to the renderer. */
 import { join, normalize } from 'node:path'
+import { readFile, writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcApi, IpcChannel, IpcEventChannel, IpcEvents } from '@shared/ipc'
 import type {
@@ -193,6 +194,28 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   handle('viewer:tree', async () => buildViewerTree(getSettings().downloadRoot))
   handle('viewer:openPath', async (path) => {
     await shell.openPath(path)
+  })
+  handle('psd:read', async (dirPath, fileName) => {
+    const full = normalize(join(dirPath, fileName))
+    if (!isWithinRoot(getSettings().downloadRoot, full)) return null
+    try {
+      return new Uint8Array(await readFile(full))
+    } catch {
+      return null
+    }
+  })
+  handle('psd:exportImage', async (suggestedPath, data) => {
+    const win = getWindow()
+    const res = await dialog.showSaveDialog(win ?? undefined!, {
+      defaultPath: suggestedPath,
+      filters: [
+        { name: 'PNG', extensions: ['png'] },
+        { name: 'JPEG', extensions: ['jpg', 'jpeg'] }
+      ]
+    })
+    if (res.canceled || !res.filePath) return null
+    await writeFile(res.filePath, Buffer.from(data))
+    return res.filePath
   })
   handle('shell:openExternal', async (url) => {
     // Only open web URLs in the external browser — never file:// or other schemes.

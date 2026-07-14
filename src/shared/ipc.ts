@@ -44,6 +44,16 @@ export interface IpcApi {
 
   'viewer:tree': { args: []; result: ViewerNode[] }
   'viewer:openPath': { args: [path: string]; result: void }
+  /** Read a downloaded file's raw bytes (within the download root only), for the
+   * PSD viewer to parse. Null if outside the root or unreadable. */
+  'psd:read': { args: [dirPath: string, fileName: string]; result: Uint8Array | null }
+  /** Save an exported image (e.g. a PSD layer composite) to disk via a save
+   * dialog defaulted to `suggestedPath`. Returns the saved path, or null if the
+   * user cancelled. */
+  'psd:exportImage': {
+    args: [suggestedPath: string, data: Uint8Array]
+    result: string | null
+  }
   /** Open an http(s) URL in the user's default browser. */
   'shell:openExternal': { args: [url: string]; result: void }
   /** Extract a downloaded .zip (within the download root) into a sibling folder
