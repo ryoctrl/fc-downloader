@@ -66,8 +66,11 @@ export function collectDownloadableCreators(
       supporting: isSupporting
     })
   }
-  for (const p of supporting) add(p.creatorId, true, p.user)
-  for (const c of following) add(c.creatorId, !!(c.isSupported || c.isStopped), c.user)
+  // Guard the inputs: a future API-shape change that yields a non-array must
+  // not throw here and wipe the whole creator list (a stale cache then sticks).
+  for (const p of Array.isArray(supporting) ? supporting : []) add(p.creatorId, true, p.user)
+  for (const c of Array.isArray(following) ? following : [])
+    add(c.creatorId, !!(c.isSupported || c.isStopped), c.user)
   return [...byCreator.values()]
 }
 

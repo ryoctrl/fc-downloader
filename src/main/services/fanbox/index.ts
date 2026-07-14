@@ -49,8 +49,9 @@ export const fanboxService: Service = {
 
   async listCreators(ctx: ServiceContext): Promise<Creator[]> {
     // Downloadable creators come from two sources, merged & de-duped:
-    //   1. plan.listSupporting     -> `{ body: [{ creatorId, user, ... }] }`
-    //      creators with an active PAID plan.
+    //   1. plan.listSupporting     -> `{ body: { plans: [{ creatorId, user,
+    //      ... }] } }` — creators with an active PAID plan. (FANBOX moved this
+    //      from a bare `body: [...]` array to `body.plans`; both are handled.)
     //   2. creator.listFollowing   -> `{ body: { creators: [{ creatorId, user,
     //      isSupported, isStopped, ... }] } }` — everyone the user follows.
     // (1) alone misses creators whose paid support was stopped but is still
@@ -58,10 +59,11 @@ export const fanboxService: Service = {
     // followed) — those only appear in (2). Each source is fetched
     // independently so one failing still yields the other's creators.
     const supporting = await ctx
-      .fetchJson<{ body?: RawSupportingPlan[] }>(`${API}/plan.listSupporting`, {
-        headers: apiHeaders
-      })
-      .then((res) => res.body ?? [])
+      .fetchJson<{ body?: { plans?: RawSupportingPlan[] } | RawSupportingPlan[] }>(
+        `${API}/plan.listSupporting`,
+        { headers: apiHeaders }
+      )
+      .then((res) => (Array.isArray(res.body) ? res.body : (res.body?.plans ?? [])))
       .catch((err) => {
         ctx.log('error', 'plan.listSupporting failed', err)
         return [] as RawSupportingPlan[]

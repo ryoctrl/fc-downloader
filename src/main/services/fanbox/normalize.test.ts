@@ -156,6 +156,16 @@ describe('collectDownloadableCreators', () => {
     expect(out[0].supporting).toBe(true)
   })
 
+  it('does not throw when a source is not an array (defends against API shape drift)', () => {
+    // e.g. FANBOX returning `body: { plans: [...] }` instead of `body: [...]`.
+    const bad = { plans: [{ creatorId: 'x' }] } as unknown as Parameters<
+      typeof collectDownloadableCreators
+    >[0]
+    expect(collectDownloadableCreators(bad, [{ creatorId: 'free' }])).toEqual([
+      { serviceId: 'fanbox', creatorId: 'free', name: 'free', iconUrl: undefined, supporting: false }
+    ])
+  })
+
   it('falls back to creatorId when no display name is present, and skips blank ids', () => {
     const out = collectDownloadableCreators([], [
       { creatorId: 'noname' },
