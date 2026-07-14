@@ -9,6 +9,7 @@ import { Icon } from '../design/icons'
 import { Btn, ServiceMark, StatusBadge, Thumb } from '../design/primitives'
 import { useApp } from '../design/context'
 import { bridge } from '../bridge'
+import { PsdViewer } from './PsdViewer'
 
 /** Shared base style for the post action buttons (favorite / open in browser /
  *  open folder) so they're visually consistent (same radius, border, height). */
@@ -79,9 +80,20 @@ function MetaRow({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function FileRow({ file, dirPath, L }: { file: LibraryFile; dirPath: string; L: Dict }) {
+function FileRow({
+  file,
+  dirPath,
+  L,
+  onOpenPsd
+}: {
+  file: LibraryFile
+  dirPath: string
+  L: Dict
+  onOpenPsd: (file: LibraryFile) => void
+}) {
   const icon = file.kind === 'audio' ? 'play' : file.kind === 'video' ? 'play' : 'file'
   const isZip = /\.zip$/i.test(file.name)
+  const isPsd = /\.psd$/i.test(file.name)
   const [extracting, setExtracting] = useState(false)
   const extract = async (): Promise<void> => {
     if (extracting) return
@@ -122,6 +134,30 @@ function FileRow({ file, dirPath, L }: { file: LibraryFile; dirPath: string; L: 
       <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--text-3)', flexShrink: 0 }}>
         {fmtSize(file.sizeBytes / (1024 * 1024))}
       </span>
+      {isPsd && (
+        <button
+          onClick={() => onOpenPsd(file)}
+          title={L.openPsd}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 10px',
+            borderRadius: 8,
+            border: 'none',
+            background: 'var(--accent)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: 11.5,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            flexShrink: 0
+          }}
+        >
+          <Icon name="image" size={13} />
+          {L.openPsd}
+        </button>
+      )}
       {isZip && (
         <button
           onClick={() => void extract()}
@@ -156,13 +192,15 @@ function Preview({
   files,
   loaded,
   L,
-  onImageClick
+  onImageClick,
+  onOpenPsd
 }: {
   post: ViewPost
   files: LibraryFile[]
   loaded: boolean
   L: Dict
   onImageClick: (index: number) => void
+  onOpenPsd: (file: LibraryFile) => void
 }) {
   const images = files.filter((f) => f.kind === 'image')
   const videos = files.filter((f) => f.kind === 'video')
@@ -245,7 +283,7 @@ function Preview({
       {others.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {others.map((f) => (
-            <FileRow key={f.url} file={f} dirPath={post.dirPath} L={L} />
+            <FileRow key={f.url} file={f} dirPath={post.dirPath} L={L} onOpenPsd={onOpenPsd} />
           ))}
         </div>
       )}
@@ -365,6 +403,7 @@ export function PostDetail() {
   const [files, setFiles] = useState<LibraryFile[]>([])
   const [loaded, setLoaded] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [psdFile, setPsdFile] = useState<LibraryFile | null>(null)
   const images = files.filter((f) => f.kind === 'image')
 
   useEffect(() => {
@@ -441,7 +480,14 @@ export function PostDetail() {
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div style={{ flex: 1, overflow: 'auto', padding: '24px 26px', minWidth: 0 }}>
-          <Preview post={post} files={files} loaded={loaded} L={L} onImageClick={setLightboxIndex} />
+          <Preview
+            post={post}
+            files={files}
+            loaded={loaded}
+            L={L}
+            onImageClick={setLightboxIndex}
+            onOpenPsd={setPsdFile}
+          />
         </div>
         <div
           style={{
@@ -539,6 +585,9 @@ export function PostDetail() {
             setLightboxIndex((i) => (i == null ? i : (i + d + images.length) % images.length))
           }
         />
+      )}
+      {psdFile && (
+        <PsdViewer file={psdFile} dirPath={post.dirPath} onClose={() => setPsdFile(null)} L={L} />
       )}
     </div>
   )

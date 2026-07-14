@@ -16,6 +16,8 @@ const invokeChannels: IpcChannel[] = [
   'settings:pickDownloadRoot',
   'viewer:tree',
   'viewer:openPath',
+  'psd:read',
+  'psd:exportImage',
   'shell:openExternal',
   'archive:extract',
   'window:pinBounds',

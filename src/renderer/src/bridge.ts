@@ -68,6 +68,10 @@ export const bridge = {
   // viewer / library
   viewerTree: (): Promise<ViewerNode[]> => api?.['viewer:tree']() ?? Promise.resolve([]),
   openPath: (path: string): Promise<void> => api?.['viewer:openPath'](path) ?? Promise.resolve(),
+  readPsdBytes: (dirPath: string, fileName: string): Promise<Uint8Array | null> =>
+    api?.['psd:read'](dirPath, fileName) ?? Promise.resolve(null),
+  exportPsdImage: (suggestedPath: string, data: Uint8Array): Promise<string | null> =>
+    api?.['psd:exportImage'](suggestedPath, data) ?? Promise.resolve(null),
   openExternal: (url: string): Promise<void> =>
     api?.['shell:openExternal'](url) ?? Promise.resolve(),
   extractArchive: (dirPath: string, fileName: string): Promise<string | null> =>
