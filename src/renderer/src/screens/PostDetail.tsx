@@ -85,31 +85,15 @@ function FileRow({
   file,
   dirPath,
   L,
-  onOpenPsd,
   onDelete
 }: {
   file: LibraryFile
   dirPath: string
   L: Dict
-  onOpenPsd: (file: LibraryFile) => void
   onDelete: (file: LibraryFile) => void
 }) {
   const icon = file.kind === 'audio' ? 'play' : file.kind === 'video' ? 'play' : 'file'
   const isZip = /\.zip$/i.test(file.name)
-  const isPsd = /\.psd$/i.test(file.name)
-  // PSDs show a preview rendered from the file's composite. Use the pre-generated
-  // thumbnail if listPostFiles found one, else render it on the fly (cached).
-  const [thumb, setThumb] = useState<string | null>(file.thumbUrl ?? null)
-  useEffect(() => {
-    if (!isPsd || thumb) return
-    let cancelled = false
-    void ensurePsdThumb(dirPath, file.name).then((url) => {
-      if (!cancelled && url) setThumb(url)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [isPsd, thumb, dirPath, file.name])
   const [extracting, setExtracting] = useState(false)
   const extract = async (): Promise<void> => {
     if (extracting) return
@@ -132,28 +116,7 @@ function FileRow({
         border: '1px solid var(--border)'
       }}
     >
-      {isPsd && thumb ? (
-        <img
-          src={`${thumb}?w=${THUMBNAIL_WIDTH}`}
-          alt={file.name}
-          loading="lazy"
-          decoding="async"
-          onClick={() => onOpenPsd(file)}
-          title={L.openPsd}
-          style={{
-            width: 44,
-            height: 44,
-            flexShrink: 0,
-            objectFit: 'cover',
-            borderRadius: 8,
-            cursor: 'zoom-in',
-            background: 'var(--surface-2)',
-            boxShadow: 'inset 0 0 0 1px var(--hairline)'
-          }}
-        />
-      ) : (
-        <Icon name={icon} size={18} style={{ color: 'var(--accent)' }} />
-      )}
+      <Icon name={icon} size={18} style={{ color: 'var(--accent)' }} />
       <div
         style={{
           flex: 1,
@@ -171,30 +134,6 @@ function FileRow({
       <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--text-3)', flexShrink: 0 }}>
         {fmtSize(file.sizeBytes / (1024 * 1024))}
       </span>
-      {isPsd && (
-        <button
-          onClick={() => onOpenPsd(file)}
-          title={L.openPsd}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '5px 10px',
-            borderRadius: 8,
-            border: 'none',
-            background: 'var(--accent)',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: 11.5,
-            fontWeight: 600,
-            fontFamily: 'inherit',
-            flexShrink: 0
-          }}
-        >
-          <Icon name="image" size={13} />
-          {L.openPsd}
-        </button>
-      )}
       {isZip && (
         <button
           onClick={() => void extract()}
@@ -314,6 +253,100 @@ function GridImage({
   )
 }
 
+/** A PSD shown as an image-first grid card (thumbnail from its composite, name
+ *  below); clicking opens the PSD viewer. */
+function PsdCard({
+  file,
+  dirPath,
+  L,
+  onOpenPsd
+}: {
+  file: LibraryFile
+  dirPath: string
+  L: Dict
+  onOpenPsd: (file: LibraryFile) => void
+}) {
+  const [thumb, setThumb] = useState<string | null>(file.thumbUrl ?? null)
+  useEffect(() => {
+    if (thumb) return
+    let cancelled = false
+    void ensurePsdThumb(dirPath, file.name).then((url) => {
+      if (!cancelled && url) setThumb(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [thumb, dirPath, file.name])
+  return (
+    <div
+      onClick={() => onOpenPsd(file)}
+      title={L.openPsd}
+      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6 }}
+    >
+      <div style={{ position: 'relative' }}>
+        {thumb ? (
+          <img
+            src={`${thumb}?w=${THUMBNAIL_WIDTH}`}
+            alt={file.name}
+            loading="lazy"
+            decoding="async"
+            style={{
+              width: '100%',
+              display: 'block',
+              borderRadius: 10,
+              background: 'var(--surface-2)',
+              boxShadow: 'inset 0 0 0 1px var(--hairline)'
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              aspectRatio: '1 / 1',
+              borderRadius: 10,
+              background: 'var(--surface-2)',
+              boxShadow: 'inset 0 0 0 1px var(--hairline)',
+              display: 'grid',
+              placeItems: 'center',
+              color: 'var(--text-3)'
+            }}
+          >
+            <Icon name="image" size={26} />
+          </div>
+        )}
+        <span
+          style={{
+            position: 'absolute',
+            top: 7,
+            left: 7,
+            padding: '2px 7px',
+            borderRadius: 6,
+            background: 'rgba(0,0,0,.62)',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '.05em'
+          }}
+        >
+          PSD
+        </span>
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 11.5,
+          color: 'var(--text-2)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}
+      >
+        {file.name}
+      </div>
+    </div>
+  )
+}
+
 function Preview({
   post,
   files,
@@ -334,7 +367,10 @@ function Preview({
   const images = files.filter((f) => f.kind === 'image')
   const videos = files.filter((f) => f.kind === 'video')
   const audios = files.filter((f) => f.kind === 'audio')
-  const others = files.filter((f) => f.kind === 'file')
+  const rest = files.filter((f) => f.kind === 'file')
+  // PSDs get their own image-first grid (like photos); other files stay as rows.
+  const psds = rest.filter((f) => /\.psd$/i.test(f.name))
+  const others = rest.filter((f) => !/\.psd$/i.test(f.name))
 
   if (files.length === 0) {
     return (
@@ -392,11 +428,19 @@ function Preview({
           ))}
         </div>
       )}
+      {psds.length > 0 && <SectionHeading icon="image" label="PSD" count={psds.length} />}
+      {psds.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+          {psds.map((f) => (
+            <PsdCard key={f.url} file={f} dirPath={post.dirPath} L={L} onOpenPsd={onOpenPsd} />
+          ))}
+        </div>
+      )}
       {others.length > 0 && <SectionHeading icon="file" label={L.filesType} count={others.length} />}
       {others.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {others.map((f) => (
-            <FileRow key={f.url} file={f} dirPath={post.dirPath} L={L} onOpenPsd={onOpenPsd} onDelete={onDelete} />
+            <FileRow key={f.url} file={f} dirPath={post.dirPath} L={L} onDelete={onDelete} />
           ))}
         </div>
       )}
