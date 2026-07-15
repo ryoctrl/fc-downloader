@@ -56,30 +56,59 @@ function collectInitiallyHidden(layers: Layer[] | undefined, out: Set<number>): 
   }
 }
 
-/** Draw the visible layers (bottom-to-top = ag-psd child order) onto `canvas`,
- *  scaled by `scale` (1 = full resolution). */
+/**
+ * Draw the visible layers (bottom-to-top = ag-psd child order) onto `canvas`,
+ * scaled by `scale` (1 = full resolution).
+ *
+ * Layers are decoded to `imageData` (CPU), not per-layer `<canvas>` elements:
+ * a big PSD has hundreds of layers, and hundreds of GPU-backed canvases exhaust
+ * the GPU process and crash it (blank render, toggles do nothing). We blit each
+ * layer's ImageData through ONE reused scratch canvas instead, so only two
+ * canvases are ever live.
+ */
 function compositeTo(canvas: HTMLCanvasElement, psd: Psd, hidden: Set<number>, scale: number): void {
   canvas.width = Math.max(1, Math.round((psd.width ?? 1) * scale))
   canvas.height = Math.max(1, Math.round((psd.height ?? 1) * scale))
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.clearRect(0, 0, canvas.width, canvas.height)
+  const scratch = document.createElement('canvas')
+  const sctx = scratch.getContext('2d')
   const draw = (layers: Layer[] | undefined, ancestorsVisible: boolean): void => {
     for (const l of layers ?? []) {
       const visible = ancestorsVisible && !hidden.has((l as IdLayer).__id)
       if (l.children) {
         draw(l.children, visible)
-      } else if (visible && l.canvas) {
-        ctx.globalAlpha = l.opacity ?? 1
-        ctx.globalCompositeOperation = BLEND[l.blendMode ?? 'normal'] ?? 'source-over'
-        ctx.drawImage(
-          l.canvas,
-          (l.left ?? 0) * scale,
-          (l.top ?? 0) * scale,
-          l.canvas.width * scale,
-          l.canvas.height * scale
-        )
+        continue
       }
+      if (!visible || !sctx) continue
+      // Prefer imageData (CPU); fall back to a layer canvas if present.
+      const im = l.imageData
+      let src: CanvasImageSource | null = null
+      let w = 0
+      let h = 0
+      if (im && im.width > 0 && im.height > 0) {
+        scratch.width = im.width
+        scratch.height = im.height
+        // ag-psd's PixelData -> a DOM ImageData (a view over the same bytes).
+        const data = new Uint8ClampedArray(
+          im.data.buffer as ArrayBuffer,
+          im.data.byteOffset,
+          im.data.byteLength
+        )
+        sctx.putImageData(new ImageData(data, im.width, im.height), 0, 0)
+        src = scratch
+        w = im.width
+        h = im.height
+      } else if (l.canvas && l.canvas.width > 0 && l.canvas.height > 0) {
+        src = l.canvas
+        w = l.canvas.width
+        h = l.canvas.height
+      }
+      if (!src) continue
+      ctx.globalAlpha = l.opacity ?? 1
+      ctx.globalCompositeOperation = BLEND[l.blendMode ?? 'normal'] ?? 'source-over'
+      ctx.drawImage(src, (l.left ?? 0) * scale, (l.top ?? 0) * scale, w * scale, h * scale)
     }
   }
   draw(psd.children, true)
@@ -196,7 +225,9 @@ export function PsdViewer({
           bytes.byteOffset,
           bytes.byteOffset + bytes.byteLength
         ) as ArrayBuffer
-        const parsed = readPsd(ab)
+        // useImageData: decode layers to CPU ImageData, not GPU <canvas> — a big
+        // PSD's hundreds of canvases otherwise crash the GPU process.
+        const parsed = readPsd(ab, { useImageData: true })
         if (cancelled) return
         assignIds(parsed.children, { n: 0 })
         const h = new Set<number>()
@@ -225,6 +256,7 @@ export function PsdViewer({
       else n.add(id)
       return n
     })
+
 
   const save = async (mime: 'image/png' | 'image/jpeg'): Promise<void> => {
     if (!psd || saving) return
