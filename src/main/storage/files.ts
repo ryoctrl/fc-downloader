@@ -7,6 +7,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { join, normalize, relative, sep } from 'node:path'
 import type { LibraryFile, PostFileKind } from '@shared/types'
 import { getSettings } from './settings'
+import { PSD_COVER_NAME } from './layout'
 
 const KIND_BY_EXT: Record<string, PostFileKind> = {
   png: 'image',
@@ -104,6 +105,8 @@ export async function listPostFiles(dirPath: string): Promise<LibraryFile[]> {
     if (!e.isFile()) continue
     // Skip in-progress / crash-leftover partial downloads (see downloadToFile).
     if (e.name.endsWith('.part')) continue
+    // Skip the generated PSD cover sidecar — it's a thumbnail, not post content.
+    if (e.name === PSD_COVER_NAME) continue
     const full = join(dirPath, e.name)
     let sizeBytes = 0
     try {

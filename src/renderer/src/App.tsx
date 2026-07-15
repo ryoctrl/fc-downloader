@@ -26,6 +26,7 @@ import { Icon } from './design/icons'
 import { toViewPost } from './design/library'
 import { allLoginsSettled, dayKey, isScheduleDue, minutesOf } from './design/schedule'
 import { bridge } from './bridge'
+import { ensurePsdCovers } from './psdCover'
 import { Rail } from './components/Rail'
 import { ServiceScreen } from './screens/ServiceScreen'
 import { ProgressScreen } from './screens/ProgressScreen'
@@ -194,6 +195,15 @@ export function App() {
   const [favs, setFavs] = useState<Set<string>>(loadFavs)
   const [rawPosts, setRawPosts] = useState<LibraryPost[]>([])
   const posts = useMemo(() => rawPosts.map(toViewPost), [rawPosts])
+  // PSD-only posts have no cover of their own — render one from the PSD's
+  // composite (once per post) and patch it into the list as it's produced.
+  useEffect(() => {
+    ensurePsdCovers(rawPosts, (dirPath, coverUrl) => {
+      setRawPosts((prev) =>
+        prev.map((p) => (p.dirPath === dirPath ? { ...p, coverUrl, psdCoverSource: undefined } : p))
+      )
+    })
+  }, [rawPosts])
   const [download, setDownload] = useState<AppState['download']>(null)
   const [lastProgress, setLastProgress] = useState<DownloadProgress | null>(null)
   const [queued, setQueued] = useState<ServiceId[]>([])

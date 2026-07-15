@@ -72,6 +72,8 @@ export const bridge = {
     api?.['psd:read'](dirPath, fileName) ?? Promise.resolve(null),
   exportPsdImage: (suggestedPath: string, data: Uint8Array): Promise<string | null> =>
     api?.['psd:exportImage'](suggestedPath, data) ?? Promise.resolve(null),
+  savePsdCover: (dirPath: string, data: Uint8Array): Promise<string | null> =>
+    api?.['psd:saveCover'](dirPath, data) ?? Promise.resolve(null),
   openExternal: (url: string): Promise<void> =>
     api?.['shell:openExternal'](url) ?? Promise.resolve(),
   extractArchive: (dirPath: string, fileName: string): Promise<string | null> =>
