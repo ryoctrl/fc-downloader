@@ -9,6 +9,7 @@ import { Icon } from '../design/icons'
 import { Btn, ServiceMark, StatusBadge, Thumb } from '../design/primitives'
 import { useApp } from '../design/context'
 import { bridge } from '../bridge'
+import { ensurePsdThumb } from '../psdCover'
 import { PsdViewer } from './PsdViewer'
 
 /** Shared base style for the post action buttons (favorite / open in browser /
@@ -94,6 +95,19 @@ function FileRow({
   const icon = file.kind === 'audio' ? 'play' : file.kind === 'video' ? 'play' : 'file'
   const isZip = /\.zip$/i.test(file.name)
   const isPsd = /\.psd$/i.test(file.name)
+  // PSDs show a preview rendered from the file's composite. Use the pre-generated
+  // thumbnail if listPostFiles found one, else render it on the fly (cached).
+  const [thumb, setThumb] = useState<string | null>(file.thumbUrl ?? null)
+  useEffect(() => {
+    if (!isPsd || thumb) return
+    let cancelled = false
+    void ensurePsdThumb(dirPath, file.name).then((url) => {
+      if (!cancelled && url) setThumb(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isPsd, thumb, dirPath, file.name])
   const [extracting, setExtracting] = useState(false)
   const extract = async (): Promise<void> => {
     if (extracting) return
@@ -116,7 +130,28 @@ function FileRow({
         border: '1px solid var(--border)'
       }}
     >
-      <Icon name={icon} size={18} style={{ color: 'var(--accent)' }} />
+      {isPsd && thumb ? (
+        <img
+          src={`${thumb}?w=${THUMBNAIL_WIDTH}`}
+          alt={file.name}
+          loading="lazy"
+          decoding="async"
+          onClick={() => onOpenPsd(file)}
+          title={L.openPsd}
+          style={{
+            width: 44,
+            height: 44,
+            flexShrink: 0,
+            objectFit: 'cover',
+            borderRadius: 8,
+            cursor: 'zoom-in',
+            background: 'var(--surface-2)',
+            boxShadow: 'inset 0 0 0 1px var(--hairline)'
+          }}
+        />
+      ) : (
+        <Icon name={icon} size={18} style={{ color: 'var(--accent)' }} />
+      )}
       <div
         style={{
           flex: 1,
