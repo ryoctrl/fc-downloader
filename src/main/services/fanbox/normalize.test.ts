@@ -2,9 +2,28 @@ import { describe, expect, it } from 'vitest'
 import {
   collectDownloadableCreators,
   collectFiles,
+  extractRawPost,
   normalizePost,
   type RawFanboxPost
 } from './normalize'
+
+describe('extractRawPost', () => {
+  it('reads the post from the new body.post shape', () => {
+    const post = { id: '1', title: 't', creatorId: 'c', type: 'image', publishedDatetime: 'x', body: {} }
+    expect(extractRawPost({ post })).toBe(post)
+  })
+
+  it('reads the post from the old body-is-the-post shape', () => {
+    const post = { id: '1', title: 't', creatorId: 'c', type: 'image', publishedDatetime: 'x', body: {} }
+    expect(extractRawPost(post)).toBe(post)
+  })
+
+  it('returns null for unexpected shapes', () => {
+    expect(extractRawPost(null)).toBeNull()
+    expect(extractRawPost({})).toBeNull()
+    expect(extractRawPost('nope')).toBeNull()
+  })
+})
 
 const base = {
   creatorId: 'aotsuki',
