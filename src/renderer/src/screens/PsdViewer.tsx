@@ -57,63 +57,107 @@ function collectInitiallyHidden(layers: Layer[] | undefined, out: Set<number>): 
 }
 
 /**
- * Draw the visible layers (bottom-to-top = ag-psd child order) onto `canvas`,
- * scaled by `scale` (1 = full resolution).
+ * Composite the visible layers onto `canvas`, scaled by `scale` (1 = full res).
  *
- * Layers are decoded to `imageData` (CPU), not per-layer `<canvas>` elements:
- * a big PSD has hundreds of layers, and hundreds of GPU-backed canvases exhaust
- * the GPU process and crash it (blank render, toggles do nothing). We blit each
- * layer's ImageData through ONE reused scratch canvas instead, so only two
- * canvases are ever live.
+ * This is a real PSD compositor, not a flat draw: layers go bottom-to-top, and
+ * it handles **clipping masks** (a clipped layer only paints within the base
+ * below it — 差分 art relies heavily on these) and **group isolation** (a group
+ * is composited to its own buffer, then blended with the group's opacity/blend).
+ * Without this the picture comes out muddy/wrong (clipped shading spills).
+ *
+ * Layers are decoded to CPU ImageData (not one <canvas> per layer) — hundreds of
+ * GPU-backed canvases crash the GPU process — and blitted via a reused scratch
+ * canvas; the group/clip buffers are freed as the recursion unwinds, so only a
+ * handful of canvases are ever live.
  */
 function compositeTo(canvas: HTMLCanvasElement, psd: Psd, hidden: Set<number>, scale: number): void {
-  canvas.width = Math.max(1, Math.round((psd.width ?? 1) * scale))
-  canvas.height = Math.max(1, Math.round((psd.height ?? 1) * scale))
+  const cw = Math.max(1, Math.round((psd.width ?? 1) * scale))
+  const ch = Math.max(1, Math.round((psd.height ?? 1) * scale))
+  canvas.width = cw
+  canvas.height = ch
   const ctx = canvas.getContext('2d')
   if (!ctx) return
-  ctx.clearRect(0, 0, canvas.width, canvas.height)
+  ctx.clearRect(0, 0, cw, ch)
+
   const scratch = document.createElement('canvas')
   const sctx = scratch.getContext('2d')
-  const draw = (layers: Layer[] | undefined, ancestorsVisible: boolean): void => {
-    for (const l of layers ?? []) {
-      const visible = ancestorsVisible && !hidden.has((l as IdLayer).__id)
-      if (l.children) {
-        draw(l.children, visible)
-        continue
+  if (!sctx) return
+  const buffer = (): { c: HTMLCanvasElement; x: CanvasRenderingContext2D } => {
+    const c = document.createElement('canvas')
+    c.width = cw
+    c.height = ch
+    return { c, x: c.getContext('2d') as CanvasRenderingContext2D }
+  }
+  const visible = (l: Layer): boolean => !hidden.has((l as IdLayer).__id)
+
+  /** Blit one leaf layer's pixels into `dc` at (alpha, blend). */
+  const drawLeaf = (dc: CanvasRenderingContext2D, l: Layer, alpha: number, blend: GlobalCompositeOperation): void => {
+    const im = l.imageData
+    let src: CanvasImageSource | null = null
+    let w = 0
+    let h = 0
+    if (im && im.width > 0 && im.height > 0) {
+      scratch.width = im.width
+      scratch.height = im.height
+      const data = new Uint8ClampedArray(im.data.buffer as ArrayBuffer, im.data.byteOffset, im.data.byteLength)
+      sctx.putImageData(new ImageData(data, im.width, im.height), 0, 0)
+      src = scratch
+      w = im.width
+      h = im.height
+    } else if (l.canvas && l.canvas.width > 0 && l.canvas.height > 0) {
+      src = l.canvas
+      w = l.canvas.width
+      h = l.canvas.height
+    }
+    if (!src) return
+    dc.globalAlpha = alpha
+    dc.globalCompositeOperation = blend
+    dc.drawImage(src, (l.left ?? 0) * scale, (l.top ?? 0) * scale, w * scale, h * scale)
+    dc.globalAlpha = 1
+    dc.globalCompositeOperation = 'source-over'
+  }
+
+  const drawContainer = (dc: CanvasRenderingContext2D, layers: Layer[] | undefined): void => {
+    const arr = layers ?? []
+    for (let i = 0; i < arr.length; ) {
+      const base = arr[i]
+      i++
+      // Consume the run of clipping layers stacked directly above this base.
+      const clips: Layer[] = []
+      while (i < arr.length && (arr[i] as Layer & { clipping?: boolean }).clipping) clips.push(arr[i++])
+      if (!visible(base)) continue
+
+      const blend = BLEND[base.blendMode ?? 'normal'] ?? 'source-over'
+      const op = base.opacity ?? 1
+
+      // Render the base (leaf or group) into its own buffer at alpha 1 / normal;
+      // its own opacity + blend are applied when the buffer lands on `dc`.
+      const b = buffer()
+      if (base.children) drawContainer(b.x, base.children)
+      else drawLeaf(b.x, base, 1, 'source-over')
+
+      let result = b.c
+      if (clips.length) {
+        // Clip layers blend against the base, confined to the base's alpha.
+        const cl = buffer()
+        cl.x.drawImage(b.c, 0, 0)
+        for (const c of clips)
+          if (visible(c)) drawLeaf(cl.x, c, c.opacity ?? 1, BLEND[c.blendMode ?? 'normal'] ?? 'source-over')
+        cl.x.globalCompositeOperation = 'destination-in'
+        cl.x.drawImage(b.c, 0, 0)
+        cl.x.globalCompositeOperation = 'source-over'
+        result = cl.c
       }
-      if (!visible || !sctx) continue
-      // Prefer imageData (CPU); fall back to a layer canvas if present.
-      const im = l.imageData
-      let src: CanvasImageSource | null = null
-      let w = 0
-      let h = 0
-      if (im && im.width > 0 && im.height > 0) {
-        scratch.width = im.width
-        scratch.height = im.height
-        // ag-psd's PixelData -> a DOM ImageData (a view over the same bytes).
-        const data = new Uint8ClampedArray(
-          im.data.buffer as ArrayBuffer,
-          im.data.byteOffset,
-          im.data.byteLength
-        )
-        sctx.putImageData(new ImageData(data, im.width, im.height), 0, 0)
-        src = scratch
-        w = im.width
-        h = im.height
-      } else if (l.canvas && l.canvas.width > 0 && l.canvas.height > 0) {
-        src = l.canvas
-        w = l.canvas.width
-        h = l.canvas.height
-      }
-      if (!src) continue
-      ctx.globalAlpha = l.opacity ?? 1
-      ctx.globalCompositeOperation = BLEND[l.blendMode ?? 'normal'] ?? 'source-over'
-      ctx.drawImage(src, (l.left ?? 0) * scale, (l.top ?? 0) * scale, w * scale, h * scale)
+
+      dc.globalAlpha = op
+      dc.globalCompositeOperation = blend
+      dc.drawImage(result, 0, 0)
+      dc.globalAlpha = 1
+      dc.globalCompositeOperation = 'source-over'
     }
   }
-  draw(psd.children, true)
-  ctx.globalAlpha = 1
-  ctx.globalCompositeOperation = 'source-over'
+
+  drawContainer(ctx, psd.children)
 }
 
 /** One row (group or leaf) in the layer tree, top-first like Photoshop. */
