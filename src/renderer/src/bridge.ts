@@ -82,6 +82,8 @@ export const bridge = {
   listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([]),
   listFiles: (dirPath: string): Promise<LibraryFile[]> =>
     api?.['posts:files'](dirPath) ?? Promise.resolve([]),
+  deletePostFile: (dirPath: string, fileName: string): Promise<boolean> =>
+    api?.['posts:deleteFile'](dirPath, fileName) ?? Promise.resolve(false),
   backfillAvatars: (): Promise<number> =>
     api?.['library:backfillAvatars']() ?? Promise.resolve(0),
   reconcileLibrary: (): Promise<{ removedPosts: number; updatedPosts: number; removedFiles: number }> =>

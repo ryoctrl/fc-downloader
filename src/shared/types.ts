@@ -236,6 +236,10 @@ export interface LibraryFile {
   sizeBytes: number
   /** fcfile:// URL of a generated preview thumbnail (for a .psd), if one exists. */
   thumbUrl?: string
+  /** True when this file is not a recorded download (e.g. a PSD export the user
+   *  saved) and so may be deleted from the app. Downloaded content is never
+   *  deletable here. */
+  deletable?: boolean
 }
 
 /** Result of checking GitHub for a newer release. */

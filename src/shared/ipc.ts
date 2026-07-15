@@ -72,6 +72,10 @@ export interface IpcApi {
 
   'posts:list': { args: []; result: LibraryPost[] }
   'posts:files': { args: [dirPath: string]; result: LibraryFile[] }
+  /** Delete a non-recorded file from a post's folder (within the download root) —
+   * e.g. a PSD export the user saved. Refuses to delete recorded downloads.
+   * Returns true if the file was removed. */
+  'posts:deleteFile': { args: [dirPath: string, fileName: string]; result: boolean }
   /** Fetch avatars for already-downloaded creators that lack one. Returns the
    * number of creators updated (0 if none missing or not logged in). */
   'library:backfillAvatars': { args: []; result: number }

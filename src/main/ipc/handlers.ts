@@ -1,6 +1,6 @@
 /** Registers all IPC handlers and wires download events back to the renderer. */
 import { join, normalize, relative } from 'node:path'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcApi, IpcChannel, IpcEventChannel, IpcEvents } from '@shared/ipc'
 import type {
@@ -19,6 +19,7 @@ import { buildViewerTree } from '@main/storage/viewer'
 import {
   creatorsMissingIcon,
   listPosts,
+  recordedFileNames,
   reconcileWithDisk,
   setCreatorIcon
 } from '@main/storage/db'
@@ -251,7 +252,26 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   })
 
   handle('posts:list', async () => listPosts())
-  handle('posts:files', async (dirPath) => listPostFiles(dirPath))
+  handle('posts:files', async (dirPath) => {
+    const files = await listPostFiles(dirPath)
+    // Mark files the user added (not recorded downloads) as deletable.
+    const recorded = recordedFileNames(dirPath)
+    return files.map((f) => ({ ...f, deletable: !recorded.has(f.name) }))
+  })
+  handle('posts:deleteFile', async (dirPath, fileName) => {
+    const root = getSettings().downloadRoot
+    const full = normalize(join(dirPath, fileName))
+    if (!isWithinRoot(root, full)) return false
+    // Never delete a recorded download through this path — only user-added files.
+    if (recordedFileNames(dirPath).has(fileName)) return false
+    try {
+      await unlink(full)
+      return true
+    } catch (err) {
+      console.error('[posts] deleteFile failed', err)
+      return false
+    }
+  })
 
   handle('library:reconcile', async () => reconcileWithDisk())
 
