@@ -3,11 +3,12 @@
  * pure helpers (kind/mime by extension, root-containment check, fcfile URL
  * builder) shared with the custom protocol. Disk is the source of truth.
  */
+import { existsSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join, normalize, relative, sep } from 'node:path'
 import type { LibraryFile, PostFileKind } from '@shared/types'
 import { getSettings } from './settings'
-import { PSD_COVER_NAME } from './layout'
+import { LEGACY_PSD_COVER_NAME, PSD_THUMB_PREFIX, psdThumbName } from './layout'
 
 const KIND_BY_EXT: Record<string, PostFileKind> = {
   png: 'image',
@@ -105,8 +106,8 @@ export async function listPostFiles(dirPath: string): Promise<LibraryFile[]> {
     if (!e.isFile()) continue
     // Skip in-progress / crash-leftover partial downloads (see downloadToFile).
     if (e.name.endsWith('.part')) continue
-    // Skip the generated PSD cover sidecar — it's a thumbnail, not post content.
-    if (e.name === PSD_COVER_NAME) continue
+    // Skip generated PSD thumbnail sidecars — they're previews, not post content.
+    if (e.name.startsWith(PSD_THUMB_PREFIX) || e.name === LEGACY_PSD_COVER_NAME) continue
     const full = join(dirPath, e.name)
     let sizeBytes = 0
     try {
@@ -114,7 +115,13 @@ export async function listPostFiles(dirPath: string): Promise<LibraryFile[]> {
     } catch {
       /* unreadable — skip size */
     }
-    out.push({ name: e.name, url: fcfileUrl(relative(root, full)), kind: kindForName(e.name), sizeBytes })
+    const lf: LibraryFile = { name: e.name, url: fcfileUrl(relative(root, full)), kind: kindForName(e.name), sizeBytes }
+    // Attach a generated preview URL for a .psd whose thumbnail already exists.
+    if (/\.psd$/i.test(e.name)) {
+      const thumb = join(dirPath, psdThumbName(e.name))
+      if (existsSync(thumb)) lf.thumbUrl = fcfileUrl(relative(root, thumb))
+    }
+    out.push(lf)
   }
   out.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
   return out

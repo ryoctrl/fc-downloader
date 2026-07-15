@@ -218,9 +218,9 @@ export interface LibraryPost {
   coverUrl?: string
   /**
    * File name of a .psd to generate a cover from, set only when the post has no
-   * image of its own and no cover has been generated yet. The renderer renders
-   * the PSD's composite to a thumbnail and saves it (see `psd:saveCover`), after
-   * which `coverUrl` is populated on subsequent listings.
+   * image of its own and no thumbnail has been generated yet. The renderer
+   * renders the PSD's composite to a thumbnail and saves it (see `psd:saveThumb`),
+   * after which `coverUrl` is populated on subsequent listings.
    */
   psdCoverSource?: string
   /** Whether the post's in-scope files are all downloaded. */
@@ -234,6 +234,8 @@ export interface LibraryFile {
   url: string
   kind: PostFileKind
   sizeBytes: number
+  /** fcfile:// URL of a generated preview thumbnail (for a .psd), if one exists. */
+  thumbUrl?: string
 }
 
 /** Result of checking GitHub for a newer release. */

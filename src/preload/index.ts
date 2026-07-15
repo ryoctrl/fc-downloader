@@ -18,7 +18,7 @@ const invokeChannels: IpcChannel[] = [
   'viewer:openPath',
   'psd:read',
   'psd:exportImage',
-  'psd:saveCover',
+  'psd:saveThumb',
   'shell:openExternal',
   'archive:extract',
   'window:pinBounds',
