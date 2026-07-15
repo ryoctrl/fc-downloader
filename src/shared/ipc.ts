@@ -54,6 +54,10 @@ export interface IpcApi {
     args: [suggestedPath: string, data: Uint8Array]
     result: string | null
   }
+  /** Save a generated cover thumbnail (JPEG bytes) as a sidecar in a post's
+   * folder (within the download root only), for PSD-only posts. Returns the
+   * fcfile:// URL of the saved cover, or null if outside the root / on failure. */
+  'psd:saveCover': { args: [dirPath: string, data: Uint8Array]; result: string | null }
   /** Open an http(s) URL in the user's default browser. */
   'shell:openExternal': { args: [url: string]; result: void }
   /** Extract a downloaded .zip (within the download root) into a sibling folder

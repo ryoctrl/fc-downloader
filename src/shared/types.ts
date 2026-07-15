@@ -216,6 +216,13 @@ export interface LibraryPost {
   type: PostFileKind
   /** fcfile:// URL of the post's first image on disk, for a real thumbnail. */
   coverUrl?: string
+  /**
+   * File name of a .psd to generate a cover from, set only when the post has no
+   * image of its own and no cover has been generated yet. The renderer renders
+   * the PSD's composite to a thumbnail and saves it (see `psd:saveCover`), after
+   * which `coverUrl` is populated on subsequent listings.
+   */
+  psdCoverSource?: string
   /** Whether the post's in-scope files are all downloaded. */
   completed: boolean
 }

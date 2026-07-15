@@ -1,5 +1,5 @@
 /** Registers all IPC handlers and wires download events back to the renderer. */
-import { join, normalize } from 'node:path'
+import { join, normalize, relative } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcApi, IpcChannel, IpcEventChannel, IpcEvents } from '@shared/ipc'
@@ -22,7 +22,8 @@ import {
   reconcileWithDisk,
   setCreatorIcon
 } from '@main/storage/db'
-import { isWithinRoot, listPostFiles } from '@main/storage/files'
+import { fcfileUrl, isWithinRoot, listPostFiles } from '@main/storage/files'
+import { PSD_COVER_NAME } from '@main/storage/layout'
 import { DownloadEngine } from '@main/download/engine'
 import { extractZip } from '@main/archive/extract'
 import { checkForUpdate } from '@main/update/check'
@@ -216,6 +217,20 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     if (res.canceled || !res.filePath) return null
     await writeFile(res.filePath, Buffer.from(data))
     return res.filePath
+  })
+  handle('psd:saveCover', async (dirPath, data) => {
+    const root = getSettings().downloadRoot
+    const dir = normalize(dirPath)
+    // Only ever write inside the download root (the sidecar lives in the post dir).
+    if (!isWithinRoot(root, dir)) return null
+    const full = join(dir, PSD_COVER_NAME)
+    try {
+      await writeFile(full, Buffer.from(data))
+      return fcfileUrl(relative(root, full))
+    } catch (err) {
+      console.error('[psd] saveCover failed', err)
+      return null
+    }
   })
   handle('shell:openExternal', async (url) => {
     // Only open web URLs in the external browser — never file:// or other schemes.
