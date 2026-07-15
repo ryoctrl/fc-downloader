@@ -3,10 +3,14 @@
  * the current composite as PNG/JPG. Parsing + compositing run in the renderer
  * (ag-psd, pure JS) against the file bytes fetched over fcfile://.
  *
- * Compositing is intentionally simple — it draws each visible leaf layer at its
- * position with its opacity and (canvas-supported) blend mode. That's faithful
- * for the common "差分" PSDs these target (normal-blend toggle layers). Group
- * opacity/blend and layer masks/clipping/effects are not fully reproduced.
+ * Compositing is a real bottom-to-top compositor: it honors clipping masks and
+ * group isolation (opacity/blend), so "差分" PSDs render faithfully. Layer masks
+ * and effects are not reproduced.
+ *
+ * Performance: the on-screen preview composites at a reduced resolution. Each
+ * leaf's pixels are downscaled to that resolution ONCE (a per-layer cache), so
+ * live toggles re-composite from small buffers instead of blitting every layer
+ * at full res. Exports bypass the cache and render at full resolution.
  */
 import { useEffect, useRef, useState } from 'react'
 import { readPsd, type Layer, type Psd } from 'ag-psd'
@@ -20,6 +24,9 @@ import { bridge } from '../bridge'
 const MAX_PREVIEW = 1600
 
 type IdLayer = Layer & { __id: number }
+
+/** A leaf layer's pixels pre-downscaled to preview resolution (built once). */
+type PrevLayer = Layer & { __prev?: { data: ImageData; w: number; h: number } | null }
 
 /** Canvas blend ops keyed by ag-psd blend mode name (rest fall back to normal). */
 const BLEND: Record<string, GlobalCompositeOperation> = {
@@ -57,6 +64,49 @@ function collectInitiallyHidden(layers: Layer[] | undefined, out: Set<number>): 
 }
 
 /**
+ * Pre-downscale every leaf layer's pixels to the preview resolution ONCE and
+ * cache it on the layer (`__prev`), so live toggles composite from small buffers
+ * instead of blitting each layer at full res on every re-composite. Runs one
+ * full-res blit per layer here (at load) to trade a one-time cost for cheap
+ * toggles. `null` marks a layer with no usable pixels so we don't retry.
+ */
+function buildPreviewCache(layers: Layer[] | undefined, scale: number): void {
+  const full = document.createElement('canvas')
+  const fctx = full.getContext('2d')
+  const small = document.createElement('canvas')
+  const octx = small.getContext('2d')
+  if (!fctx || !octx) return
+  const walk = (arr: Layer[] | undefined): void => {
+    for (const l of arr ?? []) {
+      if (l.children) {
+        walk(l.children)
+        continue
+      }
+      const p = l as PrevLayer
+      const im = l.imageData
+      if (!im || im.width <= 0 || im.height <= 0) {
+        p.__prev = null
+        continue
+      }
+      const w = Math.max(1, Math.round(im.width * scale))
+      const h = Math.max(1, Math.round(im.height * scale))
+      full.width = im.width
+      full.height = im.height
+      const data = new Uint8ClampedArray(im.data.buffer as ArrayBuffer, im.data.byteOffset, im.data.byteLength)
+      fctx.putImageData(new ImageData(data, im.width, im.height), 0, 0)
+      small.width = w
+      small.height = h
+      octx.clearRect(0, 0, w, h)
+      octx.imageSmoothingEnabled = true
+      octx.imageSmoothingQuality = 'high'
+      octx.drawImage(full, 0, 0, w, h)
+      p.__prev = { data: octx.getImageData(0, 0, w, h), w, h }
+    }
+  }
+  walk(layers)
+}
+
+/**
  * Composite the visible layers onto `canvas`, scaled by `scale` (1 = full res).
  *
  * This is a real PSD compositor, not a flat draw: layers go bottom-to-top, and
@@ -70,7 +120,13 @@ function collectInitiallyHidden(layers: Layer[] | undefined, out: Set<number>): 
  * canvas; the group/clip buffers are freed as the recursion unwinds, so only a
  * handful of canvases are ever live.
  */
-function compositeTo(canvas: HTMLCanvasElement, psd: Psd, hidden: Set<number>, scale: number): void {
+function compositeTo(
+  canvas: HTMLCanvasElement,
+  psd: Psd,
+  hidden: Set<number>,
+  scale: number,
+  usePreview: boolean
+): void {
   const cw = Math.max(1, Math.round((psd.width ?? 1) * scale))
   const ch = Math.max(1, Math.round((psd.height ?? 1) * scale))
   canvas.width = cw
@@ -92,27 +148,36 @@ function compositeTo(canvas: HTMLCanvasElement, psd: Psd, hidden: Set<number>, s
 
   /** Blit one leaf layer's pixels into `dc` at (alpha, blend). */
   const drawLeaf = (dc: CanvasRenderingContext2D, l: Layer, alpha: number, blend: GlobalCompositeOperation): void => {
-    const im = l.imageData
     let src: CanvasImageSource | null = null
-    let w = 0
-    let h = 0
-    if (im && im.width > 0 && im.height > 0) {
+    let dw = 0
+    let dh = 0
+    const prev = usePreview ? (l as PrevLayer).__prev : null
+    const im = l.imageData
+    if (prev) {
+      // Preview path: pixels already downscaled to `scale`; draw 1:1 (dest px).
+      scratch.width = prev.data.width
+      scratch.height = prev.data.height
+      sctx.putImageData(prev.data, 0, 0)
+      src = scratch
+      dw = prev.w
+      dh = prev.h
+    } else if (im && im.width > 0 && im.height > 0) {
       scratch.width = im.width
       scratch.height = im.height
       const data = new Uint8ClampedArray(im.data.buffer as ArrayBuffer, im.data.byteOffset, im.data.byteLength)
       sctx.putImageData(new ImageData(data, im.width, im.height), 0, 0)
       src = scratch
-      w = im.width
-      h = im.height
+      dw = im.width * scale
+      dh = im.height * scale
     } else if (l.canvas && l.canvas.width > 0 && l.canvas.height > 0) {
       src = l.canvas
-      w = l.canvas.width
-      h = l.canvas.height
+      dw = l.canvas.width * scale
+      dh = l.canvas.height * scale
     }
     if (!src) return
     dc.globalAlpha = alpha
     dc.globalCompositeOperation = blend
-    dc.drawImage(src, (l.left ?? 0) * scale, (l.top ?? 0) * scale, w * scale, h * scale)
+    dc.drawImage(src, (l.left ?? 0) * scale, (l.top ?? 0) * scale, dw, dh)
     dc.globalAlpha = 1
     dc.globalCompositeOperation = 'source-over'
   }
@@ -276,6 +341,11 @@ export function PsdViewer({
         assignIds(parsed.children, { n: 0 })
         const h = new Set<number>()
         collectInitiallyHidden(parsed.children, h)
+        // Downscale every layer to preview resolution once, up front, so live
+        // toggles composite cheaply (see buildPreviewCache).
+        const pv = Math.min(1, MAX_PREVIEW / Math.max(parsed.width ?? 1, parsed.height ?? 1))
+        buildPreviewCache(parsed.children, pv)
+        if (cancelled) return
         setPsd(parsed)
         setHidden(h)
         setStatus('ready')
@@ -290,7 +360,7 @@ export function PsdViewer({
 
   const scale = psd ? Math.min(1, MAX_PREVIEW / Math.max(psd.width ?? 1, psd.height ?? 1)) : 1
   useEffect(() => {
-    if (psd && canvasRef.current) compositeTo(canvasRef.current, psd, hidden, scale)
+    if (psd && canvasRef.current) compositeTo(canvasRef.current, psd, hidden, scale, true)
   }, [psd, hidden, scale])
 
   const toggle = (id: number): void =>
@@ -308,7 +378,8 @@ export function PsdViewer({
     setSavedPath(null)
     try {
       const off = document.createElement('canvas')
-      compositeTo(off, psd, hidden, 1)
+      // Export at full resolution (usePreview=false → original-size pixels).
+      compositeTo(off, psd, hidden, 1, false)
       const blob = await new Promise<Blob | null>((res) =>
         off.toBlob(res, mime, mime === 'image/jpeg' ? 0.92 : undefined)
       )
