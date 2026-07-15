@@ -48,6 +48,16 @@ const BLEND: Record<string, GlobalCompositeOperation> = {
   luminosity: 'luminosity'
 }
 
+/** Local `YYYYMMDD_HHMMSS` stamp for unique export file names. */
+function exportStamp(): string {
+  const d = new Date()
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return (
+    `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` +
+    `_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+  )
+}
+
 function assignIds(layers: Layer[] | undefined, ctr: { n: number }): void {
   for (const l of layers ?? []) {
     const il = l as IdLayer
@@ -303,11 +313,15 @@ export function PsdViewer({
   file,
   dirPath,
   onClose,
+  onExported,
   L
 }: {
   file: LibraryFile
   dirPath: string
   onClose: () => void
+  /** Called after the user saves an export into the post folder, so the detail
+   *  view can refresh its file list to show it immediately. */
+  onExported?: (savedPath: string) => void
   L: Dict
 }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -387,9 +401,13 @@ export function PsdViewer({
       const data = new Uint8Array(await blob.arrayBuffer())
       const ext = mime === 'image/jpeg' ? 'jpg' : 'png'
       const base = file.name.replace(/\.psd$/i, '')
-      const suggested = `${dirPath.replace(/[\\/]+$/, '')}/${base}.${ext}`
+      // Timestamp the default name so repeated exports don't collide / overwrite.
+      const suggested = `${dirPath.replace(/[\\/]+$/, '')}/${base}_${exportStamp()}.${ext}`
       const saved = await bridge.exportPsdImage(suggested, data)
-      if (saved) setSavedPath(saved)
+      if (saved) {
+        setSavedPath(saved)
+        onExported?.(saved)
+      }
     } finally {
       setSaving(false)
     }

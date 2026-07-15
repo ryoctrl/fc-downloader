@@ -24,6 +24,7 @@ const invokeChannels: IpcChannel[] = [
   'window:pinBounds',
   'posts:list',
   'posts:files',
+  'posts:deleteFile',
   'library:backfillAvatars',
   'library:reconcile',
   'app:checkUpdate',

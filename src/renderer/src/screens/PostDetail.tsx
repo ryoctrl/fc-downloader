@@ -1,5 +1,5 @@
 /* fc-downloader — post detail with real media preview (fcfile:// files) */
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import type { LibraryFile } from '@shared/types'
 import { THUMBNAIL_WIDTH } from '@shared/constants'
 import { FC, fmtSize } from '../design/data'
@@ -85,12 +85,14 @@ function FileRow({
   file,
   dirPath,
   L,
-  onOpenPsd
+  onOpenPsd,
+  onDelete
 }: {
   file: LibraryFile
   dirPath: string
   L: Dict
   onOpenPsd: (file: LibraryFile) => void
+  onDelete: (file: LibraryFile) => void
 }) {
   const icon = file.kind === 'audio' ? 'play' : file.kind === 'video' ? 'play' : 'file'
   const isZip = /\.zip$/i.test(file.name)
@@ -218,6 +220,96 @@ function FileRow({
           {extracting ? L.extracting : L.extractZip}
         </button>
       )}
+      {file.deletable && (
+        <button
+          onClick={() => void onDelete(file)}
+          title={L.deleteFile}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 9px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-3)',
+            cursor: 'pointer',
+            fontSize: 11.5,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            flexShrink: 0
+          }}
+        >
+          <Icon name="trash" size={13} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** One image cell in the grid: click to zoom; a delete button appears on hover
+ *  for user-added files (e.g. PSD exports). Downloaded images aren't deletable. */
+function GridImage({
+  img,
+  index,
+  L,
+  onImageClick,
+  onDelete
+}: {
+  img: LibraryFile
+  index: number
+  L: Dict
+  onImageClick: (index: number) => void
+  onDelete: (file: LibraryFile) => void
+}) {
+  const [hover, setHover] = useState(false)
+  return (
+    <div
+      style={{ position: 'relative', display: 'block' }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <img
+        // Grid previews use the pre-generated thumbnail; the lightbox loads full-res.
+        src={`${img.url}?w=${THUMBNAIL_WIDTH}`}
+        alt={img.name}
+        loading="lazy"
+        decoding="async"
+        onClick={() => onImageClick(index)}
+        style={{
+          width: '100%',
+          borderRadius: 10,
+          display: 'block',
+          cursor: 'zoom-in',
+          background: 'var(--surface-2)',
+          boxShadow: 'inset 0 0 0 1px var(--hairline)'
+        }}
+      />
+      {img.deletable && hover && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            void onDelete(img)
+          }}
+          title={L.deleteFile}
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            border: 'none',
+            cursor: 'pointer',
+            background: 'rgba(0,0,0,.6)',
+            color: '#fff',
+            display: 'grid',
+            placeItems: 'center'
+          }}
+        >
+          <Icon name="trash" size={15} />
+        </button>
+      )}
     </div>
   )
 }
@@ -228,7 +320,8 @@ function Preview({
   loaded,
   L,
   onImageClick,
-  onOpenPsd
+  onOpenPsd,
+  onDelete
 }: {
   post: ViewPost
   files: LibraryFile[]
@@ -236,6 +329,7 @@ function Preview({
   L: Dict
   onImageClick: (index: number) => void
   onOpenPsd: (file: LibraryFile) => void
+  onDelete: (file: LibraryFile) => void
 }) {
   const images = files.filter((f) => f.kind === 'image')
   const videos = files.filter((f) => f.kind === 'video')
@@ -294,23 +388,7 @@ function Preview({
       {images.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
           {images.map((img, i) => (
-            <img
-              key={img.url}
-              // Grid previews use the pre-generated thumbnail; the lightbox loads full-res.
-              src={`${img.url}?w=${THUMBNAIL_WIDTH}`}
-              alt={img.name}
-              loading="lazy"
-              decoding="async"
-              onClick={() => onImageClick(i)}
-              style={{
-                width: '100%',
-                borderRadius: 10,
-                display: 'block',
-                cursor: 'zoom-in',
-                background: 'var(--surface-2)',
-                boxShadow: 'inset 0 0 0 1px var(--hairline)'
-              }}
-            />
+            <GridImage key={img.url} img={img} index={i} L={L} onImageClick={onImageClick} onDelete={onDelete} />
           ))}
         </div>
       )}
@@ -318,7 +396,7 @@ function Preview({
       {others.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {others.map((f) => (
-            <FileRow key={f.url} file={f} dirPath={post.dirPath} L={L} onOpenPsd={onOpenPsd} />
+            <FileRow key={f.url} file={f} dirPath={post.dirPath} L={L} onOpenPsd={onOpenPsd} onDelete={onDelete} />
           ))}
         </div>
       )}
@@ -459,6 +537,23 @@ export function PostDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post?.dirPath])
 
+  // Re-read the folder (e.g. after a PSD export or a delete) so the change shows
+  // without leaving and re-opening the post.
+  const reload = useCallback(() => {
+    const dir = post?.dirPath
+    if (dir) void bridge.listFiles(dir).then(setFiles)
+  }, [post?.dirPath])
+
+  const onDelete = useCallback(
+    async (f: LibraryFile) => {
+      const dir = post?.dirPath
+      if (!dir || !f.deletable) return
+      if (!window.confirm(`${L.confirmDelete}\n${f.name}`)) return
+      if (await bridge.deletePostFile(dir, f.name)) reload()
+    },
+    [post?.dirPath, reload, L]
+  )
+
   // Keyboard control while the lightbox is open.
   useEffect(() => {
     if (lightboxIndex == null) return
@@ -522,6 +617,7 @@ export function PostDetail() {
             L={L}
             onImageClick={setLightboxIndex}
             onOpenPsd={setPsdFile}
+            onDelete={onDelete}
           />
         </div>
         <div
@@ -622,7 +718,13 @@ export function PostDetail() {
         />
       )}
       {psdFile && (
-        <PsdViewer file={psdFile} dirPath={post.dirPath} onClose={() => setPsdFile(null)} L={L} />
+        <PsdViewer
+          file={psdFile}
+          dirPath={post.dirPath}
+          onClose={() => setPsdFile(null)}
+          onExported={reload}
+          L={L}
+        />
       )}
     </div>
   )
