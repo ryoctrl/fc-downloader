@@ -252,20 +252,28 @@ function LayerRow({
   layer,
   depth,
   hidden,
-  onToggle
+  onToggle,
+  L
 }: {
   layer: Layer
   depth: number
   hidden: Set<number>
   onToggle: (id: number) => void
+  L: Dict
 }) {
   const id = (layer as IdLayer).__id
   const isGroup = !!layer.children
   const visible = !hidden.has(id)
+  // A clipping layer is clipped to the layer below it — Photoshop/psdtool show
+  // these attached to their base. We flag them so they read as "not a standalone
+  // toggle": greyed with a clip marker. (They still paint when their base is
+  // visible, so toggling is left available.)
+  const clipping = !!(layer as Layer & { clipping?: boolean }).clipping
   return (
     <>
       <div
         onClick={() => onToggle(id)}
+        title={clipping ? L.clipHint : undefined}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -292,6 +300,14 @@ function LayerRow({
         >
           {visible && <Icon name="check" size={10} strokeWidth={3} />}
         </span>
+        {clipping && (
+          <span
+            aria-hidden
+            style={{ flexShrink: 0, fontSize: 12, lineHeight: 1, color: 'var(--text-3)' }}
+          >
+            ↳
+          </span>
+        )}
         <Icon
           name={isGroup ? 'folder' : 'image'}
           size={13}
@@ -302,7 +318,7 @@ function LayerRow({
             flex: 1,
             minWidth: 0,
             fontSize: 12,
-            color: 'var(--text)',
+            color: clipping ? 'var(--text-3)' : 'var(--text)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis'
@@ -315,7 +331,7 @@ function LayerRow({
         [...(layer.children ?? [])]
           .reverse()
           .map((c) => (
-            <LayerRow key={(c as IdLayer).__id} layer={c} depth={depth + 1} hidden={hidden} onToggle={onToggle} />
+            <LayerRow key={(c as IdLayer).__id} layer={c} depth={depth + 1} hidden={hidden} onToggle={onToggle} L={L} />
           ))}
     </>
   )
@@ -549,7 +565,7 @@ export function PsdViewer({
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: '8px 8px' }}>
             {topLevel.map((l) => (
-              <LayerRow key={(l as IdLayer).__id} layer={l} depth={0} hidden={hidden} onToggle={toggle} />
+              <LayerRow key={(l as IdLayer).__id} layer={l} depth={0} hidden={hidden} onToggle={toggle} L={L} />
             ))}
           </div>
           <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
