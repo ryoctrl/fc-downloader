@@ -14,8 +14,8 @@ import type { Creator, Post } from '@shared/types'
 import type { RecentPost, Service, ServiceContext } from '../types'
 import {
   collectDownloadableCreators,
+  extractRawPost,
   normalizePost,
-  type RawFanboxPost,
   type RawFollowedCreator,
   type RawSupportingPlan
 } from './normalize'
@@ -174,12 +174,14 @@ interface RawHomeItem {
 
 async function fetchPostDetail(ctx: ServiceContext, postId: string): Promise<Post | null> {
   try {
-    // VERIFY: post.info detail endpoint and its response body shape.
-    const res = await ctx.fetchJson<{ body?: RawFanboxPost }>(
+    // post.info -> `{ body: { post: <post> } }` (FANBOX moved the post under
+    // `body.post`; extractRawPost also accepts the older `body`-is-the-post form).
+    const res = await ctx.fetchJson<{ body?: unknown }>(
       `${API}/post.info?postId=${encodeURIComponent(postId)}`,
       { headers: apiHeaders }
     )
-    return res.body ? normalizePost(res.body) : null
+    const raw = extractRawPost(res.body)
+    return raw ? normalizePost(raw) : null
   } catch (err) {
     ctx.log('warn', `post.info ${postId} failed`, err)
     return null

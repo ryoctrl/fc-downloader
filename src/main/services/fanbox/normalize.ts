@@ -175,6 +175,20 @@ export function collectFiles(body: RawFanboxBody): PostFile[] {
   return files
 }
 
+/**
+ * Pull the post object out of a `post.info` response body. FANBOX moved the
+ * post from `body` (the body WAS the post) to `body.post`; both are handled.
+ * Returns null for an unexpected shape.
+ */
+export function extractRawPost(body: unknown): RawFanboxPost | null {
+  if (!body || typeof body !== 'object') return null
+  const nested = (body as { post?: unknown }).post
+  if (nested && typeof nested === 'object') return nested as RawFanboxPost
+  // Old shape: the body itself is the post (identified by an `id`).
+  if ('id' in body) return body as RawFanboxPost
+  return null
+}
+
 /** Normalize a raw Fanbox post into the shared Post, or null if inaccessible. */
 export function normalizePost(raw: RawFanboxPost): Post | null {
   if (!raw.body) return null
