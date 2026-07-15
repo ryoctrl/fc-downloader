@@ -19,9 +19,11 @@ import type { Dict } from '../design/types'
 import { Icon } from '../design/icons'
 import { bridge } from '../bridge'
 
-/** On-screen composite is capped to this longest edge for smooth toggling;
- *  exports always render at full resolution. */
-const MAX_PREVIEW = 1600
+/** On-screen composite is capped to this longest edge so live layer toggles stay
+ *  responsive — the layered group/clip compositing is pixel-bound, so a smaller
+ *  canvas is much faster (a big PSD toggled ~3x quicker here than at 1600).
+ *  Exports always render at full resolution regardless. */
+const MAX_PREVIEW = 1100
 
 type IdLayer = Layer & { __id: number }
 
@@ -205,6 +207,16 @@ function compositeTo(
       const blend = BLEND[base.blendMode ?? 'normal'] ?? 'source-over'
       const op = base.opacity ?? 1
 
+      // Fast path: a plain leaf (no clips) is drawn straight onto `dc` with its
+      // own opacity + blend — this is identical to buffering it and blitting the
+      // buffer, but skips a full-canvas alloc + blit. Most layers hit this, so it
+      // makes live toggles much lighter. Only groups (isolation) and clipped
+      // bases (need masking) go through the buffered path below.
+      if (!base.children && clips.length === 0) {
+        drawLeaf(dc, base, op, blend)
+        continue
+      }
+
       // Render the base (leaf or group) into its own buffer at alpha 1 / normal;
       // its own opacity + blend are applied when the buffer lands on `dc`.
       const b = buffer()
@@ -384,6 +396,7 @@ export function PsdViewer({
       else n.add(id)
       return n
     })
+
 
 
   const save = async (mime: 'image/png' | 'image/jpeg'): Promise<void> => {
