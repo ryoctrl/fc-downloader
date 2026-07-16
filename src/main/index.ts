@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, webContents } from 'electron'
 import { registerIpcHandlers } from './ipc/handlers'
 import { initDb, closeDb } from './storage/db'
 import { getSettings, initSettings, updateSettings } from './storage/settings'
@@ -96,6 +96,17 @@ function createWindow(): void {
       if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
       return { action: 'deny' }
     })
+  })
+
+  // Mouse side buttons (back/forward) arrive as an `app-command` on the window
+  // (WM_APPCOMMAND). When the focused pane is a service <webview>, drive its
+  // history so the buttons work while browsing/logging in to a support site.
+  mainWindow.on('app-command', (_e, command) => {
+    if (command !== 'browser-backward' && command !== 'browser-forward') return
+    const wc = webContents.getFocusedWebContents()
+    if (!wc || wc.getType() !== 'webview') return
+    if (command === 'browser-backward' && wc.canGoBack()) wc.goBack()
+    else if (command === 'browser-forward' && wc.canGoForward()) wc.goForward()
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {

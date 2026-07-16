@@ -104,6 +104,9 @@ export interface AppState {
   /** Cached supported creators per service (avoids re-fetching on revisit). */
   creators: Record<string, Creator[]>
   creatorsLoading: Record<string, boolean>
+  /** Per-service creator-enumeration progress ({done,total}) while loading, so
+   *  the UI can show "Y of X". Absent/undefined when not enumerating. */
+  creatorsProgress: Record<string, { done: number; total: number } | undefined>
   /** Per-service creator ids that have a downloadable post newer than on disk
    *  (the "new posts" indicator), cached like the creator list. */
   newByService: Record<string, string[]>

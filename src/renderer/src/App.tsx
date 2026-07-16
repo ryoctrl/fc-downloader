@@ -180,6 +180,10 @@ export function App() {
   )
   const [creatorsLoading, setCreatorsLoading] = useState<Record<string, boolean>>({})
   const creatorsLoadingRef = useRef<Record<string, boolean>>({})
+  // Live enumeration progress per service (pushed from main during creators:list).
+  const [creatorsProgress, setCreatorsProgress] = useState<
+    Record<string, { done: number; total: number } | undefined>
+  >({})
   // Per-service creator ids with a downloadable post newer than what's on disk
   // ("new posts" indicator), cached like the creator list.
   const newCache0 = useRef<NewCache>(loadJson<NewCache>(NEW_CACHE_KEY, {}))
@@ -385,6 +389,14 @@ export function App() {
     return off
   }, [])
 
+  // Creator-enumeration progress pushed from main (creators:list).
+  useEffect(() => {
+    return bridge.onCreatorsProgress(({ serviceId, done, total }) => {
+      setCreatorsProgress((s) => ({ ...s, [serviceId]: { done, total } }))
+    })
+  }, [])
+
+
   // Logout detection (event-driven, no polling): when the window regains focus
   // after being away, re-check the services that were logged in. If a session
   // silently expired, flag it so the user can re-login.
@@ -573,6 +585,7 @@ export function App() {
         .finally(() => {
           creatorsLoadingRef.current[id] = false
           setCreatorsLoading((s) => ({ ...s, [id]: false }))
+          setCreatorsProgress((s) => ({ ...s, [id]: undefined }))
         })
     },
     loadNew: (id, force) => {
@@ -731,6 +744,7 @@ export function App() {
       logins,
       creators,
       creatorsLoading,
+      creatorsProgress,
       newByService,
       favs,
       download,

@@ -66,6 +66,8 @@ export const fantiaService: Service = {
     // listing fast without hammering Fantia with 48 simultaneous requests).
     const creators: Creator[] = new Array(ids.length)
     let next = 0
+    let done = 0
+    ctx.progress?.(0, ids.length)
     const LIMIT = 5
     const worker = async (): Promise<void> => {
       while (next < ids.length) {
@@ -92,6 +94,7 @@ export const fantiaService: Service = {
           ctx.log('debug', `fanclub ${id} name lookup failed`, err)
         }
         creators[i] = { serviceId: 'fantia', creatorId: String(id), name, iconUrl, supporting }
+        ctx.progress?.(++done, ids.length)
       }
     }
     await Promise.all(Array.from({ length: Math.min(LIMIT, ids.length) }, worker))

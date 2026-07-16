@@ -12,6 +12,8 @@ export interface ServiceContextOpts {
   /** Invoked just before each request backoff wait (e.g. an HTTP 429), so the
    *  engine can surface "rate-limited, retrying in Ns" in the progress UI. */
   onRetry?: RetryHook
+  /** Sink for enumeration progress (wired to `ctx.progress`). */
+  onProgress?: (done: number, total: number) => void
 }
 
 export function createServiceContext(
@@ -26,7 +28,7 @@ export function createServiceContext(
     else console.log(line, meta ?? '')
   }
 
-  const { includeKinds, onRetry } = opts
+  const { includeKinds, onRetry, onProgress } = opts
   // ci-en serves its rate-limit/bot-block as HTTP 403 (normally a permanent
   // error). For ci-en only, treat 403 as transient so it backs off and retries
   // like a 429 instead of silently dropping the request.
@@ -34,6 +36,7 @@ export function createServiceContext(
   return {
     signal,
     log,
+    ...(onProgress ? { progress: onProgress } : {}),
     async fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
       const res = await requestForWithRetry(serviceId, url, { ...init, signal, onRetry, retriableStatuses })
       if (res.status >= 400) throw new Error(`HTTP ${res.status} for ${url}`)

@@ -29,6 +29,12 @@ export interface ServiceContext {
   /** Cooperative cancellation for long enumerations / downloads. */
   signal: AbortSignal
   /**
+   * Report enumeration progress (e.g. resolving creators one by one) so the UI
+   * can show "Y of X". `total` may be 0 when not yet known. No-op if the context
+   * wasn't created with a progress sink.
+   */
+  progress?: (done: number, total: number) => void
+  /**
    * Skip-existing fast path. On a skip-existing run, returns a network-free
    * {@link Post} stub (rebuilt from the ledger) when this post is already fully
    * downloaded for the run's file kinds — letting an adapter yield it WITHOUT
