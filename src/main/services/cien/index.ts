@@ -88,8 +88,10 @@ export const cienService: Service = {
       return []
     }
 
+    const merged = mergeSubscriptionTiers(pages)
     const creators: Creator[] = []
-    for (const { creatorId, supporting } of mergeSubscriptionTiers(pages)) {
+    ctx.progress?.(0, merged.length)
+    for (const { creatorId, supporting } of merged) {
       ctx.signal.throwIfAborted()
       try {
         const page = await ctx.fetchText(`${BASE}/creator/${creatorId}`)
@@ -104,6 +106,7 @@ export const cienService: Service = {
         ctx.log('warn', `creator ${creatorId} profile failed; using id as name`, err)
         creators.push({ serviceId: 'cien', creatorId, name: creatorId, supporting })
       }
+      ctx.progress?.(creators.length, merged.length)
     }
     return creators
   },

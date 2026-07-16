@@ -589,6 +589,11 @@ function SettingsPanel({
     [app.state.creators, svc.id]
   )
   const loadingCreators = !!app.state.creatorsLoading[svc.id]
+  const creatorsProg = app.state.creatorsProgress[svc.id]
+  // A single "updating" status line: "一覧を更新中 Y/X" (or … while indeterminate).
+  const updatingText = loadingCreators
+    ? `${L.updatingList}${creatorsProg && creatorsProg.total > 0 ? ` ${creatorsProg.done}/${creatorsProg.total}` : '…'}`
+    : ''
   // Creators with a downloadable post newer than what's on disk.
   const newSet = useMemo(
     () => new Set(app.state.newByService[svc.id] ?? []),
@@ -737,7 +742,7 @@ function SettingsPanel({
                     title={L.recheck}
                     style={{ display: 'flex', color: 'var(--text-3)', cursor: 'pointer' }}
                   >
-                    <Icon name="refresh" size={13} style={loadingCreators ? { animation: 'fc-spin .8s linear infinite' } : undefined} />
+                    <Icon name="refresh" size={13} />
                   </span>
                 )}
               </span>
@@ -746,21 +751,32 @@ function SettingsPanel({
             {L.creators}
             {creators.length > 0 ? ` · ${sel.size}/${creators.length}` : ''}
             {loadingCreators && creators.length > 0 && (
-              // Background refresh over cached creators — a live "updating" hint.
+              // Background refresh over cached creators — one live "updating"
+              // hint (spinner + progress), instead of a second bare circle.
               <span
-                className="fc-spin"
-                title={L.loading}
                 style={{
-                  display: 'inline-block',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginLeft: 8,
                   verticalAlign: 'middle',
-                  marginLeft: 7,
-                  width: 10,
-                  height: 10,
-                  borderRadius: 99,
-                  border: '1.5px solid var(--border-2)',
-                  borderTopColor: 'var(--accent)'
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: 'var(--text-3)'
                 }}
-              />
+              >
+                <span
+                  className="fc-spin"
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 99,
+                    border: '1.5px solid var(--border-2)',
+                    borderTopColor: 'var(--accent)'
+                  }}
+                />
+                {updatingText}
+              </span>
             )}
           </SectionLabel>
           {loggedIn && showTabs && creators.length > 0 && (
@@ -792,7 +808,7 @@ function SettingsPanel({
                     borderTopColor: 'var(--accent)'
                   }}
                 />
-                {L.loading}
+                {updatingText || L.loading}
               </div>
             ) : creators.length === 0 ? (
               <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--text-3)' }}>{L.noCreators}</div>

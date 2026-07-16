@@ -104,6 +104,9 @@ export interface IpcEvents {
   /** Current download queue state (active run + pending services). */
   'download:queue': { active: ServiceId | null; queued: ServiceId[] }
   'services:authChanged': { serviceId: ServiceId; loggedIn: boolean }
+  /** Progress while enumerating a service's creator list. `total` is 0 until the
+   *  count is known (indeterminate). Emitted during `creators:list`. */
+  'creators:progress': { serviceId: ServiceId; done: number; total: number }
 }
 
 export type IpcEventChannel = keyof IpcEvents

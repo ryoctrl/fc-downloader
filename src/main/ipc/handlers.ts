@@ -81,7 +81,21 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     const svc = listServices().find((s) => s.id === serviceId)
     if (!svc) return []
     const ac = new AbortController()
-    const ctx = createServiceContext(serviceId, ac.signal)
+    // Forward enumeration progress to the renderer, throttled to avoid flooding
+    // (only when the count changes and at most ~every 120ms).
+    let lastDone = -1
+    let lastAt = 0
+    const ctx = createServiceContext(serviceId, ac.signal, {
+      onProgress: (done, total) => {
+        const now = Date.now()
+        if (done !== lastDone && (now - lastAt > 120 || done === total)) {
+          lastDone = done
+          lastAt = now
+          const win = getWindow()
+          if (win) emit(win, 'creators:progress', { serviceId, done, total })
+        }
+      }
+    })
     return svc.listCreators(ctx)
   })
 
