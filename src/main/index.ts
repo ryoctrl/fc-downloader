@@ -12,6 +12,24 @@ registerFciconScheme()
 
 let mainWindow: BrowserWindow | null = null
 
+/**
+ * Mouse side-button (X1/X2) history navigation, injected into a service
+ * <webview>. Chromium hands these buttons to the *focused page* as a plain
+ * mouseup (button 3/4) rather than a window-level WM_APPCOMMAND, and while the
+ * user browses a support site the guest holds focus — so neither the host
+ * window's `app-command` nor its own mouseup listener ever sees them. The guest
+ * has no default back/forward behaviour of its own, so we add it here.
+ * Re-applied on every navigation (each document gets a fresh window).
+ */
+const WEBVIEW_MOUSE_NAV = `(() => {
+  if (window.__fcMouseNav) return
+  window.__fcMouseNav = true
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 3) { e.preventDefault(); history.back() }
+    else if (e.button === 4) { e.preventDefault(); history.forward() }
+  }, true)
+})()`
+
 // Attaching a <webview> drops the window out of a Windows "snapped" (Aero Snap
 // half-screen) state, resetting its size/position. When the renderer is about
 // to mount a service <webview> it calls window:pinBounds; for a short window
@@ -96,11 +114,17 @@ function createWindow(): void {
       if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
       return { action: 'deny' }
     })
+    // Give the guest page mouse back/forward (see WEBVIEW_MOUSE_NAV).
+    guest.on('dom-ready', () => {
+      void guest.executeJavaScript(WEBVIEW_MOUSE_NAV, true).catch(() => {
+        /* best-effort: the page may be navigating away */
+      })
+    })
   })
 
-  // Mouse side buttons (back/forward) arrive as an `app-command` on the window
-  // (WM_APPCOMMAND). When the focused pane is a service <webview>, drive its
-  // history so the buttons work while browsing/logging in to a support site.
+  // Some mice/drivers send the side buttons as WM_APPCOMMAND instead, which
+  // surfaces here rather than as a page mouse event. Kept alongside the guest
+  // injection above so both input paths work.
   mainWindow.on('app-command', (_e, command) => {
     if (command !== 'browser-backward' && command !== 'browser-forward') return
     const wc = webContents.getFocusedWebContents()
