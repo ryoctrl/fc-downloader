@@ -14,6 +14,8 @@ import type { Creator, Post } from '@shared/types'
 import type { RecentPost, Service, ServiceContext } from '../types'
 import {
   collectDownloadableCreators,
+  extractPageItems,
+  extractPageUrls,
   extractRawPost,
   normalizePost,
   type RawFollowedCreator,
@@ -106,15 +108,17 @@ export const fanboxService: Service = {
   },
 
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
-    // Verified pagination: post.paginateCreator returns `{ body: [pageUrl, ...] }`
-    // (cursor-based). Each page URL returns `{ body: [postSummary, ...] }`.
+    // Cursor pagination: post.paginateCreator gives the page URLs, each page a
+    // list of post summaries. FANBOX moved both bodies from bare arrays into
+    // wrapper objects (`{ pageUrls }`, `{ posts }`); extractPageUrls/Items
+    // accept both shapes (see normalize.ts).
     let pageUrls: string[]
     try {
-      const pag = await ctx.fetchJson<{ body?: string[] }>(
+      const pag = await ctx.fetchJson<{ body?: unknown }>(
         `${API}/post.paginateCreator?creatorId=${encodeURIComponent(creatorId)}`,
         { headers: apiHeaders }
       )
-      pageUrls = pag.body ?? []
+      pageUrls = extractPageUrls(pag.body)
     } catch (err) {
       ctx.log('error', `post.paginateCreator failed for ${creatorId}`, err)
       return
@@ -123,10 +127,10 @@ export const fanboxService: Service = {
       ctx.signal.throwIfAborted()
       let items: Array<{ id: string }>
       try {
-        const page = await ctx.fetchJson<{ body?: Array<{ id: string }> }>(pageUrl, {
+        const page = await ctx.fetchJson<{ body?: unknown }>(pageUrl, {
           headers: apiHeaders
         })
-        items = page.body ?? []
+        items = extractPageItems(page.body)
       } catch (err) {
         ctx.log('warn', `post.listCreator page failed for ${creatorId}`, err)
         continue
@@ -142,18 +146,18 @@ export const fanboxService: Service = {
   async countPosts(ctx: ServiceContext, creatorId: string): Promise<number> {
     // Sum the page-list lengths (post summaries) WITHOUT fetching post.info per
     // post — the same pages listPosts walks, just counted.
-    const pag = await ctx.fetchJson<{ body?: string[] }>(
+    const pag = await ctx.fetchJson<{ body?: unknown }>(
       `${API}/post.paginateCreator?creatorId=${encodeURIComponent(creatorId)}`,
       { headers: apiHeaders }
     )
-    const pageUrls = pag.body ?? []
+    const pageUrls = extractPageUrls(pag.body)
     let n = 0
     for (const pageUrl of pageUrls) {
       ctx.signal.throwIfAborted()
-      const page = await ctx.fetchJson<{ body?: Array<{ id: string }> }>(pageUrl, {
+      const page = await ctx.fetchJson<{ body?: unknown }>(pageUrl, {
         headers: apiHeaders
       })
-      n += (page.body ?? []).length
+      n += extractPageItems(page.body).length
     }
     return n
   },
