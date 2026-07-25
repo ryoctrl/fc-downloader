@@ -74,6 +74,26 @@ export function collectDownloadableCreators(
   return [...byCreator.values()]
 }
 
+/**
+ * `post.paginateCreator` body: the cursor page URLs. FANBOX moved this from a
+ * bare `body: [url, ...]` array to `body: { pageUrls: [url, ...] }`; accept both.
+ */
+export function extractPageUrls(body: unknown): string[] {
+  if (Array.isArray(body)) return body.filter((u): u is string => typeof u === 'string')
+  const p = (body as { pageUrls?: unknown } | null)?.pageUrls
+  return Array.isArray(p) ? p.filter((u): u is string => typeof u === 'string') : []
+}
+
+/**
+ * A paginate page body: the post summaries for that page. Likewise moved from
+ * `body: [ {id}, ... ]` to `body: { posts: [ {id}, ... ] }`; accept both.
+ */
+export function extractPageItems(body: unknown): Array<{ id: string }> {
+  const arr = Array.isArray(body) ? body : (body as { posts?: unknown } | null)?.posts
+  if (!Array.isArray(arr)) return []
+  return arr.filter((it): it is { id: string } => !!it && typeof (it as { id?: unknown }).id === 'string')
+}
+
 /** VERIFY: subset of the api.fanbox.cc `post.info` response body. */
 export interface RawFanboxImage {
   id: string

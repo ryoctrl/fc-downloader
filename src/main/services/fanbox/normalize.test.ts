@@ -2,10 +2,40 @@ import { describe, expect, it } from 'vitest'
 import {
   collectDownloadableCreators,
   collectFiles,
+  extractPageItems,
+  extractPageUrls,
   extractRawPost,
   normalizePost,
   type RawFanboxPost
 } from './normalize'
+
+describe('extractPageUrls (post.paginateCreator)', () => {
+  it('reads the new body.pageUrls shape', () => {
+    expect(extractPageUrls({ pageUrls: ['a', 'b'] })).toEqual(['a', 'b'])
+  })
+  it('reads the old bare-array shape', () => {
+    expect(extractPageUrls(['a', 'b'])).toEqual(['a', 'b'])
+  })
+  it('is empty for an unexpected shape (never throws)', () => {
+    expect(extractPageUrls(null)).toEqual([])
+    expect(extractPageUrls({})).toEqual([])
+    expect(extractPageUrls({ pageUrls: 'nope' })).toEqual([])
+  })
+})
+
+describe('extractPageItems (paginate page)', () => {
+  it('reads the new body.posts shape', () => {
+    expect(extractPageItems({ posts: [{ id: '1' }, { id: '2' }] })).toEqual([{ id: '1' }, { id: '2' }])
+  })
+  it('reads the old bare-array shape', () => {
+    expect(extractPageItems([{ id: '1' }])).toEqual([{ id: '1' }])
+  })
+  it('drops entries without a string id and never throws', () => {
+    expect(extractPageItems({ posts: [{ id: '1' }, { nope: true }, null] })).toEqual([{ id: '1' }])
+    expect(extractPageItems(null)).toEqual([])
+    expect(extractPageItems({})).toEqual([])
+  })
+})
 
 describe('extractRawPost', () => {
   it('reads the post from the new body.post shape', () => {
