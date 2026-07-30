@@ -23,6 +23,7 @@ import {
   type RawFantiaPlan,
   type RawFantiaPostResponse
 } from './normalize'
+import { loadPurchasedProducts } from './purchases'
 
 const BASE = 'https://fantia.jp'
 const API = `${BASE}/api/v1`
@@ -104,6 +105,12 @@ export const fantiaService: Service = {
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
     let csrf = ''
     const seen = new Set<string>()
+    // Shop products embedded in posts are downloadable only once purchased;
+    // the order history says which (cached, so this is read once per run).
+    const purchasedProducts = await loadPurchasedProducts(ctx).catch((err) => {
+      ctx.log('warn', 'purchased product list unavailable', err)
+      return new Map<string, string>()
+    })
     const MAX_PAGES = 500 // safety against stray links never terminating
     for (let page = 1; page <= MAX_PAGES; page++) {
       ctx.signal.throwIfAborted()
@@ -129,7 +136,7 @@ export const fantiaService: Service = {
           yield stub
           continue
         }
-        const post = await fetchPostDetail(ctx, creatorId, id, csrf)
+        const post = await fetchPostDetail(ctx, creatorId, id, csrf, purchasedProducts)
         if (post) yield post
       }
     }
@@ -162,13 +169,14 @@ async function fetchPostDetail(
   ctx: ServiceContext,
   creatorId: string,
   postId: string,
-  csrf: string
+  csrf: string,
+  purchasedProducts?: Map<string, string>
 ): Promise<Post | null> {
   try {
     const res = await ctx.fetchJson<RawFantiaPostResponse>(`${API}/posts/${encodeURIComponent(postId)}`, {
       headers: { ...XHR, 'X-CSRF-Token': csrf }
     })
-    return normalizePost(creatorId, res)
+    return normalizePost(creatorId, res, purchasedProducts)
   } catch (err) {
     ctx.log('warn', `post ${postId} detail failed`, err)
     return null
