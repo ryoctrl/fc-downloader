@@ -5,7 +5,7 @@
  * (e.g. the renderer opened in a plain browser preview, where `window.api`
  * is undefined and there is no preload bridge).
  */
-import type { IpcEvents, RendererApi } from '@shared/ipc'
+import type { ExtractResult, IpcEvents, RendererApi } from '@shared/ipc'
 import type {
   AppSettings,
   Creator,
@@ -78,8 +78,9 @@ export const bridge = {
     api?.['psd:saveThumb'](dirPath, psdFileName, data) ?? Promise.resolve(null),
   openExternal: (url: string): Promise<void> =>
     api?.['shell:openExternal'](url) ?? Promise.resolve(),
-  extractArchive: (dirPath: string, fileName: string): Promise<string | null> =>
-    api?.['archive:extract'](dirPath, fileName) ?? Promise.resolve(null),
+  extractArchive: (dirPath: string, fileName: string, password?: string): Promise<ExtractResult> =>
+    api?.['archive:extract'](dirPath, fileName, password) ??
+    Promise.resolve({ ok: false, reason: 'failed' } as ExtractResult),
   pinWindowBounds: (): Promise<void> => api?.['window:pinBounds']() ?? Promise.resolve(),
   listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([]),
   listFiles: (dirPath: string): Promise<LibraryFile[]> =>
