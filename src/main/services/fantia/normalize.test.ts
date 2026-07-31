@@ -96,6 +96,7 @@ describe('collectFiles', () => {
     }
     expect(collectFiles(post)).toEqual([])
   })
+
 })
 
 describe('normalizePost', () => {

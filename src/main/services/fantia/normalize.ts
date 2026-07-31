@@ -11,6 +11,7 @@ import type { Post, PostFile } from '@shared/types'
 import { toLocationParts } from '@main/storage/layout'
 import { kindForName } from '@main/storage/files'
 import { webPostUrl } from '../postUrl'
+import { productDownloadUrl } from './purchases'
 
 const BASE = 'https://fantia.jp'
 
@@ -18,6 +19,16 @@ const BASE = 'https://fantia.jp'
 export interface RawFantiaPhoto {
   id: number
   url?: { original?: string; main?: string }
+}
+
+/** VERIFY: a shop product embedded in a post (`product` content block). */
+export interface RawFantiaProduct {
+  /** Shop product id — the same id `/products/<id>/download` takes. */
+  id?: number
+  name?: string
+  /** 'download' for a downloadable product (vs physical goods etc). */
+  type?: string
+  uri?: string
 }
 
 /** VERIFY: one content block of a post (varies by `category`). */
@@ -29,6 +40,8 @@ export interface RawFantiaContent {
   /** File download path for `file` contents (often root-relative). */
   download_uri?: string
   post_content_photos?: RawFantiaPhoto[]
+  /** Present on `product` contents: the shop product being advertised. */
+  product?: RawFantiaProduct
 }
 
 /** VERIFY: subset of the post detail body we consume. */
@@ -79,8 +92,18 @@ function extFromUrl(url: string): string {
   return dot > 0 ? name.slice(dot) : '.jpg'
 }
 
-/** Collect downloadable files from a post's contents (images + files). */
-export function collectFiles(post: RawFantiaPost): PostFile[] {
+/**
+ * Collect downloadable files from a post's contents (images + files, plus any
+ * embedded shop product the user has already purchased).
+ *
+ * `purchasedProducts` maps a purchased product id to its file name (see
+ * purchases.ts). A `product` block is only downloadable when it's in that map —
+ * without it we'd be requesting a product the user hasn't bought.
+ */
+export function collectFiles(
+  post: RawFantiaPost,
+  purchasedProducts?: Map<string, string>
+): PostFile[] {
   const out: PostFile[] = []
   const seen = new Set<string>()
   const push = (pf: PostFile): void => {
@@ -100,13 +123,30 @@ export function collectFiles(post: RawFantiaPost): PostFile[] {
       const url = absolutize(c.download_uri ?? '')
       const name = c.filename ?? `file-${c.id}`
       push({ fileId: String(c.id), kind: kindForName(name), name, url })
+    } else if (c.category === 'product') {
+      // A shop product embedded in the post: downloadable only once bought, so
+      // it's included exactly when the order history lists it.
+      const productId = c.product?.id != null ? String(c.product.id) : ''
+      const name = productId ? purchasedProducts?.get(productId) : undefined
+      if (name && c.product?.type === 'download') {
+        push({
+          fileId: `product-${productId}`,
+          kind: kindForName(name),
+          name,
+          url: productDownloadUrl(productId)
+        })
+      }
     }
-    // 'blog' / 'product' / 'url' / 'text' carry no binary we download.
+    // 'blog' / 'url' / 'text' carry no binary we download.
   }
   return out
 }
 
-export function normalizePost(creatorId: string, raw: RawFantiaPostResponse): Post | null {
+export function normalizePost(
+  creatorId: string,
+  raw: RawFantiaPostResponse,
+  purchasedProducts?: Map<string, string>
+): Post | null {
   const p = raw.post
   if (!p) return null
   const postedAt = new Date(p.posted_at).toISOString()
@@ -121,6 +161,6 @@ export function normalizePost(creatorId: string, raw: RawFantiaPostResponse): Po
     year,
     month,
     url: webPostUrl('fantia', creatorId, String(p.id)),
-    files: collectFiles(p)
+    files: collectFiles(p, purchasedProducts)
   }
 }
