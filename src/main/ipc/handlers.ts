@@ -251,6 +251,15 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     // Only open web URLs in the external browser — never file:// or other schemes.
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url)
   })
+  handle('archive:hasZipPassword', async (dirPath) => !!getSettings().zipPasswords?.[dirPath])
+
+  handle('archive:clearZipPassword', async (dirPath) => {
+    const saved = { ...(getSettings().zipPasswords ?? {}) }
+    if (!(dirPath in saved)) return
+    delete saved[dirPath]
+    updateSettings({ zipPasswords: saved })
+  })
+
   handle('archive:extract', async (dirPath, fileName, password) => {
     const zipPath = normalize(join(dirPath, fileName))
     // Only extract zips that live inside the download root.

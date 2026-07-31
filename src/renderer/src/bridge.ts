@@ -81,6 +81,10 @@ export const bridge = {
   extractArchive: (dirPath: string, fileName: string, password?: string): Promise<ExtractResult> =>
     api?.['archive:extract'](dirPath, fileName, password) ??
     Promise.resolve({ ok: false, reason: 'failed' } as ExtractResult),
+  hasZipPassword: (dirPath: string): Promise<boolean> =>
+    api?.['archive:hasZipPassword'](dirPath) ?? Promise.resolve(false),
+  clearZipPassword: (dirPath: string): Promise<void> =>
+    api?.['archive:clearZipPassword'](dirPath) ?? Promise.resolve(),
   pinWindowBounds: (): Promise<void> => api?.['window:pinBounds']() ?? Promise.resolve(),
   listPosts: (): Promise<LibraryPost[]> => api?.['posts:list']() ?? Promise.resolve([]),
   listFiles: (dirPath: string): Promise<LibraryFile[]> =>

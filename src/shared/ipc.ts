@@ -69,6 +69,10 @@ export interface IpcApi {
     args: [dirPath: string, fileName: string, password?: string]
     result: ExtractResult
   }
+  /** Whether a zip password is remembered for this post's folder. */
+  'archive:hasZipPassword': { args: [dirPath: string]; result: boolean }
+  /** Forget the zip password remembered for this post's folder. */
+  'archive:clearZipPassword': { args: [dirPath: string]; result: void }
   /** Capture the window's current bounds before a service <webview> mounts, so
    * the main process can restore them if the attach un-snaps the window. */
   'window:pinBounds': { args: []; result: void }
