@@ -11,7 +11,6 @@ import type { Post, PostFile } from '@shared/types'
 import { toLocationParts } from '@main/storage/layout'
 import { kindForName } from '@main/storage/files'
 import { webPostUrl } from '../postUrl'
-import { productDownloadUrl } from './purchases'
 
 const BASE = 'https://fantia.jp'
 
@@ -49,6 +48,8 @@ export interface RawFantiaPost {
   id: number
   title: string
   posted_at: string
+  /** The post's own header image, in several sizes (`original` is full size). */
+  thumb?: { original?: string; main?: string; large?: string; medium?: string }
   fanclub?: { id?: number; creator_name?: string; fanclub_name?: string }
   post_contents?: RawFantiaContent[]
 }
@@ -93,23 +94,29 @@ function extFromUrl(url: string): string {
 }
 
 /**
- * Collect downloadable files from a post's contents (images + files, plus any
- * embedded shop product the user has already purchased).
+ * Collect downloadable files from a post: its own header image, then the
+ * images/files of each content block.
  *
- * `purchasedProducts` maps a purchased product id to its file name (see
- * purchases.ts). A `product` block is only downloadable when it's in that map —
- * without it we'd be requesting a product the user hasn't bought.
+ * The post's header image (`thumb`) is a separate upload from the gallery
+ * photos and is often the only image a post has (e.g. a video or product post),
+ * so it's collected too — and first, so it becomes the post's cover in the
+ * library. Shop products advertised by a post are NOT collected here; they're
+ * bought items and come from the order history (see purchases.ts).
  */
-export function collectFiles(
-  post: RawFantiaPost,
-  purchasedProducts?: Map<string, string>
-): PostFile[] {
+export function collectFiles(post: RawFantiaPost): PostFile[] {
   const out: PostFile[] = []
   const seen = new Set<string>()
   const push = (pf: PostFile): void => {
     if (!pf.url || seen.has(pf.fileId)) return
     seen.add(pf.fileId)
     out.push(pf)
+  }
+
+  const thumbUrl = absolutize(
+    post.thumb?.original ?? post.thumb?.main ?? post.thumb?.large ?? post.thumb?.medium ?? ''
+  )
+  if (thumbUrl) {
+    push({ fileId: `thumb-${post.id}`, kind: 'image', name: `thumb${extFromUrl(thumbUrl)}`, url: thumbUrl })
   }
 
   for (const c of post.post_contents ?? []) {
@@ -123,30 +130,13 @@ export function collectFiles(
       const url = absolutize(c.download_uri ?? '')
       const name = c.filename ?? `file-${c.id}`
       push({ fileId: String(c.id), kind: kindForName(name), name, url })
-    } else if (c.category === 'product') {
-      // A shop product embedded in the post: downloadable only once bought, so
-      // it's included exactly when the order history lists it.
-      const productId = c.product?.id != null ? String(c.product.id) : ''
-      const name = productId ? purchasedProducts?.get(productId) : undefined
-      if (name && c.product?.type === 'download') {
-        push({
-          fileId: `product-${productId}`,
-          kind: kindForName(name),
-          name,
-          url: productDownloadUrl(productId)
-        })
-      }
     }
-    // 'blog' / 'url' / 'text' carry no binary we download.
+    // 'blog' / 'product' / 'url' / 'text' carry no binary we download here.
   }
   return out
 }
 
-export function normalizePost(
-  creatorId: string,
-  raw: RawFantiaPostResponse,
-  purchasedProducts?: Map<string, string>
-): Post | null {
+export function normalizePost(creatorId: string, raw: RawFantiaPostResponse): Post | null {
   const p = raw.post
   if (!p) return null
   const postedAt = new Date(p.posted_at).toISOString()
@@ -161,6 +151,6 @@ export function normalizePost(
     year,
     month,
     url: webPostUrl('fantia', creatorId, String(p.id)),
-    files: collectFiles(p, purchasedProducts)
+    files: collectFiles(p)
   }
 }

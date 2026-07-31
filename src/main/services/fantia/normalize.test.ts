@@ -43,6 +43,36 @@ describe('absolutize', () => {
 })
 
 describe('collectFiles', () => {
+  it("collects the post's own header image first, so it becomes the cover", () => {
+    const post: RawFantiaPost = {
+      id: 4,
+      title: 'video only',
+      posted_at: '2025-06-01T00:00:00.000Z',
+      thumb: { original: 'https://c.fantia.jp/uploads/post/file/4/original_abc.jpg', main: 'x' },
+      post_contents: [
+        { id: 40, category: 'file', filename: 'clip.mp4', download_uri: '/posts/4/download/40' }
+      ]
+    }
+    expect(collectFiles(post)).toEqual([
+      {
+        fileId: 'thumb-4',
+        kind: 'image',
+        name: 'thumb.jpg',
+        url: 'https://c.fantia.jp/uploads/post/file/4/original_abc.jpg'
+      },
+      { fileId: '40', kind: 'video', name: 'clip.mp4', url: 'https://fantia.jp/posts/4/download/40' }
+    ])
+  })
+
+  it('falls back through the thumb sizes and skips a post without one', () => {
+    const base = { id: 5, title: 't', posted_at: '2025-06-01T00:00:00.000Z' }
+    expect(collectFiles({ ...base, thumb: { main: 'https://cdn/m.png' } })[0]).toMatchObject({
+      name: 'thumb.png',
+      url: 'https://cdn/m.png'
+    })
+    expect(collectFiles({ ...base })).toEqual([])
+  })
+
   it('extracts photo_gallery images with derived names', () => {
     const post: RawFantiaPost = {
       id: 1,
