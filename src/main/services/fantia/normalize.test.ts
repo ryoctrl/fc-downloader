@@ -97,35 +97,6 @@ describe('collectFiles', () => {
     expect(collectFiles(post)).toEqual([])
   })
 
-  // Shop products embedded in a post: downloadable only once purchased.
-  const productPost = (type = 'download'): RawFantiaPost => ({
-    id: 4,
-    title: 'with product',
-    posted_at: '2025-06-01T00:00:00.000Z',
-    post_contents: [{ id: 40, category: 'product', product: { id: 111111, name: 'Sample', type } }]
-  })
-
-  it('includes a purchased download product, named from the order history', () => {
-    const purchased = new Map([['111111', 'sample-one.mp4']])
-    expect(collectFiles(productPost(), purchased)).toEqual([
-      {
-        fileId: 'product-111111',
-        kind: 'video',
-        name: 'sample-one.mp4',
-        url: 'https://fantia.jp/products/111111/download'
-      }
-    ])
-  })
-
-  it('skips a product that is not purchased', () => {
-    expect(collectFiles(productPost(), new Map())).toEqual([])
-    expect(collectFiles(productPost())).toEqual([]) // no order history at all
-  })
-
-  it('skips a purchased product that is not a downloadable type', () => {
-    const purchased = new Map([['111111', 'sample-one.mp4']])
-    expect(collectFiles(productPost('physical'), purchased)).toEqual([])
-  })
 })
 
 describe('normalizePost', () => {

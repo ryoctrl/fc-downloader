@@ -23,7 +23,7 @@ import {
   type RawFantiaPlan,
   type RawFantiaPostResponse
 } from './normalize'
-import { loadPurchasedProducts } from './purchases'
+import { loadPurchasedProducts, productPost } from './purchases'
 
 const BASE = 'https://fantia.jp'
 const API = `${BASE}/api/v1`
@@ -103,14 +103,22 @@ export const fantiaService: Service = {
   },
 
   async *listPosts(ctx: ServiceContext, creatorId: string): AsyncIterable<Post> {
+    // Shop products the user bought from this creator, surfaced as their own
+    // posts. They're derived from the order history rather than from the posts
+    // that advertise them: a post that's already fully downloaded skips its
+    // detail fetch, so a product sitting in one would otherwise never be seen.
+    const products = await loadPurchasedProducts(ctx).catch((err) => {
+      ctx.log('warn', 'purchased product list unavailable', err)
+      return []
+    })
+    for (const p of products) {
+      if (!p.creatorId || p.creatorId !== creatorId) continue
+      ctx.signal.throwIfAborted()
+      yield productPost('fantia', { ...p, creatorId })
+    }
+
     let csrf = ''
     const seen = new Set<string>()
-    // Shop products embedded in posts are downloadable only once purchased;
-    // the order history says which (cached, so this is read once per run).
-    const purchasedProducts = await loadPurchasedProducts(ctx).catch((err) => {
-      ctx.log('warn', 'purchased product list unavailable', err)
-      return new Map<string, string>()
-    })
     const MAX_PAGES = 500 // safety against stray links never terminating
     for (let page = 1; page <= MAX_PAGES; page++) {
       ctx.signal.throwIfAborted()
@@ -136,7 +144,7 @@ export const fantiaService: Service = {
           yield stub
           continue
         }
-        const post = await fetchPostDetail(ctx, creatorId, id, csrf, purchasedProducts)
+        const post = await fetchPostDetail(ctx, creatorId, id, csrf)
         if (post) yield post
       }
     }
@@ -144,7 +152,9 @@ export const fantiaService: Service = {
 
   async countPosts(ctx: ServiceContext, creatorId: string): Promise<number> {
     // Walk the same HTML listing pages as listPosts, counting /posts/<id> links
-    // (no per-post detail fetch).
+    // (no per-post detail fetch), plus the purchased products listPosts adds.
+    const products = await loadPurchasedProducts(ctx).catch(() => [])
+    const extra = products.filter((p) => p.creatorId === creatorId).length
     const seen = new Set<string>()
     const MAX_PAGES = 500
     for (let page = 1; page <= MAX_PAGES; page++) {
@@ -154,10 +164,10 @@ export const fantiaService: Service = {
       )
       const ids = [...new Set([...html.matchAll(/\/posts\/(\d+)/g)].map((m) => m[1]))]
       const fresh = ids.filter((id) => !seen.has(id))
-      if (fresh.length === 0) return seen.size
+      if (fresh.length === 0) return seen.size + extra
       fresh.forEach((id) => seen.add(id))
     }
-    return seen.size
+    return seen.size + extra
   },
 
   async resolvePost(_ctx: ServiceContext, post: Post): Promise<Post> {
@@ -169,14 +179,13 @@ async function fetchPostDetail(
   ctx: ServiceContext,
   creatorId: string,
   postId: string,
-  csrf: string,
-  purchasedProducts?: Map<string, string>
+  csrf: string
 ): Promise<Post | null> {
   try {
     const res = await ctx.fetchJson<RawFantiaPostResponse>(`${API}/posts/${encodeURIComponent(postId)}`, {
       headers: { ...XHR, 'X-CSRF-Token': csrf }
     })
-    return normalizePost(creatorId, res, purchasedProducts)
+    return normalizePost(creatorId, res)
   } catch (err) {
     ctx.log('warn', `post ${postId} detail failed`, err)
     return null
