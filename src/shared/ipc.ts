@@ -65,7 +65,14 @@ export interface IpcApi {
   'shell:openExternal': { args: [url: string]; result: void }
   /** Extract a downloaded .zip (within the download root) into a sibling folder
    * and reveal it. Returns the folder path, or null on failure. */
-  'archive:extract': { args: [dirPath: string, fileName: string]; result: string | null }
+  'archive:extract': {
+    args: [dirPath: string, fileName: string, password?: string]
+    result: ExtractResult
+  }
+  /** Whether a zip password is remembered for this post's folder. */
+  'archive:hasZipPassword': { args: [dirPath: string]; result: boolean }
+  /** Forget the zip password remembered for this post's folder. */
+  'archive:clearZipPassword': { args: [dirPath: string]; result: void }
   /** Capture the window's current bounds before a service <webview> mounts, so
    * the main process can restore them if the attach un-snaps the window. */
   'window:pinBounds': { args: []; result: void }
@@ -94,6 +101,12 @@ export interface IpcApi {
 }
 
 export type IpcChannel = keyof IpcApi
+
+/** Outcome of an extraction, so the UI can ask for a password or report why it
+ *  failed instead of silently doing nothing. */
+export type ExtractResult =
+  | { ok: true; dir: string }
+  | { ok: false; reason: 'password-required' | 'password-wrong' | 'unsupported' | 'failed' }
 
 /** Main -> renderer push events. */
 export interface IpcEvents {

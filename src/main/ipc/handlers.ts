@@ -26,7 +26,7 @@ import {
 import { fcfileUrl, isWithinRoot, listPostFiles } from '@main/storage/files'
 import { psdThumbName } from '@main/storage/layout'
 import { DownloadEngine } from '@main/download/engine'
-import { extractZip } from '@main/archive/extract'
+import { ExtractError, extractZip } from '@main/archive/extract'
 import { checkForUpdate } from '@main/update/check'
 import { isStartupEnabled, setStartupEnabled } from '@main/startup/login-item'
 import { ensureCreatorAvatar } from '@main/download/avatar'
@@ -251,17 +251,36 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     // Only open web URLs in the external browser — never file:// or other schemes.
     if (/^https?:\/\//i.test(url)) await shell.openExternal(url)
   })
-  handle('archive:extract', async (dirPath, fileName) => {
+  handle('archive:hasZipPassword', async (dirPath) => !!getSettings().zipPasswords?.[dirPath])
+
+  handle('archive:clearZipPassword', async (dirPath) => {
+    const saved = { ...(getSettings().zipPasswords ?? {}) }
+    if (!(dirPath in saved)) return
+    delete saved[dirPath]
+    updateSettings({ zipPasswords: saved })
+  })
+
+  handle('archive:extract', async (dirPath, fileName, password) => {
     const zipPath = normalize(join(dirPath, fileName))
     // Only extract zips that live inside the download root.
-    if (!isWithinRoot(getSettings().downloadRoot, zipPath) || !/\.zip$/i.test(zipPath)) return null
+    if (!isWithinRoot(getSettings().downloadRoot, zipPath) || !/\.zip$/i.test(zipPath)) {
+      return { ok: false, reason: 'failed' }
+    }
+    // Try, in order: what the user just typed, this post's saved password, then
+    // every other saved one (creators tend to reuse a password across posts).
+    const saved = getSettings().zipPasswords ?? {}
+    const candidates = [...new Set([password, saved[dirPath], ...Object.values(saved)].filter(Boolean))]
     try {
-      const out = await extractZip(zipPath)
-      await shell.openPath(out)
-      return out
+      const out = await extractZip(zipPath, candidates as string[])
+      if (out.usedPassword && saved[dirPath] !== out.usedPassword) {
+        updateSettings({ zipPasswords: { ...saved, [dirPath]: out.usedPassword } })
+      }
+      await shell.openPath(out.dir)
+      return { ok: true, dir: out.dir }
     } catch (err) {
-      console.error('[archive] extract failed', err)
-      return null
+      const reason = err instanceof ExtractError ? err.reason : 'failed'
+      console.error(`[archive] extract failed (${reason})`, err)
+      return { ok: false, reason }
     }
   })
 

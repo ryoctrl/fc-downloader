@@ -95,11 +95,42 @@ function FileRow({
   const icon = file.kind === 'audio' ? 'play' : file.kind === 'video' ? 'play' : 'file'
   const isZip = /\.zip$/i.test(file.name)
   const [extracting, setExtracting] = useState(false)
-  const extract = async (): Promise<void> => {
+  // Password-protected archives: ask only when the saved passwords don't fit,
+  // and report why an extraction failed instead of silently doing nothing.
+  const [needPassword, setNeedPassword] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  // Whether a password is remembered for this post, so it can be forgotten.
+  const [pwSaved, setPwSaved] = useState(false)
+  useEffect(() => {
+    if (!isZip) return
+    let cancelled = false
+    void bridge.hasZipPassword(dirPath).then((has) => {
+      if (!cancelled) setPwSaved(has)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isZip, dirPath])
+  const extract = async (pw?: string): Promise<void> => {
     if (extracting) return
     setExtracting(true)
+    setError(null)
     try {
-      await bridge.extractArchive(dirPath, file.name)
+      const res = await bridge.extractArchive(dirPath, file.name, pw)
+      if (res.ok) {
+        setNeedPassword(false)
+        setPassword('')
+        setPwSaved(await bridge.hasZipPassword(dirPath))
+        return
+      }
+      if (res.reason === 'password-required' || res.reason === 'password-wrong') {
+        setNeedPassword(true)
+        // Only call it "wrong" once the user has actually supplied one.
+        if (res.reason === 'password-wrong' && (pw || needPassword)) setError(L.zipPasswordWrong)
+      } else {
+        setError(res.reason === 'unsupported' ? L.zipUnsupported : L.extractFailed)
+      }
     } finally {
       setExtracting(false)
     }
@@ -109,6 +140,7 @@ function FileRow({
       style={{
         display: 'flex',
         alignItems: 'center',
+        flexWrap: 'wrap',
         gap: 12,
         padding: '12px 16px',
         borderRadius: 11,
@@ -134,7 +166,33 @@ function FileRow({
       <span style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--text-3)', flexShrink: 0 }}>
         {fmtSize(file.sizeBytes / (1024 * 1024))}
       </span>
-      {isZip && (
+      {isZip && pwSaved && !needPassword && (
+        <button
+          onClick={() => void bridge.clearZipPassword(dirPath).then(() => setPwSaved(false))}
+          title={`${L.zipPasswordSaved} — ${L.zipForgetPassword}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 9px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-3)',
+            cursor: 'pointer',
+            fontSize: 11.5,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            flexShrink: 0
+          }}
+        >
+          <Icon name="lock" size={13} />
+          <Icon name="x" size={11} />
+        </button>
+      )}
+      {/* While the password prompt is open its own button submits, so this one
+          would be a duplicate action on the same row. */}
+      {isZip && !needPassword && (
         <button
           onClick={() => void extract()}
           title={L.extractZip}
@@ -181,6 +239,54 @@ function FileRow({
         >
           <Icon name="trash" size={13} />
         </button>
+      )}
+      {(needPassword || error) && (
+        <div style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {needPassword && (
+            <>
+              <input
+                type="password"
+                value={password}
+                placeholder={L.zipPasswordPlaceholder}
+                autoFocus
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && password) void extract(password)
+                }}
+                style={{
+                  flex: 1,
+                  minWidth: 180,
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface-2)',
+                  color: 'var(--text)',
+                  fontSize: 12,
+                  fontFamily: 'inherit'
+                }}
+              />
+              <button
+                onClick={() => password && void extract(password)}
+                disabled={!password || extracting}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: 'var(--accent)',
+                  color: '#fff',
+                  cursor: !password || extracting ? 'default' : 'pointer',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  fontFamily: 'inherit',
+                  opacity: !password || extracting ? 0.6 : 1
+                }}
+              >
+                {extracting ? L.extracting : L.zipUnlock}
+              </button>
+            </>
+          )}
+          {error && <span style={{ fontSize: 11.5, color: 'var(--danger, #e5484d)' }}>{error}</span>}
+        </div>
       )}
     </div>
   )

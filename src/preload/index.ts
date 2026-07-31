@@ -21,6 +21,8 @@ const invokeChannels: IpcChannel[] = [
   'psd:saveThumb',
   'shell:openExternal',
   'archive:extract',
+  'archive:hasZipPassword',
+  'archive:clearZipPassword',
   'window:pinBounds',
   'posts:list',
   'posts:files',

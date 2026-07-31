@@ -185,6 +185,10 @@ export interface AppSettings {
   /** ISO timestamp of the last completed download run, per service ("last
    *  synced"). Surfaced in the library so the user knows how fresh it is. */
   lastSync?: Partial<Record<ServiceId, string>>
+  /** Zip passwords the user registered, keyed by the post's folder. Creators
+   *  often reuse one, so every saved password is also tried as a candidate for
+   *  other posts before asking again. */
+  zipPasswords?: Record<string, string>
 }
 
 /**
