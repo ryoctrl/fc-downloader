@@ -45,6 +45,8 @@ export interface PurchasedProduct {
   orderedAt: string
   /** Seller's fanclub id — the creator this product is filed under. */
   creatorId?: string
+  /** Product image (its cover in the library), from the product page. */
+  imageUrl?: string
 }
 
 /** Product ids that have a download link on an order-history page. */
@@ -83,6 +85,19 @@ export function parseOrderDate(html: string): string | undefined {
   return Number.isNaN(t) ? undefined : new Date(t).toISOString()
 }
 
+/**
+ * The product's own image from its page, preferring the large `main_` variant
+ * over the small `thumb_` one (the order page only carries `thumb_`).
+ */
+export function parseProductImageUrl(productHtml: string): string | undefined {
+  const urls = [...productHtml.matchAll(/https:\/\/c\.fantia\.jp\/uploads\/product\/image\/\d+\/[^"'\s)]+/g)].map(
+    (m) => m[0]
+  )
+  const named = (prefix: string): string | undefined =>
+    urls.find((u) => (u.split('/').pop() ?? '').startsWith(prefix) && !u.endsWith('.webp'))
+  return named('main_') ?? named('thumb_') ?? undefined
+}
+
 /** The seller's fanclub id from a product page (its first fanclub link). */
 export function parseSellerFanclubId(productHtml: string): string | undefined {
   return productHtml.match(/\/fanclubs\/(\d+)/)?.[1]
@@ -96,12 +111,18 @@ export function productDownloadUrl(productId: string): string {
 /** Build the synthetic post that carries a purchased product's file. */
 export function productPost(serviceId: ServiceId, p: PurchasedProduct & { creatorId: string }): Post {
   const { year, month } = toLocationParts(p.orderedAt)
-  const file: PostFile = {
+  const files: PostFile[] = []
+  // The product image first, so it becomes this post's cover in the library.
+  if (p.imageUrl) {
+    const ext = (p.imageUrl.split('?')[0].match(/\.[a-z0-9]+$/i)?.[0] ?? '.jpg').toLowerCase()
+    files.push({ fileId: `product-image-${p.productId}`, kind: 'image', name: `thumb${ext}`, url: p.imageUrl })
+  }
+  files.push({
     fileId: `product-${p.productId}`,
     kind: kindForName(p.fileName),
     name: p.fileName,
     url: productDownloadUrl(p.productId)
-  }
+  })
   return {
     serviceId,
     creatorId: p.creatorId,
@@ -111,7 +132,7 @@ export function productPost(serviceId: ServiceId, p: PurchasedProduct & { creato
     year,
     month,
     url: `${BASE}/products/${p.productId}`,
-    files: [file]
+    files
   }
 }
 
@@ -166,6 +187,7 @@ export async function loadPurchasedProducts(ctx: ServiceContext): Promise<Purcha
     try {
       const html = await ctx.fetchText(`${BASE}/products/${item.productId}`)
       item.creatorId = parseSellerFanclubId(html)
+      item.imageUrl = parseProductImageUrl(html)
     } catch (err) {
       ctx.log('warn', `product ${item.productId} page failed`, err)
     }

@@ -5,6 +5,7 @@ import {
   parseOrderItems,
   parsePurchasedProductIds,
   parseSellerFanclubId,
+  parseProductImageUrl,
   productDownloadUrl,
   productPost
 } from './purchases'
@@ -94,6 +95,27 @@ describe('parseSellerFanclubId', () => {
   })
 })
 
+describe('parseProductImageUrl', () => {
+  const html = `
+    <img src="https://c.fantia.jp/uploads/product/image/111111/thumb_abc.jpg" />
+    <source srcset="https://c.fantia.jp/uploads/product/image/111111/main_abc.webp" />
+    <img src="https://c.fantia.jp/uploads/product/image/111111/main_abc.jpg" />`
+
+  it('prefers the large main_ image over thumb_ and skips webp', () => {
+    expect(parseProductImageUrl(html)).toBe('https://c.fantia.jp/uploads/product/image/111111/main_abc.jpg')
+  })
+
+  it('falls back to thumb_ when there is no main_', () => {
+    expect(parseProductImageUrl('<img src="https://c.fantia.jp/uploads/product/image/1/thumb_a.jpg" />')).toBe(
+      'https://c.fantia.jp/uploads/product/image/1/thumb_a.jpg'
+    )
+  })
+
+  it('is undefined when the page has no product image', () => {
+    expect(parseProductImageUrl('<p>none</p>')).toBeUndefined()
+  })
+})
+
 describe('productDownloadUrl', () => {
   it('builds the /download URL from the product id', () => {
     expect(productDownloadUrl('111111')).toBe('https://fantia.jp/products/111111/download')
@@ -107,7 +129,8 @@ describe('productPost', () => {
       title: 'Sample product one',
       fileName: 'sample-one.mp4',
       orderedAt: '2026-07-30T13:52:00.000Z',
-      creatorId: '374068'
+      creatorId: '374068',
+      imageUrl: 'https://c.fantia.jp/uploads/product/image/111111/main_abc.jpg'
     })
     expect(post).toMatchObject({
       serviceId: 'fantia',
@@ -119,6 +142,12 @@ describe('productPost', () => {
       url: 'https://fantia.jp/products/111111'
     })
     expect(post.files).toEqual([
+      {
+        fileId: 'product-image-111111',
+        kind: 'image',
+        name: 'thumb.jpg',
+        url: 'https://c.fantia.jp/uploads/product/image/111111/main_abc.jpg'
+      },
       {
         fileId: 'product-111111',
         kind: 'video',
