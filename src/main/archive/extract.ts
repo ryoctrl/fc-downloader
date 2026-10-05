@@ -51,7 +51,7 @@ const SIG_CENTRAL = 0x02014b50
 const SIG_LOCAL = 0x04034b50
 
 /** Destination folder for an archive: a sibling named after it. */
-function targetDirFor(zipPath: string): string {
+export function targetDirFor(zipPath: string): string {
   return zipPath.replace(/\.zip$/i, '') || `${zipPath}_extracted`
 }
 

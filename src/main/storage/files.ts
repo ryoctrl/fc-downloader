@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join, normalize, relative, sep } from 'node:path'
 import type { LibraryFile, PostFileKind } from '@shared/types'
+import { targetDirFor } from '@main/archive/extract'
 import { getSettings } from './settings'
 import { LEGACY_PSD_COVER_NAME, PSD_THUMB_PREFIX, psdThumbName } from './layout'
 
@@ -120,6 +121,15 @@ export async function listPostFiles(dirPath: string): Promise<LibraryFile[]> {
     if (/\.psd$/i.test(e.name)) {
       const thumb = join(dirPath, psdThumbName(e.name))
       if (existsSync(thumb)) lf.thumbUrl = fcfileUrl(relative(root, thumb))
+    }
+    // Point a .zip at its extracted folder, if it has been extracted.
+    if (/\.zip$/i.test(e.name)) {
+      const dir = targetDirFor(full)
+      try {
+        if ((await stat(dir)).isDirectory()) lf.extractedDir = dir
+      } catch {
+        /* not extracted yet */
+      }
     }
     out.push(lf)
   }

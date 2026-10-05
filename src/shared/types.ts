@@ -249,6 +249,9 @@ export interface LibraryFile {
   sizeBytes: number
   /** fcfile:// URL of a generated preview thumbnail (for a .psd), if one exists. */
   thumbUrl?: string
+  /** For a .zip: absolute path of the folder it was extracted into, when that
+   *  folder exists — so the viewer can reopen it after the first reveal. */
+  extractedDir?: string
   /** True when this file is not a recorded download (e.g. a PSD export the user
    *  saved) and so may be deleted from the app. Downloaded content is never
    *  deletable here. */

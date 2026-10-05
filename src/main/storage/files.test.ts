@@ -65,6 +65,20 @@ describe('listPostFiles', () => {
     expect(files.map((f) => f.name)).toEqual(['a.png', 'b.mp3'])
   })
 
+  it('points a .zip at its extracted folder only once that folder exists', async () => {
+    const dir = join(root, 'fanbox', 'c', '2025', '06', '2')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'done.zip'), 'zip')
+    writeFileSync(join(dir, 'todo.zip'), 'zip')
+    mkdirSync(join(dir, 'done'))
+
+    const files = await listPostFiles(dir)
+    // The extracted folder itself is not listed as a post file.
+    expect(files.map((f) => f.name)).toEqual(['done.zip', 'todo.zip'])
+    expect(files[0].extractedDir).toBe(join(dir, 'done'))
+    expect(files[1].extractedDir).toBeUndefined()
+  })
+
   it('refuses directories outside the download root', async () => {
     expect(await listPostFiles(join(root, '..', 'elsewhere'))).toEqual([])
   })

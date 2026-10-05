@@ -102,6 +102,10 @@ function FileRow({
   const [error, setError] = useState<string | null>(null)
   // Whether a password is remembered for this post, so it can be forgotten.
   const [pwSaved, setPwSaved] = useState(false)
+  // The extracted folder, so it can be reopened after the explorer window that
+  // popped up on extraction is closed.
+  const [justExtracted, setJustExtracted] = useState<string | undefined>()
+  const extractedDir = justExtracted ?? file.extractedDir
   useEffect(() => {
     if (!isZip) return
     let cancelled = false
@@ -119,6 +123,7 @@ function FileRow({
     try {
       const res = await bridge.extractArchive(dirPath, file.name, pw)
       if (res.ok) {
+        setJustExtracted(res.dir)
         setNeedPassword(false)
         setPassword('')
         setPwSaved(await bridge.hasZipPassword(dirPath))
@@ -215,6 +220,30 @@ function FileRow({
         >
           <Icon name="folder" size={13} />
           {extracting ? L.extracting : L.extractZip}
+        </button>
+      )}
+      {isZip && extractedDir && (
+        <button
+          onClick={() => void bridge.openPath(extractedDir)}
+          title={L.openExtractedTitle}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 10px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'transparent',
+            color: 'var(--text-2)',
+            cursor: 'pointer',
+            fontSize: 11.5,
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            flexShrink: 0
+          }}
+        >
+          <Icon name="external" size={13} />
+          {L.openExtracted}
         </button>
       )}
       {file.deletable && (
