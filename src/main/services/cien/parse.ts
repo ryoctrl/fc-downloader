@@ -31,6 +31,18 @@ function kindForName(name: string): PostFileKind {
   return 'file'
 }
 
+/**
+ * Whether a fetched ci-en page is the logged-in view.
+ *
+ * Verified (2026-10-07): the redesigned /mypage no longer links /logout, but
+ * every authed page still carries the member-only nav (/mypage/settings,
+ * /mypage/messages). Logged out, /mypage redirects to the login page, which
+ * has neither. Requiring both avoids false positives from a stray substring.
+ */
+export function isLoggedInPage(html: string): boolean {
+  return html.includes('/mypage/setting') && html.includes('/mypage/messages')
+}
+
 /** Minimal HTML entity decode for the bits that appear in titles/URLs. */
 export function decodeEntities(s: string): string {
   return s

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canonicalCreatorId,
   decodeEntities,
+  isLoggedInPage,
   mergeSubscriptionTiers,
   parseArticleDate,
   parseArticleIds,
@@ -20,6 +21,21 @@ describe('canonicalCreatorId', () => {
     expect(canonicalCreatorId('00012345')).toBe('12345')
     expect(canonicalCreatorId('8600')).toBe('8600')
     expect(canonicalCreatorId('0000')).toBe('0')
+  })
+})
+
+describe('isLoggedInPage', () => {
+  it('accepts the redesigned /mypage (member nav, no /logout link)', () => {
+    const html = `<a href="/mypage/messages">m</a><a href="/mypage/settings">s</a>`
+    expect(isLoggedInPage(html)).toBe(true)
+  })
+  it('accepts the classic layout that also links /logout', () => {
+    const html = `<a href="https://ci-en.dlsite.com/mypage/messages">m</a>
+      <a href="https://ci-en.dlsite.com/mypage/settings">s</a><a href="https://ci-en.dlsite.com/logout">o</a>`
+    expect(isLoggedInPage(html)).toBe(true)
+  })
+  it('rejects the login page a logged-out /mypage redirects to', () => {
+    expect(isLoggedInPage(`<form action="/login"><input name="login_id"></form>`)).toBe(false)
   })
 })
 

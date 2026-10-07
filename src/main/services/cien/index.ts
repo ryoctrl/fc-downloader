@@ -15,8 +15,9 @@
  *
  * Verified against the live site with a logged-in session (2026-06-08) — see
  * scripts/probe-cien.cjs:
- *   - checkAuth: GET /mypage carries the authed user-menu links (/logout,
- *     /mypage/setting); logged out it lacks them (redirects to login).
+ *   - checkAuth: GET /mypage carries the member-only nav (/mypage/settings,
+ *     /mypage/messages); logged out it redirects to login (re-verified
+ *     2026-10-07 — the /logout link was dropped from /mypage).
  *   - listCreators: GET /mypage/subscription lists subscribed `/creator/<id>`.
  *   - listPosts: GET /creator/<id>/article?page=N paginates article links.
  *   - article media: gated files at media.ci-en.jp/private/attachment/... with
@@ -27,6 +28,7 @@ import type { RecentPost, Service, ServiceContext } from '../types'
 import { toLocationParts } from '@main/storage/layout'
 import { webPostUrl } from '../postUrl'
 import {
+  isLoggedInPage,
   mergeSubscriptionTiers,
   parseArticleDate,
   parseArticleIds,
@@ -49,11 +51,10 @@ export const cienService: Service = {
 
   async checkAuth(ctx: ServiceContext): Promise<boolean> {
     try {
-      // Verified (2026-06-08): the authed /mypage carries the user-menu links
-      // (/logout + /mypage/setting); logged out it lacks them. Checking both
-      // avoids false positives from an unrelated "/logout" substring.
+      // Logged out, /mypage redirects to the login page. See isLoggedInPage
+      // for the markers (the /logout link is gone since the 2026-10 redesign).
       const html = await ctx.fetchText(`${BASE}/mypage`)
-      return html.includes('/logout') && html.includes('/mypage/setting')
+      return isLoggedInPage(html)
     } catch (err) {
       ctx.log('debug', 'checkAuth failed (treating as logged out)', err)
       return false

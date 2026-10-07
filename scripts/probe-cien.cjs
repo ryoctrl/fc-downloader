@@ -38,9 +38,9 @@ const uniq = (a) => [...new Set(a)]
 app.whenReady().then(async () => {
   const ses = session.fromPartition('persist:cien')
 
-  // 1) checkAuth: authed /mypage carries the user-menu links.
+  // 1) checkAuth: authed /mypage carries the member-only nav (no /logout since 2026-10).
   const mp = await req(ses, `${BASE}/mypage`)
-  const authed = mp.body.includes('/logout') && mp.body.includes('/mypage/setting')
+  const authed = mp.body.includes('/mypage/setting') && mp.body.includes('/mypage/messages')
   console.log('checkAuth:', authed)
 
   // 2) listCreators: subscribed creators (ids appear padded + bare).
