@@ -108,5 +108,5 @@
 
 ---
 
-<sub>開発者向けの情報（セットアップ・設計）は [CLAUDE.md](CLAUDE.md) と [docs/](docs/) を参照してください。
+<sub>開発への参加方法は [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の報告は [SECURITY.md](SECURITY.md) を参照してください。開発者向けの情報（セットアップ・設計）は [CLAUDE.md](CLAUDE.md) と [docs/](docs/) にあります。
 README の画面はモックデータで、[`scripts/gen-mock-screenshots.cjs`](scripts/gen-mock-screenshots.cjs) で生成しています。</sub>
