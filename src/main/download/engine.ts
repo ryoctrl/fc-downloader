@@ -247,7 +247,10 @@ export class DownloadEngine {
 
         // Advance the creator's sync mark only after a walk that reached back to
         // the previous mark (a full walk, or a since-sync one) with nothing
-        // failed or skipped by an error. A cancelled run never gets here.
+        // failed or skipped by an error. A cancel can still land here: workers
+        // drop their queued files without counting them as failed, and the walk
+        // ends normally if that was the last post — so check before advancing.
+        signal.throwIfAborted()
         const previous = getSyncMark(serviceId, creatorId, options.includeKinds)
         const next = nextSyncMark({
           coveredFromMark: sinceSync || runPeriod === undefined,
