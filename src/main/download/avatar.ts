@@ -23,7 +23,8 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * Download a creator's avatar into `<root>/<serviceId>/<creatorId>/_avatar.<ext>`
+ * Download a creator's avatar into `<creatorDir>/_avatar.<ext>` (the creator's
+ * folder under the user's folder pattern, see layout.creatorDir)
  * (reusing it if already present) and return a fcfile:// URL the viewer can
  * render. Returns undefined when there is no source URL. Throws on a failed
  * fetch — callers treat avatars as cosmetic and swallow errors.
@@ -36,7 +37,7 @@ async function exists(path: string): Promise<boolean> {
 export async function ensureCreatorAvatar(
   serviceId: ServiceId,
   root: string,
-  creatorId: string,
+  creatorDir: string,
   iconUrl: string | undefined,
   headers: Record<string, string> | undefined,
   signal: AbortSignal
@@ -44,13 +45,12 @@ export async function ensureCreatorAvatar(
   if (!iconUrl) return undefined
   const clean = iconUrl.split('?')[0]
   const ext = (clean.match(/\.([a-zA-Z0-9]{2,4})$/)?.[1] ?? 'jpg').toLowerCase()
-  const dir = join(root, serviceId, creatorId)
-  const dest = join(dir, `_avatar.${ext}`)
+  const dest = join(creatorDir, `_avatar.${ext}`)
   const url = fcfileUrl(relative(root, dest))
   if (await exists(dest)) return url
   const res = await requestFor(serviceId, iconUrl, { signal, headers })
   if (res.status >= 400) throw new Error(`HTTP ${res.status} fetching avatar`)
-  await mkdir(dir, { recursive: true })
+  await mkdir(creatorDir, { recursive: true })
   await writeFile(dest, res.buffer())
   return url
 }

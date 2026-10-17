@@ -57,11 +57,14 @@ docs/          Spec, ADRs, roadmap (source of truth for design)
    session (so the user's login cookies apply).
 3. The **DownloadEngine** walks posts, checks the **dedup** ledger
    (`storage/db.ts`) + disk, and writes files to
-   `<root>/<serviceId>/<creatorId>/<year>/<month>/<postId>/`.
+   `<root>/<serviceId>/<creator folder>/<post folder>/` — folder names from the
+   user's patterns (`shared/folderPattern.ts`; default
+   `<creatorId>/<year>/<month>/<postId>`), recorded per post in the ledger.
 4. Progress is pushed to the renderer via typed events (`download:progress`).
 5. The **viewer** rebuilds its tree by walking that same folder layout.
 
-The folder-layout tuple **is** the dedup key. Read
+Dedup is keyed by (service, creator id, post id) in the ledger, not by the
+folder path. Read
 [docs/spec/storage-and-dedup.md](docs/spec/storage-and-dedup.md).
 
 ## Commands

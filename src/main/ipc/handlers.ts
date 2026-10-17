@@ -30,7 +30,7 @@ import {
   setCreatorIcon
 } from '@main/storage/db'
 import { fcfileUrl, isWithinRoot, listPostFiles } from '@main/storage/files'
-import { psdThumbName } from '@main/storage/layout'
+import { creatorDir, psdThumbName } from '@main/storage/layout'
 import { DownloadEngine } from '@main/download/engine'
 import { ExtractError, extractZip } from '@main/archive/extract'
 import { checkForUpdate } from '@main/update/check'
@@ -189,6 +189,9 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
           if (recentItems.length > 600) recentItems.shift()
           if (win) emit(win, 'download:item', dlItem)
         }
+      }, {
+        creatorFolderPattern: getSettings().creatorFolderPattern,
+        postFolderPattern: getSettings().postFolderPattern
       })
       .catch((err) => console.error('[download] run failed', err))
       .finally(() => {
@@ -357,6 +360,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
       // Resolve live icon URLs (needs login; returns [] otherwise — best effort).
       const creators = await listCreatorsWithAdded(svc, ctx).catch(() => [])
       const iconById = new Map(creators.map((c) => [c.creatorId, c.iconUrl]))
+      const nameById = new Map(creators.map((c) => [c.creatorId, c.name]))
       for (const creatorId of creatorIds) {
         const iconUrl = iconById.get(creatorId)
         if (!iconUrl) continue
@@ -364,7 +368,10 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
           const url = await ensureCreatorAvatar(
             serviceId,
             root,
-            creatorId,
+            creatorDir(root, serviceId, getSettings(), {
+              creatorId,
+              creatorName: nameById.get(creatorId)
+            }),
             iconUrl,
             svc.downloadHeaders,
             ac.signal

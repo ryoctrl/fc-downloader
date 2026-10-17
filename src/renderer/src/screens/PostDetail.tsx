@@ -509,7 +509,15 @@ function Preview({
 
   if (files.length === 0) {
     return (
-      <Thumb hue={post.hue} type={post.type} radius={12} ratio="16 / 9" label={loaded ? L.noFiles : L.loading} />
+      <Thumb
+        hue={post.hue}
+        type={post.type}
+        radius={12}
+        ratio="16 / 9"
+        // A post with no recorded files had nothing to download (e.g. text
+        // only), so no folder exists for it — say so instead of "not found".
+        label={!loaded ? L.loading : post.files === 0 ? L.nothingToDownload : L.noFiles}
+      />
     )
   }
 
@@ -845,13 +853,15 @@ export function PostDetail() {
                 <Icon name="external" size={16} />
               </button>
             )}
-            <button
-              onClick={() => bridge.openPath(post.dirPath)}
-              title={L.openFolder}
-              style={ACTION_STYLE}
-            >
-              <Icon name="folder" size={16} />
-            </button>
+            {post.files > 0 && (
+              <button
+                onClick={() => bridge.openPath(post.dirPath)}
+                title={L.openFolder}
+                style={ACTION_STYLE}
+              >
+                <Icon name="folder" size={16} />
+              </button>
+            )}
           </div>
           <MetaRow label={L.posted}>{post.date}</MetaRow>
           <MetaRow label={L.type}>{post.type}</MetaRow>

@@ -3,7 +3,7 @@
  * skips anything already on disk (dedup via the metadata DB), and downloads
  * remaining files with bounded concurrency, emitting progress events.
  */
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   DownloadActivity,
@@ -17,13 +17,22 @@ import { getService } from '@main/services/registry'
 import { createServiceContext } from '@main/services/context'
 import { listCreatorsWithAdded } from '@main/services/creators'
 import { downloadToFile } from '@main/session/manager'
-import { dedupeFileNames, postDir, sanitizeFileName, toLocationParts } from '@main/storage/layout'
+import {
+  creatorDir,
+  dedupeFileNames,
+  patternPostDir,
+  sanitizeFileName,
+  type FolderPatterns
+} from '@main/storage/layout'
+import { isWithinRoot } from '@main/storage/files'
 import { getThumbnail } from '@main/storage/thumbnails'
 import { THUMBNAIL_WIDTH } from '@shared/constants'
 import { ensureCreatorAvatar } from './avatar'
 import {
   isFileDownloaded,
   getSyncMark,
+  recordedCreatorName,
+  recordedPostDir,
   isPostComplete,
   markFileDownloaded,
   refreshPostCompletion,
@@ -66,6 +75,8 @@ export class DownloadEngine {
   private activeFiles = new Set<string>()
   /** The post/creator the engine is currently walking. */
   private cur: Omit<DownloadActivity, 'activeFiles'> = { phase: 'counting' }
+  /** Folder-name patterns for the current run (fixed when the run starts). */
+  private patterns: FolderPatterns = {}
 
   isRunning(): boolean {
     return this.running
@@ -97,10 +108,12 @@ export class DownloadEngine {
     serviceId: ServiceId,
     root: string,
     options: DownloadOptions,
-    cb: DownloadCallbacks
+    cb: DownloadCallbacks,
+    patterns: FolderPatterns = {}
   ): Promise<void> {
     if (this.running) throw new Error('A download run is already in progress')
     this.running = true
+    this.patterns = patterns
     this.abort = new AbortController()
     this.progress = blankProgress()
     this.activeFiles.clear()
@@ -191,11 +204,17 @@ export class DownloadEngine {
         // Leave the counting line behind while the first post is fetched.
         this.cur = { phase: 'scanning', creatorName: nameById.get(creatorId) }
         this.emit(cb)
+        // The creator's folder name: its current name, else the last recorded
+        // one (so a failed listing doesn't rename the folder to the bare id).
+        const folderCreator = {
+          creatorId,
+          creatorName: nameById.get(creatorId) ?? recordedCreatorName(serviceId, creatorId)
+        }
         // Fetch the creator's avatar once per run so the library can show it.
         const avatarUrl = await ensureCreatorAvatar(
           serviceId,
           root,
-          creatorId,
+          creatorDir(root, serviceId, this.patterns, folderCreator),
           iconById.get(creatorId),
           service.downloadHeaders,
           signal
@@ -241,7 +260,16 @@ export class DownloadEngine {
             continue
           }
 
-          await this.downloadPost(serviceId, root, post, options, cb, creatorName, avatarUrl)
+          await this.downloadPost(
+            serviceId,
+            root,
+            post,
+            options,
+            cb,
+            folderCreator,
+            creatorName,
+            avatarUrl
+          )
           this.progress.postsCompleted += 1
           this.emit(cb)
         }
@@ -274,13 +302,21 @@ export class DownloadEngine {
     post: Post,
     options: DownloadOptions,
     cb: DownloadCallbacks,
+    folderCreator: { creatorId: string; creatorName?: string },
     creatorName?: string,
     creatorIconUrl?: string
   ): Promise<void> {
-    const { year, month } = toLocationParts(post.postedAt)
-    const loc = { serviceId, creatorId: post.creatorId, year, month, postId: post.postId }
-    const dir = postDir(root, loc)
-    await mkdir(dir, { recursive: true })
+    // A recorded post stays in its folder (a pattern change must not split it
+    // across two); a new one goes where the folder patterns put it. The folder
+    // itself is only made when a file is actually saved — a post with nothing
+    // to download leaves no empty folder behind.
+    // A recorded folder that is gone or emptied (the user deleted the files)
+    // holds nothing to keep together, so the post moves to the pattern's place.
+    const recorded = recordedPostDir(serviceId, post.creatorId, post.postId)
+    const dir =
+      recorded && isWithinRoot(root, recorded) && (await hasEntries(recorded))
+        ? recorded
+        : patternPostDir(root, serviceId, this.patterns, folderCreator, post)
     upsertPost(post, dir, creatorName, creatorIconUrl)
 
     // Assign collision-free on-disk names across the *whole* post (stable,
@@ -301,7 +337,7 @@ export class DownloadEngine {
     const queue = [...targets]
     const meta = { creatorName, postFileTotal: targets.length }
     const workers = Array.from({ length: Math.max(1, options.concurrency) }, () =>
-      this.worker(serviceId, root, loc, post, queue, options, cb, diskNameById, meta)
+      this.worker(serviceId, dir, post, queue, options, cb, diskNameById, meta)
     )
     await Promise.all(workers)
     refreshPostCompletion(post, options.includeKinds)
@@ -309,8 +345,7 @@ export class DownloadEngine {
 
   private async worker(
     serviceId: ServiceId,
-    root: string,
-    loc: { serviceId: ServiceId; creatorId: string; year: number; month: number; postId: string },
+    dir: string,
     post: Post,
     queue: PostFile[],
     options: DownloadOptions,
@@ -352,7 +387,7 @@ export class DownloadEngine {
       }
 
       const diskName = diskNameById.get(file.fileId) ?? sanitizeFileName(file.name)
-      const dest = join(postDir(root, loc), diskName)
+      const dest = join(dir, diskName)
       try {
         if (options.skipExisting && (await exists(dest))) {
           markFileDownloaded(post, file.fileId, diskName, undefined, file.kind)
@@ -365,6 +400,7 @@ export class DownloadEngine {
           this.emit(cb)
           let size: number
           try {
+            await mkdir(dir, { recursive: true })
             size = await this.downloadFile(serviceId, file, dest)
           } finally {
             this.activeFiles.delete(file.name)
@@ -404,6 +440,15 @@ export class DownloadEngine {
     }
   }
 
+}
+
+/** Whether a directory exists and holds anything. */
+async function hasEntries(dir: string): Promise<boolean> {
+  try {
+    return (await readdir(dir)).length > 0
+  } catch {
+    return false
+  }
 }
 
 function blankProgress(): DownloadProgress {

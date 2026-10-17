@@ -211,6 +211,13 @@ export interface AppSettings {
    *  often reuse one, so every saved password is also tried as a candidate for
    *  other posts before asking again. */
   zipPasswords?: Record<string, string>
+  /** Creator folder name pattern (`{creatorId}`, `{creatorName}`); absent or
+   *  invalid = `{creatorId}`. See shared/folderPattern.ts. */
+  creatorFolderPattern?: string
+  /** Post folder pattern under the creator folder (`{year}` `{month}` `{day}`
+   *  `{postId}` `{title}`, `/` nests); must contain `{postId}`. Absent or
+   *  invalid = `{year}/{month}/{postId}`. */
+  postFolderPattern?: string
   /** Creators the user added from a creator page, per service, for services
    *  whose listing can't find them all (Patreon free memberships). Merged into
    *  the service's creator list. */

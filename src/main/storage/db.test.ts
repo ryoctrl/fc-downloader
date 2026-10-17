@@ -351,12 +351,19 @@ describe('listPosts', () => {
     // still be removed (regression: per-file loop alone would skip it).
     upsertPost(base('C', []), join(dir, 'c'))
 
+    // Post D: complete with nothing to download -> no folder was ever made for
+    // it; it must be kept, or the next run would fetch it again.
+    const postD = base('D', [])
+    upsertPost(postD, join(dir, 'd'))
+    refreshPostCompletion(postD, ['image'])
+
     const r = await reconcileWithDisk()
     expect(r).toEqual({ removedFiles: 2, removedPosts: 2, updatedPosts: 1 })
 
     const posts = listPosts()
     expect(posts.find((p) => p.postId === 'B')).toBeUndefined() // fully gone
     expect(posts.find((p) => p.postId === 'C')).toBeUndefined() // 0-file, dir gone
+    expect(posts.find((p) => p.postId === 'D')?.completed).toBe(true) // nothing to fetch
     const a = posts.find((p) => p.postId === 'A')
     expect(a?.fileCount).toBe(1) // only keep.png remains
     expect(a?.completed).toBe(false) // lost a file -> marked incomplete
