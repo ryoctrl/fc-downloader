@@ -11,6 +11,7 @@ import { rename, unlink } from 'node:fs/promises'
 import { net, session, type Session } from 'electron'
 import type { ServiceId } from '@shared/types'
 import { awaitPoliteSlot } from './throttle'
+import { parentDomain, parseCookieInput, type CookieInputFormat } from './cookies'
 
 export function partitionFor(serviceId: ServiceId): string {
   return `persist:${serviceId}`
@@ -26,6 +27,136 @@ export async function clearSession(serviceId: ServiceId): Promise<void> {
   await s.clearStorageData({
     storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage']
   })
+}
+
+/** Default lifetime for imported cookies that arrive without an expiry. */
+const IMPORT_COOKIE_TTL_SECONDS = 365 * 24 * 60 * 60
+
+export interface CookieImportOutcome {
+  ok: boolean
+  /** `empty`: nothing usable was pasted. `unparsable`: the shape wasn't
+   *  recognised. `failed`: recognised, but every `cookies.set` was rejected. */
+  reason?: 'empty' | 'unparsable' | 'failed'
+  count: number
+  names: string[]
+  /** Cookies Chromium refused, with its reason. Surfaced in the UI so a partial
+   *  import never masquerades as a complete one. */
+  rejected: CookieImportRejection[]
+  format: CookieInputFormat | null
+}
+
+export interface CookieImportRejection {
+  name: string
+  reason: string
+}
+
+/**
+ * Install user-pasted cookies into a service's partition (see ./cookies.ts for
+ * why this exists). `origin` is the service's home URL origin — it supplies the
+ * host to attach host-only cookies to and the URL each `cookies.set` is scoped
+ * by.
+ *
+ * Cookies that arrive without an expiry are given one: a session-scoped cookie
+ * would be dropped when the app closes, which defeats the point of importing a
+ * long-lived `session_id`.
+ */
+export async function importCookies(
+  serviceId: ServiceId,
+  raw: string,
+  origin: string
+): Promise<CookieImportOutcome> {
+  const parsed = parseCookieInput(raw)
+  if (parsed.cookies.length === 0) {
+    return {
+      ok: false,
+      reason: parsed.format ? 'failed' : 'unparsable',
+      count: 0,
+      names: [],
+      rejected: [],
+      format: parsed.format
+    }
+  }
+
+  const s = sessionFor(serviceId)
+  const root = new URL(origin)
+  const wanted = new Set(parsed.cookies.map((c) => c.name))
+
+  // Drop any existing cookie with an imported name first. Leaving both a
+  // host-only and a domain-scoped copy in place means the server receives two
+  // values for one name, and it will happily treat that as "not logged in".
+  const existing = [
+    ...(await s.cookies.get({ url: origin })),
+    ...((await parentDomainAsync(s, root.hostname)) ?? [])
+  ]
+  for (const cookie of existing) {
+    if (wanted.has(cookie.name)) {
+      await s.cookies.remove(origin, cookie.name).catch(() => {
+        /* a cookie scoped to another path/scheme refuses removal by url; fine */
+      })
+    }
+  }
+
+  const names: string[] = []
+  const rejected: CookieImportRejection[] = []
+  for (const c of parsed.cookies) {
+    const domain = c.domain
+    const host = (domain ?? root.hostname).replace(/^\./, '')
+    const url = `${root.protocol}//${host}${c.path ?? '/'}`
+    try {
+      await s.cookies.set({
+        url,
+        name: c.name,
+        value: c.value,
+        ...(domain ? { domain } : {}),
+        path: c.path ?? '/',
+        secure: c.secure ?? true,
+        httpOnly: c.httpOnly ?? false,
+        expirationDate: c.expires && c.expires > 0
+          ? c.expires
+          : Math.floor(Date.now() / 1000) + IMPORT_COOKIE_TTL_SECONDS,
+        ...(c.sameSite ? { sameSite: c.sameSite } : {})
+      })
+      names.push(c.name)
+    } catch (err) {
+      // One rejected record (e.g. a Secure flag on an http URL, or an `expires`
+      // already in the past) must not abort the rest of the paste — but it must
+      // not be swallowed either: a silently dropped cookie is indistinguishable
+      // from a paste that never contained it, which is how "imported but still
+      // logged out" became a mystery.
+      rejected.push({
+        name: c.name,
+        reason: err instanceof Error ? err.message : String(err)
+      })
+    }
+  }
+
+  // Chromium keeps the jar in memory and writes the SQLite store on a timer or
+  // at shutdown. Flushing now means a force-quit right after importing cannot
+  // throw away the login this feature exists to install.
+  await s.cookies.flushStore().catch(() => undefined)
+
+  return {
+    ok: names.length > 0,
+    ...(names.length > 0 ? {} : { reason: 'failed' as const }),
+    count: names.length,
+    names,
+    rejected,
+    format: parsed.format
+  }
+}
+
+/** Parent-domain cookies for `host`, so `.patreon.com` records are cleaned too. */
+async function parentDomainAsync(
+  s: Session,
+  host: string
+): Promise<Awaited<ReturnType<Session['cookies']['get']>> | null> {
+  const parent = parentDomain(host)
+  if (!parent) return null
+  try {
+    return await s.cookies.get({ domain: parent })
+  } catch {
+    return null
+  }
 }
 
 /**

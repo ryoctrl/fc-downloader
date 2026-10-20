@@ -32,3 +32,15 @@ fc-downloader.zip
 # Throwaway diagnostic/probe scripts (run against live accounts, then deleted).
 # Never commit these — they tend to contain real ids/tokens. See CLAUDE.md.
 scripts/_*
+
+# Ad-hoc electron-builder output (used when `release/` is locked by a running
+# build). Packaging artifacts never belong in history.
+/dist-build/
+/dist-*/
+
+# Local workbench state (agent notes/memory, scratch files). Machine-specific
+# by nature, so it stays out of the repo like any other local runtime dir.
+.workbuddy/
+
+# Windows needs a writable TEMP for vitest: `TEMP=$(pwd)/.tmp npm test`.
+/.tmp/

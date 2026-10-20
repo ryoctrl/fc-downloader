@@ -19,7 +19,7 @@ import {
   removeAddedCreator,
   saveAddedCreator
 } from '@main/services/creators'
-import { clearSession } from '@main/session/manager'
+import { clearSession, importCookies } from '@main/session/manager'
 import { getSettings, updateSettings } from '@main/storage/settings'
 import { buildViewerTree } from '@main/storage/viewer'
 import {
@@ -81,6 +81,33 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     await clearSession(serviceId)
     const win = getWindow()
     if (win) emit(win, 'services:authChanged', { serviceId, loggedIn: false })
+  })
+
+  handle('services:importCookies', async (serviceId, raw) => {
+    const svc = listServices().find((s) => s.id === serviceId)
+    if (!svc) {
+      return {
+        ok: false,
+        reason: 'failed' as const,
+        count: 0,
+        names: [],
+        rejected: [],
+        loggedIn: false
+      }
+    }
+    const outcome = await importCookies(serviceId, raw, svc.homeUrl)
+    // Storing a cookie proves nothing — ask the service itself. This is what
+    // makes a stale or partial paste fail loudly instead of leaving the user
+    // with a green light and 401s later.
+    let loggedIn = false
+    if (outcome.ok) {
+      const ac = new AbortController()
+      const ctx = createServiceContext(serviceId, ac.signal)
+      loggedIn = await svc.checkAuth(ctx).catch(() => false)
+    }
+    const win = getWindow()
+    if (win) emit(win, 'services:authChanged', { serviceId, loggedIn })
+    return { ...outcome, loggedIn }
   })
 
   handle('creators:list', async (serviceId) => {
