@@ -5,7 +5,13 @@
  * (e.g. the renderer opened in a plain browser preview, where `window.api`
  * is undefined and there is no preload bridge).
  */
-import type { AddCreatorResult, ExtractResult, IpcEvents, RendererApi } from '@shared/ipc'
+import type {
+  AddCreatorResult,
+  ExtractResult,
+  ImportCookiesResult,
+  IpcEvents,
+  RendererApi
+} from '@shared/ipc'
 import type {
   AppSettings,
   Creator,
@@ -41,6 +47,9 @@ export const bridge = {
     api?.['services:checkAuth'](id) ?? Promise.resolve(false),
   clearSession: (id: ServiceId): Promise<void> =>
     api?.['services:clearSession'](id) ?? Promise.resolve(),
+  importCookies: (id: ServiceId, raw: string): Promise<ImportCookiesResult> =>
+    api?.['services:importCookies'](id, raw) ??
+    Promise.resolve({ ok: false, reason: 'failed', count: 0, names: [], rejected: [], loggedIn: false }),
   listCreators: (id: ServiceId): Promise<Creator[]> =>
     api?.['creators:list'](id) ?? Promise.resolve([]),
   checkNewCreators: (id: ServiceId): Promise<string[]> =>

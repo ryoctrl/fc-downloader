@@ -10,6 +10,7 @@ import {
   type FolderPatternError
 } from '@shared/folderPattern'
 import { FC, fmtSize } from '../design/data'
+import type { ServiceId } from '@shared/types'
 import { countsForService } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
@@ -282,6 +283,67 @@ export function SettingsScreen() {
     '{creatorId}'
   )
 
+  // Manual cookie import (see src/main/session/cookies.ts): the fallback for a
+  // sign-in flow the embedded Chromium cannot finish, e.g. Patreon's Google SSO
+  // — Google authenticates and Cloudflare passes, but Patreon never issues its
+  // own session cookie to an embedded webview.
+  const [importFor, setImportFor] = useState<ServiceId | null>(null)
+  const [importText, setImportText] = useState('')
+  const [importBusy, setImportBusy] = useState(false)
+  const [importMsg, setImportMsg] = useState<string | null>(null)
+  const [importMsgOk, setImportMsgOk] = useState(false)
+  /** Which cookies actually landed, plus anything Chromium refused — the two
+   *  facts needed to tell "wrong paste" from "app bug". */
+  const [importDetail, setImportDetail] = useState<string | null>(null)
+  const runImport = async (serviceId: ServiceId): Promise<void> => {
+    setImportBusy(true)
+    setImportMsg(null)
+    setImportDetail(null)
+    try {
+      const r = await bridge.importCookies(serviceId, importText)
+      if (!r.ok) {
+        setImportMsgOk(false)
+        setImportMsg(
+          r.reason === 'empty'
+            ? L.importCookiesEmpty
+            : r.reason === 'unparsable'
+              ? L.importCookiesUnparsable
+              : L.importCookiesFailed
+        )
+        return
+      }
+      const shown = r.names.slice(0, 14).join(', ') + (r.names.length > 14 ? ' …' : '')
+      const rejected = r.rejected.length
+        ? ` · ${L.importCookiesRejected.replace(
+            '{list}',
+            r.rejected
+              .slice(0, 2)
+              .map((x) => `${x.name}: ${x.reason}`)
+              .join('; ')
+          )}`
+        : ''
+      setImportDetail(
+        `${L.importCookiesNames.replace('{n}', String(r.count))}: ${shown}${rejected}`
+      )
+      // Stored but still logged out is the common failure (a paste without the
+      // HttpOnly session cookie); say so instead of closing the panel on a
+      // false success.
+      if (r.loggedIn) {
+        setImportMsgOk(true)
+        setImportMsg(
+          `${L.importCookiesStored.replace('{n}', String(r.count))} · ${L.importCookiesOk}`
+        )
+        setImportText('')
+        setImportFor(null)
+      } else {
+        setImportMsgOk(false)
+        setImportMsg(L.importCookiesNotLoggedIn)
+      }
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
   const [verifying, setVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<string | null>(null)
   const runVerify = async (): Promise<void> => {
@@ -322,64 +384,153 @@ export function SettingsScreen() {
             {FC.SERVICES.map((svc) => {
               const on = !!state.logins[svc.id]
               const enabled = state.enabledServices[svc.id] !== false
+              const editing = importFor === svc.id
               return (
-                <div
-                  key={svc.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 13,
-                    padding: '12px 4px',
-                    borderBottom: '1px solid var(--border)'
-                  }}
-                >
-                  <ServiceMark svc={svc} size={34} active={on} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{svc.name}</div>
-                    <div
-                      style={{
-                        fontSize: 11.5,
-                        color: on ? 'var(--ok)' : 'var(--text-3)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        fontFamily: 'var(--mono)'
-                      }}
-                    >
-                      <span
+                <div key={svc.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 4px' }}>
+                    <ServiceMark svc={svc} size={34} active={on} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{svc.name}</div>
+                      <div
                         style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 99,
-                          background: on ? 'var(--ok)' : 'var(--text-3)'
+                          fontSize: 11.5,
+                          color: on ? 'var(--ok)' : 'var(--text-3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontFamily: 'var(--mono)'
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 99,
+                            background: on ? 'var(--ok)' : 'var(--text-3)'
+                          }}
+                        />
+                        {on ? L.connected : L.disconnected}
+                      </div>
+                    </div>
+                    <div
+                      title={L.serviceEnabledHint}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+                    >
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>{L.serviceEnabled}</span>
+                      <Toggle
+                        on={enabled}
+                        onClick={() => actions.setServiceEnabled(svc.id, !enabled)}
+                      />
+                    </div>
+                    {on ? (
+                      <Btn size="sm" variant="ghost" icon="trash" onClick={() => actions.clearSession(svc.id)}>
+                        {L.clearCookies}
+                      </Btn>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Btn
+                          size="sm"
+                          variant="ghost"
+                          icon="cookie"
+                          active={editing}
+                          onClick={() => setImportFor(editing ? null : svc.id)}
+                          title={L.importCookiesHint}
+                        >
+                          {L.importCookies}
+                        </Btn>
+                        <Btn
+                          size="sm"
+                          variant="solid"
+                          icon="external"
+                          onClick={() => app.go({ screen: 'service', serviceId: svc.id })}
+                        >
+                          {L.logIn}
+                        </Btn>
+                      </div>
+                    )}
+                  </div>
+                  {editing && (
+                    <div style={{ padding: '2px 4px 14px' }}>
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: 'var(--text-3)',
+                          lineHeight: 1.55,
+                          marginBottom: 8
+                        }}
+                      >
+                        {L.importCookiesHint}
+                      </div>
+                      <textarea
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                        placeholder={L.importCookiesPlaceholder}
+                        spellCheck={false}
+                        style={{
+                          width: '100%',
+                          minHeight: 92,
+                          boxSizing: 'border-box',
+                          padding: '9px 11px',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface-2)',
+                          color: 'var(--text)',
+                          fontFamily: 'var(--mono)',
+                          fontSize: 11.5,
+                          lineHeight: 1.5,
+                          resize: 'vertical'
                         }}
                       />
-                      {on ? L.connected : L.disconnected}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                        <Btn
+                          size="sm"
+                          variant="solid"
+                          icon="check"
+                          style={importBusy ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+                          onClick={() => {
+                            if (!importBusy) void runImport(svc.id)
+                          }}
+                        >
+                          {L.importCookiesRun}
+                        </Btn>
+                        <Btn
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setImportFor(null)
+                            setImportMsg(null)
+                            setImportDetail(null)
+                          }}
+                        >
+                          {L.importCookiesCancel}
+                        </Btn>
+                        {importMsg && (
+                          <span
+                            style={{
+                              fontSize: 11.5,
+                              color: importMsgOk ? 'var(--ok)' : 'var(--warn)',
+                              lineHeight: 1.4
+                            }}
+                          >
+                            {importMsg}
+                          </span>
+                        )}
+                      </div>
+                      {importDetail && (
+                        <div
+                          style={{
+                            marginTop: 7,
+                            fontSize: 10.5,
+                            color: 'var(--text-3)',
+                            fontFamily: 'var(--mono)',
+                            lineHeight: 1.5,
+                            wordBreak: 'break-word'
+                          }}
+                        >
+                          {importDetail}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div
-                    title={L.serviceEnabledHint}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-                  >
-                    <span style={{ fontSize: 10, color: 'var(--text-3)' }}>{L.serviceEnabled}</span>
-                    <Toggle
-                      on={enabled}
-                      onClick={() => actions.setServiceEnabled(svc.id, !enabled)}
-                    />
-                  </div>
-                  {on ? (
-                    <Btn size="sm" variant="ghost" icon="trash" onClick={() => actions.clearSession(svc.id)}>
-                      {L.clearCookies}
-                    </Btn>
-                  ) : (
-                    <Btn
-                      size="sm"
-                      variant="solid"
-                      icon="external"
-                      onClick={() => app.go({ screen: 'service', serviceId: svc.id })}
-                    >
-                      {L.logIn}
-                    </Btn>
                   )}
                 </div>
               )
