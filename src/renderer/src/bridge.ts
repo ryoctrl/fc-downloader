@@ -8,7 +8,7 @@
 import type {
   AddCreatorResult,
   ExtractResult,
-  ImportCookiesResult,
+  ImportSessionCookieResult,
   IpcEvents,
   RendererApi
 } from '@shared/ipc'
@@ -47,9 +47,9 @@ export const bridge = {
     api?.['services:checkAuth'](id) ?? Promise.resolve(false),
   clearSession: (id: ServiceId): Promise<void> =>
     api?.['services:clearSession'](id) ?? Promise.resolve(),
-  importCookies: (id: ServiceId, raw: string): Promise<ImportCookiesResult> =>
-    api?.['services:importCookies'](id, raw) ??
-    Promise.resolve({ ok: false, reason: 'failed', count: 0, names: [], rejected: [], loggedIn: false }),
+  importSessionCookie: (id: ServiceId, value: string): Promise<ImportSessionCookieResult> =>
+    api?.['services:importSessionCookie'](id, value) ??
+    Promise.resolve({ ok: false, reason: 'unsupported' } as ImportSessionCookieResult),
   listCreators: (id: ServiceId): Promise<Creator[]> =>
     api?.['creators:list'](id) ?? Promise.resolve([]),
   checkNewCreators: (id: ServiceId): Promise<string[]> =>

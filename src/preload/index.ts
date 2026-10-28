@@ -6,7 +6,7 @@ const invokeChannels: IpcChannel[] = [
   'services:openLogin',
   'services:checkAuth',
   'services:clearSession',
-  'services:importCookies',
+  'services:importSessionCookie',
   'creators:list',
   'creators:checkNew',
   'creators:add',

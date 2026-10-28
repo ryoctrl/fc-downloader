@@ -11,6 +11,7 @@ import {
 } from '@shared/folderPattern'
 import { FC, fmtSize } from '../design/data'
 import type { ServiceId } from '@shared/types'
+import { sessionCookieSpec } from '@shared/sessionCookie'
 import { countsForService } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
@@ -283,61 +284,41 @@ export function SettingsScreen() {
     '{creatorId}'
   )
 
-  // Manual cookie import (see src/main/session/cookies.ts): the fallback for a
-  // sign-in flow the embedded Chromium cannot finish, e.g. Patreon's Google SSO
-  // — Google authenticates and Cloudflare passes, but Patreon never issues its
-  // own session cookie to an embedded webview.
+  // Manual session-cookie import (see @shared/sessionCookie): the fallback for
+  // a sign-in flow the embedded webview cannot finish, e.g. Patreon's Google
+  // SSO. The user pastes ONE value; its cookie name and domain are fixed per
+  // service. State is per open panel: opening another service's panel starts
+  // empty, so a value typed for one service is never sent for another.
   const [importFor, setImportFor] = useState<ServiceId | null>(null)
   const [importText, setImportText] = useState('')
   const [importBusy, setImportBusy] = useState(false)
   const [importMsg, setImportMsg] = useState<string | null>(null)
-  const [importMsgOk, setImportMsgOk] = useState(false)
-  /** Which cookies actually landed, plus anything Chromium refused — the two
-   *  facts needed to tell "wrong paste" from "app bug". */
-  const [importDetail, setImportDetail] = useState<string | null>(null)
+  /** The service whose import just signed in (its row shows the success). */
+  const [importOkFor, setImportOkFor] = useState<ServiceId | null>(null)
+  const openImport = (serviceId: ServiceId | null): void => {
+    setImportFor(serviceId)
+    setImportText('')
+    setImportMsg(null)
+  }
   const runImport = async (serviceId: ServiceId): Promise<void> => {
     setImportBusy(true)
     setImportMsg(null)
-    setImportDetail(null)
+    setImportOkFor(null)
     try {
-      const r = await bridge.importCookies(serviceId, importText)
-      if (!r.ok) {
-        setImportMsgOk(false)
+      const r = await bridge
+        .importSessionCookie(serviceId, importText)
+        .catch(() => ({ ok: false, reason: 'failed' }) as const)
+      if (r.ok && r.loggedIn) {
+        setImportOkFor(serviceId)
+        openImport(null)
+      } else {
         setImportMsg(
-          r.reason === 'empty'
-            ? L.importCookiesEmpty
-            : r.reason === 'unparsable'
-              ? L.importCookiesUnparsable
+          r.ok
+            ? L.importCookiesNotLoggedIn
+            : r.reason === 'invalid'
+              ? L.importCookiesInvalid
               : L.importCookiesFailed
         )
-        return
-      }
-      const shown = r.names.slice(0, 14).join(', ') + (r.names.length > 14 ? ' …' : '')
-      const rejected = r.rejected.length
-        ? ` · ${L.importCookiesRejected.replace(
-            '{list}',
-            r.rejected
-              .slice(0, 2)
-              .map((x) => `${x.name}: ${x.reason}`)
-              .join('; ')
-          )}`
-        : ''
-      setImportDetail(
-        `${L.importCookiesNames.replace('{n}', String(r.count))}: ${shown}${rejected}`
-      )
-      // Stored but still logged out is the common failure (a paste without the
-      // HttpOnly session cookie); say so instead of closing the panel on a
-      // false success.
-      if (r.loggedIn) {
-        setImportMsgOk(true)
-        setImportMsg(
-          `${L.importCookiesStored.replace('{n}', String(r.count))} · ${L.importCookiesOk}`
-        )
-        setImportText('')
-        setImportFor(null)
-      } else {
-        setImportMsgOk(false)
-        setImportMsg(L.importCookiesNotLoggedIn)
       }
     } finally {
       setImportBusy(false)
@@ -384,7 +365,13 @@ export function SettingsScreen() {
             {FC.SERVICES.map((svc) => {
               const on = !!state.logins[svc.id]
               const enabled = state.enabledServices[svc.id] !== false
-              const editing = importFor === svc.id
+              const cookieSpec = sessionCookieSpec(svc.id)
+              const editing = !!cookieSpec && importFor === svc.id
+              const cookieHint = cookieSpec
+                ? L.importCookiesHint
+                    .replace('{host}', () => cookieSpec.host)
+                    .replace('{name}', () => cookieSpec.name)
+                : ''
               return (
                 <div key={svc.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 4px' }}>
@@ -409,7 +396,11 @@ export function SettingsScreen() {
                             background: on ? 'var(--ok)' : 'var(--text-3)'
                           }}
                         />
-                        {on ? L.connected : L.disconnected}
+                        {on
+                          ? importOkFor === svc.id
+                            ? L.importCookiesOk
+                            : L.connected
+                          : L.disconnected}
                       </div>
                     </div>
                     <div
@@ -428,16 +419,21 @@ export function SettingsScreen() {
                       </Btn>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Btn
-                          size="sm"
-                          variant="ghost"
-                          icon="cookie"
-                          active={editing}
-                          onClick={() => setImportFor(editing ? null : svc.id)}
-                          title={L.importCookiesHint}
-                        >
-                          {L.importCookies}
-                        </Btn>
+                        {cookieSpec && (
+                          <Btn
+                            size="sm"
+                            variant="ghost"
+                            icon="cookie"
+                            active={editing}
+                            style={importBusy ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+                            onClick={() => {
+                              if (!importBusy) openImport(editing ? null : svc.id)
+                            }}
+                            title={cookieHint}
+                          >
+                            {L.importCookies}
+                          </Btn>
+                        )}
                         <Btn
                           size="sm"
                           variant="solid"
@@ -459,26 +455,28 @@ export function SettingsScreen() {
                           marginBottom: 8
                         }}
                       >
-                        {L.importCookiesHint}
+                        {cookieHint}
                       </div>
-                      <textarea
+                      <input
+                        type="password"
                         value={importText}
                         onChange={(e) => setImportText(e.target.value)}
-                        placeholder={L.importCookiesPlaceholder}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !importBusy) void runImport(svc.id)
+                        }}
+                        placeholder={L.importCookiesPlaceholder.replace('{name}', () => cookieSpec?.name ?? '')}
+                        autoComplete="off"
                         spellCheck={false}
                         style={{
                           width: '100%',
-                          minHeight: 92,
                           boxSizing: 'border-box',
-                          padding: '9px 11px',
+                          padding: '8px 11px',
                           borderRadius: 10,
                           border: '1px solid var(--border)',
                           background: 'var(--surface-2)',
                           color: 'var(--text)',
                           fontFamily: 'var(--mono)',
-                          fontSize: 11.5,
-                          lineHeight: 1.5,
-                          resize: 'vertical'
+                          fontSize: 11.5
                         }}
                       />
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
@@ -496,11 +494,7 @@ export function SettingsScreen() {
                         <Btn
                           size="sm"
                           variant="ghost"
-                          onClick={() => {
-                            setImportFor(null)
-                            setImportMsg(null)
-                            setImportDetail(null)
-                          }}
+                          onClick={() => openImport(null)}
                         >
                           {L.importCookiesCancel}
                         </Btn>
@@ -508,7 +502,7 @@ export function SettingsScreen() {
                           <span
                             style={{
                               fontSize: 11.5,
-                              color: importMsgOk ? 'var(--ok)' : 'var(--warn)',
+                              color: 'var(--warn)',
                               lineHeight: 1.4
                             }}
                           >
@@ -516,20 +510,6 @@ export function SettingsScreen() {
                           </span>
                         )}
                       </div>
-                      {importDetail && (
-                        <div
-                          style={{
-                            marginTop: 7,
-                            fontSize: 10.5,
-                            color: 'var(--text-3)',
-                            fontFamily: 'var(--mono)',
-                            lineHeight: 1.5,
-                            wordBreak: 'break-word'
-                          }}
-                        >
-                          {importDetail}
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

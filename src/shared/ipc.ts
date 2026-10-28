@@ -33,13 +33,13 @@ export interface IpcApi {
   'services:openLogin': { args: [serviceId: ServiceId]; result: void }
   'services:checkAuth': { args: [serviceId: ServiceId]; result: boolean }
   'services:clearSession': { args: [serviceId: ServiceId]; result: void }
-  /** Install cookies the user copied from a normal browser into the service's
-   *  partition, then verify them with the service's own `checkAuth`. The escape
-   *  hatch for sign-in flows an embedded Chromium cannot finish (Patreon's
-   *  Google SSO). */
-  'services:importCookies': {
-    args: [serviceId: ServiceId, raw: string]
-    result: ImportCookiesResult
+  /** Store the session cookie value the user copied from a normal browser
+   *  (see @shared/sessionCookie), then verify it with the service's own
+   *  `checkAuth`. The fallback for sign-in flows the embedded webview cannot
+   *  finish (Patreon's Google SSO). */
+  'services:importSessionCookie': {
+    args: [serviceId: ServiceId, value: string]
+    result: ImportSessionCookieResult
   }
 
   'creators:list': { args: [serviceId: ServiceId]; result: Creator[] }
@@ -121,19 +121,13 @@ export interface IpcApi {
 
 export type IpcChannel = keyof IpcApi
 
-/** Outcome of `services:importCookies`. `count` is how many cookies were
- *  actually stored; `loggedIn` is the service's own verdict afterwards, so the
- *  UI can distinguish "bad paste" from "accepted but the site still refuses". */
-export type ImportCookiesResult = {
-  ok: boolean
-  reason?: 'empty' | 'unparsable' | 'failed'
-  count: number
-  names: string[]
-  /** Cookies Chromium refused while storing, with its reason. Reported so a
-   *  half-finished import is visible instead of silently "not logged in". */
-  rejected: { name: string; reason: string }[]
-  loggedIn: boolean
-}
+/** Outcome of `services:importSessionCookie`. `unsupported`: the service has
+ *  no importable session cookie; `invalid`: the input isn't a cookie value;
+ *  `failed`: the cookie couldn't be stored. When stored, `loggedIn` is the
+ *  service's own verdict, so the UI can tell a stale value from a good one. */
+export type ImportSessionCookieResult =
+  | { ok: true; loggedIn: boolean }
+  | { ok: false; reason: 'unsupported' | 'invalid' | 'failed' }
 
 /** Outcome of an extraction, so the UI can ask for a password or report why it
  *  failed instead of silently doing nothing. */
