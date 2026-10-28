@@ -19,7 +19,8 @@ import {
   removeAddedCreator,
   saveAddedCreator
 } from '@main/services/creators'
-import { clearSession } from '@main/session/manager'
+import { clearSession, importSessionCookie, removeSessionCookie } from '@main/session/manager'
+import { normalizeSessionValue, sessionCookieSpec } from '@shared/sessionCookie'
 import { getSettings, updateSettings } from '@main/storage/settings'
 import { buildViewerTree } from '@main/storage/viewer'
 import {
@@ -81,6 +82,24 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
     await clearSession(serviceId)
     const win = getWindow()
     if (win) emit(win, 'services:authChanged', { serviceId, loggedIn: false })
+  })
+
+  handle('services:importSessionCookie', async (serviceId, raw) => {
+    const svc = listServices().find((s) => s.id === serviceId)
+    const spec = sessionCookieSpec(serviceId)
+    if (!svc || !spec) return { ok: false, reason: 'unsupported' }
+    const value = normalizeSessionValue(spec, typeof raw === 'string' ? raw : '')
+    if (!value) return { ok: false, reason: 'invalid' }
+    if (!(await importSessionCookie(serviceId, value))) return { ok: false, reason: 'failed' }
+    // Storing a cookie proves nothing: ask the service itself, so a stale or
+    // mistyped value is reported instead of failing later with 401s.
+    const ac = new AbortController()
+    const loggedIn = await svc.checkAuth(createServiceContext(serviceId, ac.signal)).catch(() => false)
+    // A rejected value is dropped so it can't shadow a later webview login.
+    if (!loggedIn) await removeSessionCookie(serviceId)
+    const win = getWindow()
+    if (win) emit(win, 'services:authChanged', { serviceId, loggedIn })
+    return { ok: true, loggedIn }
   })
 
   handle('creators:list', async (serviceId) => {

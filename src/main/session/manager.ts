@@ -10,6 +10,7 @@ import { createWriteStream } from 'node:fs'
 import { rename, unlink } from 'node:fs/promises'
 import { net, session, type Session } from 'electron'
 import type { ServiceId } from '@shared/types'
+import { sessionCookieSpec } from '@shared/sessionCookie'
 import { awaitPoliteSlot } from './throttle'
 
 export function partitionFor(serviceId: ServiceId): string {
@@ -26,6 +27,63 @@ export async function clearSession(serviceId: ServiceId): Promise<void> {
   await s.clearStorageData({
     storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage']
   })
+}
+
+/** Lifetime given to an imported session cookie (it arrives without an expiry). */
+const IMPORT_COOKIE_TTL_SECONDS = 365 * 24 * 60 * 60
+
+/**
+ * Remove every copy of the service's session cookie (host-only or
+ * domain-scoped). Used before storing an imported value — two copies side by
+ * side would send the server two values for one name — and to drop an
+ * imported value the service rejected, so it can't shadow a later webview
+ * login.
+ */
+export async function removeSessionCookie(serviceId: ServiceId): Promise<void> {
+  const spec = sessionCookieSpec(serviceId)
+  if (!spec) return
+  const s = sessionFor(serviceId)
+  const site = spec.domain.replace(/^\./, '')
+  for (const c of await s.cookies.get({ name: spec.name })) {
+    const host = (c.domain ?? site).replace(/^\./, '')
+    if (host !== site && !host.endsWith(`.${site}`)) continue
+    await s.cookies.remove(`https://${host}${c.path ?? '/'}`, c.name).catch(() => {
+      /* already gone */
+    })
+  }
+  await s.cookies.flushStore().catch(() => undefined)
+}
+
+/**
+ * Store a session cookie value the user copied from a normal browser (see
+ * @shared/sessionCookie) in the service's partition, replacing any existing
+ * copy. The name and domain come from the service's spec, never from the
+ * input. Returns false when the service has no importable session cookie or
+ * Chromium refuses the cookie.
+ */
+export async function importSessionCookie(serviceId: ServiceId, value: string): Promise<boolean> {
+  const spec = sessionCookieSpec(serviceId)
+  if (!spec) return false
+  await removeSessionCookie(serviceId)
+  const s = sessionFor(serviceId)
+  try {
+    await s.cookies.set({
+      url: `${spec.host}/`,
+      name: spec.name,
+      value,
+      domain: spec.domain,
+      path: '/',
+      secure: true,
+      httpOnly: true,
+      expirationDate: Math.floor(Date.now() / 1000) + IMPORT_COOKIE_TTL_SECONDS
+    })
+  } catch {
+    return false
+  }
+  // Chromium writes the cookie store on a timer; flush so a quit right after
+  // importing keeps the login.
+  await s.cookies.flushStore().catch(() => undefined)
+  return true
 }
 
 /**

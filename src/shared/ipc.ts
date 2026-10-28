@@ -33,6 +33,14 @@ export interface IpcApi {
   'services:openLogin': { args: [serviceId: ServiceId]; result: void }
   'services:checkAuth': { args: [serviceId: ServiceId]; result: boolean }
   'services:clearSession': { args: [serviceId: ServiceId]; result: void }
+  /** Store the session cookie value the user copied from a normal browser
+   *  (see @shared/sessionCookie), then verify it with the service's own
+   *  `checkAuth`. The fallback for sign-in flows the embedded webview cannot
+   *  finish (Patreon's Google SSO). */
+  'services:importSessionCookie': {
+    args: [serviceId: ServiceId, value: string]
+    result: ImportSessionCookieResult
+  }
 
   'creators:list': { args: [serviceId: ServiceId]; result: Creator[] }
   /** Creator ids that have a downloadable post newer than what's on disk (a
@@ -112,6 +120,14 @@ export interface IpcApi {
 }
 
 export type IpcChannel = keyof IpcApi
+
+/** Outcome of `services:importSessionCookie`. `unsupported`: the service has
+ *  no importable session cookie; `invalid`: the input isn't a cookie value;
+ *  `failed`: the cookie couldn't be stored. When stored, `loggedIn` is the
+ *  service's own verdict, so the UI can tell a stale value from a good one. */
+export type ImportSessionCookieResult =
+  | { ok: true; loggedIn: boolean }
+  | { ok: false; reason: 'unsupported' | 'invalid' | 'failed' }
 
 /** Outcome of an extraction, so the UI can ask for a password or report why it
  *  failed instead of silently doing nothing. */

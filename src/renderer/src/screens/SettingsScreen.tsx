@@ -10,6 +10,8 @@ import {
   type FolderPatternError
 } from '@shared/folderPattern'
 import { FC, fmtSize } from '../design/data'
+import type { ServiceId } from '@shared/types'
+import { sessionCookieSpec } from '@shared/sessionCookie'
 import { countsForService } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
@@ -282,6 +284,47 @@ export function SettingsScreen() {
     '{creatorId}'
   )
 
+  // Manual session-cookie import (see @shared/sessionCookie): the fallback for
+  // a sign-in flow the embedded webview cannot finish, e.g. Patreon's Google
+  // SSO. The user pastes ONE value; its cookie name and domain are fixed per
+  // service. State is per open panel: opening another service's panel starts
+  // empty, so a value typed for one service is never sent for another.
+  const [importFor, setImportFor] = useState<ServiceId | null>(null)
+  const [importText, setImportText] = useState('')
+  const [importBusy, setImportBusy] = useState(false)
+  const [importMsg, setImportMsg] = useState<string | null>(null)
+  /** The service whose import just signed in (its row shows the success). */
+  const [importOkFor, setImportOkFor] = useState<ServiceId | null>(null)
+  const openImport = (serviceId: ServiceId | null): void => {
+    setImportFor(serviceId)
+    setImportText('')
+    setImportMsg(null)
+  }
+  const runImport = async (serviceId: ServiceId): Promise<void> => {
+    setImportBusy(true)
+    setImportMsg(null)
+    setImportOkFor(null)
+    try {
+      const r = await bridge
+        .importSessionCookie(serviceId, importText)
+        .catch(() => ({ ok: false, reason: 'failed' }) as const)
+      if (r.ok && r.loggedIn) {
+        setImportOkFor(serviceId)
+        openImport(null)
+      } else {
+        setImportMsg(
+          r.ok
+            ? L.importCookiesNotLoggedIn
+            : r.reason === 'invalid'
+              ? L.importCookiesInvalid
+              : L.importCookiesFailed
+        )
+      }
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
   const [verifying, setVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<string | null>(null)
   const runVerify = async (): Promise<void> => {
@@ -322,64 +365,152 @@ export function SettingsScreen() {
             {FC.SERVICES.map((svc) => {
               const on = !!state.logins[svc.id]
               const enabled = state.enabledServices[svc.id] !== false
+              const cookieSpec = sessionCookieSpec(svc.id)
+              const editing = !!cookieSpec && importFor === svc.id
+              const cookieHint = cookieSpec
+                ? L.importCookiesHint
+                    .replace('{host}', () => cookieSpec.host)
+                    .replace('{name}', () => cookieSpec.name)
+                : ''
               return (
-                <div
-                  key={svc.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 13,
-                    padding: '12px 4px',
-                    borderBottom: '1px solid var(--border)'
-                  }}
-                >
-                  <ServiceMark svc={svc} size={34} active={on} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{svc.name}</div>
-                    <div
-                      style={{
-                        fontSize: 11.5,
-                        color: on ? 'var(--ok)' : 'var(--text-3)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        fontFamily: 'var(--mono)'
-                      }}
-                    >
-                      <span
+                <div key={svc.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 4px' }}>
+                    <ServiceMark svc={svc} size={34} active={on} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{svc.name}</div>
+                      <div
                         style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 99,
-                          background: on ? 'var(--ok)' : 'var(--text-3)'
+                          fontSize: 11.5,
+                          color: on ? 'var(--ok)' : 'var(--text-3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontFamily: 'var(--mono)'
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: 99,
+                            background: on ? 'var(--ok)' : 'var(--text-3)'
+                          }}
+                        />
+                        {on
+                          ? importOkFor === svc.id
+                            ? L.importCookiesOk
+                            : L.connected
+                          : L.disconnected}
+                      </div>
+                    </div>
+                    <div
+                      title={L.serviceEnabledHint}
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+                    >
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>{L.serviceEnabled}</span>
+                      <Toggle
+                        on={enabled}
+                        onClick={() => actions.setServiceEnabled(svc.id, !enabled)}
+                      />
+                    </div>
+                    {on ? (
+                      <Btn size="sm" variant="ghost" icon="trash" onClick={() => actions.clearSession(svc.id)}>
+                        {L.clearCookies}
+                      </Btn>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {cookieSpec && (
+                          <Btn
+                            size="sm"
+                            variant="ghost"
+                            icon="cookie"
+                            active={editing}
+                            style={importBusy ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+                            onClick={() => {
+                              if (!importBusy) openImport(editing ? null : svc.id)
+                            }}
+                            title={cookieHint}
+                          >
+                            {L.importCookies}
+                          </Btn>
+                        )}
+                        <Btn
+                          size="sm"
+                          variant="solid"
+                          icon="external"
+                          onClick={() => app.go({ screen: 'service', serviceId: svc.id })}
+                        >
+                          {L.logIn}
+                        </Btn>
+                      </div>
+                    )}
+                  </div>
+                  {editing && (
+                    <div style={{ padding: '2px 4px 14px' }}>
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: 'var(--text-3)',
+                          lineHeight: 1.55,
+                          marginBottom: 8
+                        }}
+                      >
+                        {cookieHint}
+                      </div>
+                      <input
+                        type="password"
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !importBusy) void runImport(svc.id)
+                        }}
+                        placeholder={L.importCookiesPlaceholder.replace('{name}', () => cookieSpec?.name ?? '')}
+                        autoComplete="off"
+                        spellCheck={false}
+                        style={{
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          padding: '8px 11px',
+                          borderRadius: 10,
+                          border: '1px solid var(--border)',
+                          background: 'var(--surface-2)',
+                          color: 'var(--text)',
+                          fontFamily: 'var(--mono)',
+                          fontSize: 11.5
                         }}
                       />
-                      {on ? L.connected : L.disconnected}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                        <Btn
+                          size="sm"
+                          variant="solid"
+                          icon="check"
+                          style={importBusy ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+                          onClick={() => {
+                            if (!importBusy) void runImport(svc.id)
+                          }}
+                        >
+                          {L.importCookiesRun}
+                        </Btn>
+                        <Btn
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openImport(null)}
+                        >
+                          {L.importCookiesCancel}
+                        </Btn>
+                        {importMsg && (
+                          <span
+                            style={{
+                              fontSize: 11.5,
+                              color: 'var(--warn)',
+                              lineHeight: 1.4
+                            }}
+                          >
+                            {importMsg}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div
-                    title={L.serviceEnabledHint}
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-                  >
-                    <span style={{ fontSize: 10, color: 'var(--text-3)' }}>{L.serviceEnabled}</span>
-                    <Toggle
-                      on={enabled}
-                      onClick={() => actions.setServiceEnabled(svc.id, !enabled)}
-                    />
-                  </div>
-                  {on ? (
-                    <Btn size="sm" variant="ghost" icon="trash" onClick={() => actions.clearSession(svc.id)}>
-                      {L.clearCookies}
-                    </Btn>
-                  ) : (
-                    <Btn
-                      size="sm"
-                      variant="solid"
-                      icon="external"
-                      onClick={() => app.go({ screen: 'service', serviceId: svc.id })}
-                    >
-                      {L.logIn}
-                    </Btn>
                   )}
                 </div>
               )
