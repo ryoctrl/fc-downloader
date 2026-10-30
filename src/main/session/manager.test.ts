@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { isRetriableStatus, parseRetryAfterMs } from './manager'
+
+// Only pure helpers are tested here. Without this mock, importing the real
+// `electron` package (v42+) downloads the Electron binary mid-test on a fresh
+// install, racing with other test files doing the same.
+vi.mock('electron', () => ({}))
 
 describe('isRetriableStatus', () => {
   it('retries rate-limit, timeout and 5xx', () => {
