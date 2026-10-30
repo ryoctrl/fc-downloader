@@ -53,5 +53,6 @@ peer dependency（同居する vite のバージョンを指定する依存）�
 | 2026-10-30 | [#202](https://github.com/ryoctrl/fc-downloader/pull/202) | Node.js（CI・リリース） 20 → 24 | Node.js 20 のサポート終了。electron 42 が 22.12 以上を要求 |
 | 2026-10-30 | [#201](https://github.com/ryoctrl/fc-downloader/pull/201) | electron 31.7.7 → 42.11.16 | セキュリティ修正（Dependabot） |
 | 2026-10-30 | [#205](https://github.com/ryoctrl/fc-downloader/pull/205) | source-map-js 1.2.1 → 1.2.2 | セキュリティ修正（Dependabot） |
+| 2026-10-30 | [#206](https://github.com/ryoctrl/fc-downloader/pull/206) | sharp 0.34.5 → 0.35.5 | セキュリティ修正（Dependabot） |
 | 2026-10-30 | [#209](https://github.com/ryoctrl/fc-downloader/pull/209) | テストで `electron` をモック | electron 42 の初回ダウンロードがテスト中に並列で走るため |
 | 2026-10-30 | 本 PR | vite 5.4.21 → 8.3.5、electron-vite 2.3.0 → 6.0.0、@vitejs/plugin-react 4.7.0 → 6.1.2、vitest 2.1.9 → 5.0.5 | セキュリティ修正（vite・vitest・tinypool ほか）。Dependabot の #203・#204・#207 を 1 本にまとめたもの |
