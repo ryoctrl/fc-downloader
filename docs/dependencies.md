@@ -10,7 +10,7 @@
 |---|---|---|
 | Node.js（CI・リリース） | 24 | `npm ci`・ビルド・テストの実行環境（`.github/workflows/*.yml`） |
 | electron | 42.11.x | アプリ本体の実行環境 |
-| electron-builder | 25.1.x | インストーラー作成 |
+| electron-builder | 26.18.x | インストーラー作成（`electron-builder.yml`） |
 | vite | 8.3.x | バンドラー（内部のバンドラーは Rolldown） |
 | electron-vite | 6.0.x | main / preload / renderer をまとめてビルドする vite のラッパー |
 | @vitejs/plugin-react | 6.1.x | renderer の React 変換 |
@@ -55,4 +55,5 @@ peer dependency（同居する vite のバージョンを指定する依存）�
 | 2026-10-30 | [#205](https://github.com/ryoctrl/fc-downloader/pull/205) | source-map-js 1.2.1 → 1.2.2 | セキュリティ修正（Dependabot） |
 | 2026-10-30 | [#206](https://github.com/ryoctrl/fc-downloader/pull/206) | sharp 0.34.5 → 0.35.5 | セキュリティ修正（Dependabot） |
 | 2026-10-30 | [#209](https://github.com/ryoctrl/fc-downloader/pull/209) | テストで `electron` をモック | electron 42 の初回ダウンロードがテスト中に並列で走るため |
-| 2026-10-30 | 本 PR | vite 5.4.21 → 8.3.5、electron-vite 2.3.0 → 6.0.0、@vitejs/plugin-react 4.7.0 → 6.1.2、vitest 2.1.9 → 5.0.5 | セキュリティ修正（vite・vitest・tinypool ほか）。Dependabot の #203・#204・#207 を 1 本にまとめたもの |
+| 2026-10-30 | [#210](https://github.com/ryoctrl/fc-downloader/pull/210) | vite 5.4.21 → 8.3.5、electron-vite 2.3.0 → 6.0.0、@vitejs/plugin-react 4.7.0 → 6.1.2、vitest 2.1.9 → 5.0.5 | セキュリティ修正（vite・vitest・tinypool ほか）。Dependabot の #203・#204・#207 を 1 本にまとめたもの |
+| 2026-10-30 | 本 PR | electron-builder 25.1.8 → 26.18.0 | セキュリティ修正（同梱の app-builder-lib・builder-util-runtime・@xmldom/xmldom・ip-address など）。Dependabot の PR は無し |
