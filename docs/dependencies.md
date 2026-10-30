@@ -56,4 +56,5 @@ peer dependency（同居する vite のバージョンを指定する依存）�
 | 2026-10-30 | [#206](https://github.com/ryoctrl/fc-downloader/pull/206) | sharp 0.34.5 → 0.35.5 | セキュリティ修正（Dependabot） |
 | 2026-10-30 | [#209](https://github.com/ryoctrl/fc-downloader/pull/209) | テストで `electron` をモック | electron 42 の初回ダウンロードがテスト中に並列で走るため |
 | 2026-10-30 | [#210](https://github.com/ryoctrl/fc-downloader/pull/210) | vite 5.4.21 → 8.3.5、electron-vite 2.3.0 → 6.0.0、@vitejs/plugin-react 4.7.0 → 6.1.2、vitest 2.1.9 → 5.0.5 | セキュリティ修正（vite・vitest・tinypool ほか）。Dependabot の #203・#204・#207 を 1 本にまとめたもの |
-| 2026-10-30 | 本 PR | electron-builder 25.1.8 → 26.18.0 | セキュリティ修正（同梱の app-builder-lib・builder-util-runtime・@xmldom/xmldom・ip-address など）。Dependabot の PR は無し |
+| 2026-10-30 | [#212](https://github.com/ryoctrl/fc-downloader/pull/212) | electron-builder 25.1.8 → 26.18.0 | セキュリティ修正（同梱の app-builder-lib・builder-util-runtime・@xmldom/xmldom・ip-address など）。Dependabot の PR は無し |
+| 2026-10-30 | 本 PR | brace-expansion 1.1.15 → 1.1.21・5.0.6 → 5.0.12、js-yaml 4.2.0 → 4.3.2（いずれも間接依存。lock のみ） | セキュリティ修正。`npm audit fix` で `npm audit` が 0 件になる |
