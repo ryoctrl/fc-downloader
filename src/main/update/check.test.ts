@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { compareVersions } from './check'
+
+// See manager.test.ts: keep the real `electron` package (and its lazy binary
+// download) out of this pure-helper test.
+vi.mock('electron', () => ({}))
 
 describe('compareVersions', () => {
   it('orders by major, minor, then patch', () => {
