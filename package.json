@@ -31,7 +31,6 @@
     "dist": "npm run build && electron-builder --publish never"
   },
   "devDependencies": {
-    "ag-psd": "^31.0.2",
     "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/ibm-plex-sans": "^5.2.8",
     "@types/node": "^22.10.5",
@@ -39,10 +38,11 @@
     "@types/react-dom": "^18.3.5",
     "@typescript-eslint/eslint-plugin": "^8.20.0",
     "@typescript-eslint/parser": "^8.20.0",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.1.2",
+    "ag-psd": "^31.0.2",
     "electron": "^42.11.16",
     "electron-builder": "^25.1.8",
-    "electron-vite": "^2.3.0",
+    "electron-vite": "^6.0.0",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.1.0",
@@ -52,8 +52,8 @@
     "react-dom": "^18.3.1",
     "sharp": "^0.35.5",
     "typescript": "^5.7.3",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.8"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   },
   "dependencies": {
     "fflate": "^0.8.3"

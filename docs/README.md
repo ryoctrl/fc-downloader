@@ -19,6 +19,10 @@
 - [0002-ui-stack.md](adr/0002-ui-stack.md) — React + TS + Vite 採用
 - [0003-metadata-store.md](adr/0003-metadata-store.md) — better-sqlite3 採用
 
+## 依存パッケージ
+
+- [dependencies.md](dependencies.md) — ツールチェーンのバージョン表・互換性の制約・更新履歴
+
 ## 計画
 
 - [roadmap.md](roadmap.md) — 実装順のタスクリスト（自動開発の起点）
