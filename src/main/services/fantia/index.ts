@@ -23,11 +23,46 @@ import {
   type RawFantiaPlan,
   type RawFantiaPostResponse
 } from './normalize'
-import { loadPurchasedProducts, productPost } from './purchases'
+import { loadPurchasedProducts, productPost, sellerFanclubIds } from './purchases'
 
 const BASE = 'https://fantia.jp'
 const API = `${BASE}/api/v1`
 const XHR = { 'X-Requested-With': 'XMLHttpRequest' }
+
+/** Re-read the joined-fanclub list at most this often (it changes rarely). */
+const JOINED_TTL_MS = 10 * 60 * 1000
+let joinedCache: { at: number; ids: Set<string> } | null = null
+
+/**
+ * Ids of the fanclubs the user follows or supports (`me/fanclubs`), cached
+ * briefly. `null` when the list can't be read, so callers fall back to the
+ * full listing rather than silently dropping a followed creator's posts.
+ */
+async function joinedFanclubIds(ctx: ServiceContext): Promise<Set<string> | null> {
+  if (joinedCache && Date.now() - joinedCache.at < JOINED_TTL_MS) return joinedCache.ids
+  try {
+    const res = await ctx.fetchJson<{ fanclub_ids?: number[] }>(`${API}/me/fanclubs`, { headers: XHR })
+    joinedCache = { at: Date.now(), ids: new Set((res.fanclub_ids ?? []).map(String)) }
+    return joinedCache.ids
+  } catch (err) {
+    ctx.log('warn', 'me/fanclubs unavailable', err)
+    return null
+  }
+}
+
+/**
+ * A creator listed only because the user bought one of their products: we
+ * download just those purchases, not every public post of theirs.
+ */
+async function isSellerOnly(ctx: ServiceContext, creatorId: string): Promise<boolean> {
+  const joined = await joinedFanclubIds(ctx)
+  return joined !== null && !joined.has(creatorId)
+}
+
+/** Drop the cached joined-fanclub list (used by tests). */
+export function resetJoinedFanclubsCache(): void {
+  joinedCache = null
+}
 
 function extractCsrf(html: string): string {
   const m = html.match(/<meta name="csrf-token" content="([^"]+)"/)
@@ -53,15 +88,25 @@ export const fantiaService: Service = {
   },
 
   async listCreators(ctx: ServiceContext): Promise<Creator[]> {
-    let ids: number[]
-    try {
-      const res = await ctx.fetchJson<{ fanclub_ids?: number[] }>(`${API}/me/fanclubs`, {
-        headers: XHR
-      })
-      ids = res.fanclub_ids ?? []
-    } catch (err) {
-      ctx.log('error', 'listCreators (me/fanclubs) failed', err)
+    // Always re-read here: this is the user's explicit refresh of the list.
+    resetJoinedFanclubsCache()
+    const joined = await joinedFanclubIds(ctx)
+    if (!joined) {
+      ctx.log('error', 'listCreators (me/fanclubs) failed')
       return []
+    }
+    const ids = [...joined].map(Number)
+    // Sellers of purchased products the user doesn't follow/support: their
+    // products are only yielded from that creator's listPosts, so without
+    // listing them here those purchases would never be downloaded. listPosts
+    // yields only the purchases for them (see isSellerOnly).
+    const products = await loadPurchasedProducts(ctx).catch((err) => {
+      ctx.log('warn', 'purchased product list unavailable', err)
+      return []
+    })
+    for (const seller of sellerFanclubIds(products)) {
+      const n = Number(seller)
+      if (!ids.includes(n)) ids.push(n)
     }
     // Resolve each fanclub's display name with bounded concurrency (keeps the
     // listing fast without hammering Fantia with 48 simultaneous requests).
@@ -117,6 +162,7 @@ export const fantiaService: Service = {
       ctx.signal.throwIfAborted()
       yield productPost('fantia', { ...p, creatorId })
     }
+    if (await isSellerOnly(ctx, creatorId)) return
 
     let csrf = ''
     const seen = new Set<string>()
@@ -157,6 +203,7 @@ export const fantiaService: Service = {
     // (no per-post detail fetch), plus the purchased products listPosts adds.
     const products = await loadPurchasedProducts(ctx).catch(() => [])
     const extra = products.filter((p) => p.creatorId === creatorId).length
+    if (await isSellerOnly(ctx, creatorId)) return extra
     const seen = new Set<string>()
     const MAX_PAGES = 500
     for (let page = 1; page <= MAX_PAGES; page++) {
