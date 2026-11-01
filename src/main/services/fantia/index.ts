@@ -23,7 +23,7 @@ import {
   type RawFantiaPlan,
   type RawFantiaPostResponse
 } from './normalize'
-import { loadPurchasedProducts, productPost } from './purchases'
+import { loadPurchasedProducts, productPost, sellerFanclubIds } from './purchases'
 
 const BASE = 'https://fantia.jp'
 const API = `${BASE}/api/v1`
@@ -62,6 +62,17 @@ export const fantiaService: Service = {
     } catch (err) {
       ctx.log('error', 'listCreators (me/fanclubs) failed', err)
       return []
+    }
+    // Sellers of purchased products the user doesn't follow/support: their
+    // products are only yielded from that creator's listPosts, so without
+    // listing them here those purchases would never be downloaded.
+    const products = await loadPurchasedProducts(ctx).catch((err) => {
+      ctx.log('warn', 'purchased product list unavailable', err)
+      return []
+    })
+    for (const seller of sellerFanclubIds(products)) {
+      const n = Number(seller)
+      if (!ids.includes(n)) ids.push(n)
     }
     // Resolve each fanclub's display name with bounded concurrency (keeps the
     // listing fast without hammering Fantia with 48 simultaneous requests).

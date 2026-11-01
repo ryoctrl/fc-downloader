@@ -98,9 +98,23 @@ export function parseProductImageUrl(productHtml: string): string | undefined {
   return named('main_') ?? named('thumb_') ?? undefined
 }
 
+/**
+ * The seller's fanclub id from an order page (`以下の商品の販売者：` + its
+ * fanclub link). Preferred over the product page, which an age-restricted
+ * product redirects to `/age_confirmation` (no fanclub link at all).
+ */
+export function parseOrderSellerFanclubId(orderHtml: string): string | undefined {
+  return orderHtml.match(/販売者[\s\S]{0,200}?\/fanclubs\/(\d+)/)?.[1]
+}
+
 /** The seller's fanclub id from a product page (its first fanclub link). */
 export function parseSellerFanclubId(productHtml: string): string | undefined {
   return productHtml.match(/\/fanclubs\/(\d+)/)?.[1]
+}
+
+/** Distinct seller fanclub ids of the purchased products (unknown sellers dropped). */
+export function sellerFanclubIds(products: PurchasedProduct[]): string[] {
+  return [...new Set(products.map((p) => p.creatorId).filter((id): id is string => /^\d+$/.test(id ?? '')))]
 }
 
 /** The download URL for a purchased product (302s to the CDN file). */
@@ -172,10 +186,16 @@ export async function loadPurchasedProducts(ctx: ServiceContext): Promise<Purcha
     try {
       const html = await ctx.fetchText(`${BASE}/mypage/users/purchases/${orderId}`)
       const orderedAt = parseOrderDate(html)
+      const creatorId = parseOrderSellerFanclubId(html)
       for (const it of parseOrderItems(html)) {
-        if (!purchasedIds.has(it.productId) || !orderedAt) continue
+        if (!purchasedIds.has(it.productId)) continue
+        if (!orderedAt) {
+          ctx.log('warn', `purchase order ${orderId}: no order date, product ${it.productId} skipped`)
+          ctx.markIncomplete?.()
+          continue
+        }
         if (items.some((p) => p.productId === it.productId)) continue
-        items.push({ ...it, orderedAt })
+        items.push({ ...it, orderedAt, creatorId })
       }
     } catch (err) {
       ctx.log('warn', `purchase order ${orderId} failed`, err)
@@ -183,15 +203,20 @@ export async function loadPurchasedProducts(ctx: ServiceContext): Promise<Purcha
     }
   }
 
-  // Which creator sells each product (so it lands in that creator's folder).
+  // The product image, plus the seller when the order page didn't name one
+  // (so it lands in that creator's folder).
   for (const item of items) {
     ctx.signal.throwIfAborted()
     try {
       const html = await ctx.fetchText(`${BASE}/products/${item.productId}`)
-      item.creatorId = parseSellerFanclubId(html)
+      item.creatorId ??= parseSellerFanclubId(html)
       item.imageUrl = parseProductImageUrl(html)
     } catch (err) {
       ctx.log('warn', `product ${item.productId} page failed`, err)
+      ctx.markIncomplete?.()
+    }
+    if (!item.creatorId) {
+      ctx.log('warn', `product ${item.productId}: seller unknown, skipped`)
       ctx.markIncomplete?.()
     }
   }

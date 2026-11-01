@@ -1,13 +1,18 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import type { ServiceContext } from '../types'
 import {
+  loadPurchasedProducts,
   parseOrderDate,
+  parseOrderSellerFanclubId,
   parseOrderIds,
   parseOrderItems,
   parsePurchasedProductIds,
   parseSellerFanclubId,
   parseProductImageUrl,
   productDownloadUrl,
-  productPost
+  productPost,
+  resetPurchasesCache,
+  sellerFanclubIds
 } from './purchases'
 
 // Synthetic markup mirroring the order-history pages (ids/names are made up).
@@ -23,6 +28,11 @@ const LIST_HTML = `
 
 const ORDER_HTML = `
 <div>注文日時 <span class="time">2026/07/30 22:52</span></div>
+<div class="list-group-item list-group-item-muted">購入した商品</div>
+<div class="list-group-item">
+  <a href="/fanclubs/700003"><img src="icon.png" /></a>
+  <p><span>以下の商品の販売者：</span><a href="/fanclubs/700003"><span>Sample seller</span></a></p>
+</div>
 <div class="list-group-item">
   <a class="module-thumbnail" href="/products/111111"><img src="thumb.jpg" /></a>
   <p><strong><a href="/products/111111">Sample product one</a></strong></p>
@@ -84,10 +94,34 @@ describe('parseOrderDate', () => {
   })
 })
 
+describe('parseOrderSellerFanclubId', () => {
+  it('reads the seller named on the order page', () => {
+    expect(parseOrderSellerFanclubId(ORDER_HTML)).toBe('700003')
+  })
+
+  it('is undefined when the order page names no seller', () => {
+    expect(parseOrderSellerFanclubId('<a href="/fanclubs/700001">x</a>')).toBeUndefined()
+  })
+})
+
+describe('sellerFanclubIds', () => {
+  it('lists each known seller once', () => {
+    const p = { productId: '1', fileName: 'a.mp4', title: 't', orderedAt: '2026-01-01T00:00:00.000Z' }
+    expect(
+      sellerFanclubIds([
+        { ...p, creatorId: '700001' },
+        { ...p, creatorId: '700002' },
+        { ...p, creatorId: '700001' },
+        { ...p }
+      ])
+    ).toEqual(['700001', '700002'])
+  })
+})
+
 describe('parseSellerFanclubId', () => {
   it('takes the first fanclub link on the product page', () => {
-    const html = '<a href="/fanclubs/374068">seller</a><a href="/fanclubs/999999">other</a>'
-    expect(parseSellerFanclubId(html)).toBe('374068')
+    const html = '<a href="/fanclubs/700001">seller</a><a href="/fanclubs/700002">other</a>'
+    expect(parseSellerFanclubId(html)).toBe('700001')
   })
 
   it('is undefined when the page has no fanclub link', () => {
@@ -129,12 +163,12 @@ describe('productPost', () => {
       title: 'Sample product one',
       fileName: 'sample-one.mp4',
       orderedAt: '2026-07-30T13:52:00.000Z',
-      creatorId: '374068',
+      creatorId: '700001',
       imageUrl: 'https://c.fantia.jp/uploads/product/image/111111/main_abc.jpg'
     })
     expect(post).toMatchObject({
       serviceId: 'fantia',
-      creatorId: '374068',
+      creatorId: '700001',
       postId: 'product-111111',
       title: 'Sample product one',
       year: 2026,
@@ -155,5 +189,58 @@ describe('productPost', () => {
         url: 'https://fantia.jp/products/111111/download'
       }
     ])
+  })
+})
+
+describe('loadPurchasedProducts', () => {
+  beforeEach(() => resetPurchasesCache())
+
+  function ctxFor(pages: Record<string, string>): { ctx: ServiceContext; warnings: string[] } {
+    const warnings: string[] = []
+    const ctx: ServiceContext = {
+      signal: new AbortController().signal,
+      log: (level, msg) => {
+        if (level === 'warn') warnings.push(msg)
+      },
+      async fetchJson<T>(): Promise<T> {
+        throw new Error('unused')
+      },
+      async fetchText(url: string): Promise<string> {
+        const path = url.replace('https://fantia.jp', '')
+        return pages[path] ?? ''
+      }
+    }
+    return { ctx, warnings }
+  }
+
+  it('files a product under the order page seller even when its page is age-gated', async () => {
+    const { ctx } = ctxFor({
+      '/mypage/users/purchases?page=1': LIST_HTML,
+      '/mypage/users/purchases/900001': ORDER_HTML,
+      // An age-restricted product page: redirected, no fanclub link or image.
+      '/products/111111': '<title>年齢確認</title>',
+      '/products/222222': '<title>年齢確認</title>'
+    })
+    const items = await loadPurchasedProducts(ctx)
+    expect(items.map((p) => [p.productId, p.creatorId])).toEqual([
+      ['111111', '700003'],
+      ['222222', '700003']
+    ])
+  })
+
+  it('falls back to the product page seller, and warns when none is found', async () => {
+    const noSeller = ORDER_HTML.replace(/販売者/g, '')
+    const { ctx, warnings } = ctxFor({
+      '/mypage/users/purchases?page=1': LIST_HTML,
+      '/mypage/users/purchases/900001': noSeller.replace(/\/fanclubs\/700003/g, ''),
+      '/products/111111': '<a href="/fanclubs/700001">seller</a>',
+      '/products/222222': '<title>年齢確認</title>'
+    })
+    const items = await loadPurchasedProducts(ctx)
+    expect(items.map((p) => [p.productId, p.creatorId])).toEqual([
+      ['111111', '700001'],
+      ['222222', undefined]
+    ])
+    expect(warnings).toContain('product 222222: seller unknown, skipped')
   })
 })
