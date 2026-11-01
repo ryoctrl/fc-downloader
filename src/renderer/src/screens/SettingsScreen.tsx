@@ -16,6 +16,7 @@ import { countsForService } from '../design/library'
 import { Icon } from '../design/icons'
 import { Btn, ServiceMark } from '../design/primitives'
 import { useApp } from '../design/context'
+import { LANGUAGE_OPTIONS } from '../design/language'
 import { bridge } from '../bridge'
 
 function SettingsCard({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
@@ -698,10 +699,7 @@ export function SettingsScreen() {
           <Setting label={L.language} hint={L.languageHint}>
             <Seg
               value={t.lang}
-              options={[
-                ['ja', '日本語'],
-                ['en', 'English']
-              ]}
+              options={LANGUAGE_OPTIONS}
               onChange={(v) => setTweak('lang', v as typeof t.lang)}
             />
           </Setting>

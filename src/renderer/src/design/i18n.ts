@@ -1,5 +1,6 @@
 /* fc-downloader — i18n dictionaries (ported from the design handoff) */
 import type { Dict, Lang, ServiceId } from './types'
+import { ZH_CN } from './locales/zh-CN'
 
 export const LANG: Record<Lang, Dict> = {
   ja: {
@@ -450,7 +451,8 @@ export const LANG: Record<Lang, Dict> = {
     launchAtStartupHint: 'Start the app automatically when you log in (handy with scheduled downloads)',
     about: 'About',
     localOnly: 'Everything runs locally on this PC'
-  }
+  },
+  'zh-CN': ZH_CN
 }
 
 export const SHORT: Record<ServiceId, string> = {

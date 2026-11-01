@@ -44,7 +44,7 @@ export interface Post {
   hue: number
 }
 
-export type Lang = 'ja' | 'en'
+export type Lang = 'ja' | 'en' | 'zh-CN'
 export type Theme = 'system' | 'light' | 'dark'
 export type ViewMode = 'grid' | 'list'
 export type Density = 'comfy' | 'compact'

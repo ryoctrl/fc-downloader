@@ -21,6 +21,7 @@ import type {
 } from './design/types'
 import { AppCtx } from './design/context'
 import { LANG } from './design/i18n'
+import { resolveLanguage } from './design/language'
 import { FC } from './design/data'
 import { Icon } from './design/icons'
 import { toViewPost } from './design/library'
@@ -133,7 +134,14 @@ function useSystemDark(): boolean {
 }
 
 export function App() {
-  const [prefs, setPrefs] = useState<Prefs>(() => loadJson(PREFS_KEY, DEFAULT_PREFS))
+  const [prefs, setPrefs] = useState<Prefs>(() => {
+    const saved = loadJson<Partial<Prefs>>(PREFS_KEY, {})
+    return {
+      ...DEFAULT_PREFS,
+      ...saved,
+      lang: resolveLanguage(saved.lang, navigator.languages)
+    }
+  })
   const setTweak = <K extends keyof Prefs>(key: K, value: Prefs[K]) =>
     setPrefs((p) => {
       const next = { ...p, [key]: value }
@@ -145,6 +153,10 @@ export function App() {
       return next
     })
   const L = LANG[prefs.lang] || LANG.ja
+
+  useEffect(() => {
+    document.documentElement.lang = prefs.lang
+  }, [prefs.lang])
 
   // Navigation history (a stack + cursor) so mouse back/forward and the in-app
   // back button can return to the previous view.
