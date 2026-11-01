@@ -1,5 +1,7 @@
 # コントリビューションガイド / Contributing
 
+日本語 | [简体中文](CONTRIBUTING.zh-CN.md)
+
 fc-downloader への貢献に興味を持っていただきありがとうございます。
 バグ報告・機能要望・プルリクエスト（PR）のいずれも歓迎します。
 
