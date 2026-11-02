@@ -7,8 +7,12 @@
  * order history, which lists exactly what they bought:
  *
  *   /mypage/users/purchases            orders; each downloadable item links to
- *                                      `/products/<productId>/download`
- *   /mypage/users/purchases/<orderId>  the order's items (title + `ファイル名:`)
+ *                                      `/products/<productId>/download`, or —
+ *                                      when it holds several files — opens a
+ *                                      `download-modal-<productId>` instead
+ *   /mypage/users/purchases/<orderId>  the order's items (title + one
+ *                                      `ファイル名:` per file, each followed by
+ *                                      its `/products/<contentId>/content_download`)
  *                                      and its order date
  *   /products/<productId>              the product page, whose first fanclub
  *                                      link is the seller (used to file the
@@ -35,11 +39,19 @@ const MAX_PAGES = 20
 /** Re-read the order history at most this often (it changes rarely). */
 const CACHE_TTL_MS = 10 * 60 * 1000
 
+/** One downloadable file of a purchased product. */
+export interface PurchasedFile {
+  /** Original file name from the order page (the URL itself carries none). */
+  fileName: string
+  /** Id in the file's own `/products/<contentId>/content_download` link. */
+  contentId?: string
+}
+
 /** A purchased downloadable product, ready to be filed under its seller. */
 export interface PurchasedProduct {
   productId: string
-  /** Original file name from the order page (the URL itself carries none). */
-  fileName: string
+  /** The product's files, in order-page order (most products have one). */
+  files: PurchasedFile[]
   title: string
   /** ISO timestamp of the order (drives the year/month folders). */
   orderedAt: string
@@ -49,9 +61,15 @@ export interface PurchasedProduct {
   imageUrl?: string
 }
 
-/** Product ids that have a download link on an order-history page. */
+/**
+ * Product ids that can be downloaded, from an order-history page: a
+ * single-file product links to `/download`, a multi-file one opens a modal
+ * listing its files instead.
+ */
 export function parsePurchasedProductIds(html: string): string[] {
-  return [...new Set([...html.matchAll(/\/products\/(\d+)\/download\b/g)].map((m) => m[1]))]
+  return [
+    ...new Set([...html.matchAll(/\/products\/(\d+)\/download\b|download-modal-(\d+)/g)].map((m) => m[1] ?? m[2]))
+  ]
 }
 
 /** Order ids linked from an order-history page. */
@@ -61,17 +79,23 @@ export function parseOrderIds(html: string): string[] {
 
 /**
  * The downloadable items of one order page. Each item lives in its own
- * `list-group-item` block holding the product link, its title and the file
- * name, so pairing within a block is unambiguous.
+ * `list-group-item` block holding the product link, its title and one
+ * `ファイル名:` per file (each followed by that file's download link), so
+ * pairing within a block is unambiguous.
  */
-export function parseOrderItems(html: string): Array<{ productId: string; title: string; fileName: string }> {
-  const out: Array<{ productId: string; title: string; fileName: string }> = []
+export function parseOrderItems(html: string): Array<{ productId: string; title: string; files: PurchasedFile[] }> {
+  const out: Array<{ productId: string; title: string; files: PurchasedFile[] }> = []
   for (const block of html.split('list-group-item').slice(1)) {
     const productId = block.match(/\/products\/(\d+)/)?.[1]
-    const fileName = block.match(/ファイル名:\s*([^<]+)/)?.[1]?.trim()
     // The thumbnail link wraps an <img>; the title link is the one with text.
     const title = block.match(/\/products\/\d+"[^>]*>\s*([^<\s][^<]*?)\s*</)?.[1]?.trim()
-    if (productId && fileName) out.push({ productId, title: title || productId, fileName })
+    const files: PurchasedFile[] = []
+    for (const part of block.split('ファイル名:').slice(1)) {
+      const fileName = part.match(/^\s*([^<]+)/)?.[1]?.trim()
+      const contentId = part.match(/\/products\/(\d+)\/content_download/)?.[1]
+      if (fileName) files.push(contentId ? { fileName, contentId } : { fileName })
+    }
+    if (productId && files.length > 0) out.push({ productId, title: title || productId, files })
   }
   return out
 }
@@ -122,6 +146,11 @@ export function productDownloadUrl(productId: string): string {
   return `${BASE}/products/${encodeURIComponent(productId)}/download`
 }
 
+/** The download URL for one file of a multi-file product (302s to the CDN file). */
+export function productContentDownloadUrl(contentId: string): string {
+  return `${BASE}/products/${encodeURIComponent(contentId)}/content_download`
+}
+
 /** Build the synthetic post that carries a purchased product's file. */
 export function productPost(serviceId: ServiceId, p: PurchasedProduct & { creatorId: string }): Post {
   const { year, month } = toLocationParts(p.orderedAt)
@@ -131,12 +160,28 @@ export function productPost(serviceId: ServiceId, p: PurchasedProduct & { creato
     const ext = (p.imageUrl.split('?')[0].match(/\.[a-z0-9]+$/i)?.[0] ?? '.jpg').toLowerCase()
     files.push({ fileId: `product-image-${p.productId}`, kind: 'image', name: `thumb${ext}`, url: p.imageUrl })
   }
-  files.push({
-    fileId: `product-${p.productId}`,
-    kind: kindForName(p.fileName),
-    name: p.fileName,
-    url: productDownloadUrl(p.productId)
-  })
+  if (p.files.length === 1) {
+    // A single-file product keeps the product-level URL and file id, so
+    // purchases already in the ledger aren't fetched again.
+    const [f] = p.files
+    files.push({
+      fileId: `product-${p.productId}`,
+      kind: kindForName(f.fileName),
+      name: f.fileName,
+      url: productDownloadUrl(p.productId)
+    })
+  } else {
+    // A multi-file product has no product-level download: each file has its own.
+    for (const f of p.files) {
+      if (!f.contentId) continue
+      files.push({
+        fileId: `product-${p.productId}-${f.contentId}`,
+        kind: kindForName(f.fileName),
+        name: f.fileName,
+        url: productContentDownloadUrl(f.contentId)
+      })
+    }
+  }
   return {
     serviceId,
     creatorId: p.creatorId,
