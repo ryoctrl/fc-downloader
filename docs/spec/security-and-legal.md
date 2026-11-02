@@ -18,11 +18,13 @@
 
 - **メタデータ列挙**（`requestFor`：支援先・投稿一覧・投稿詳細など）は
   `src/main/session/throttle.ts` の `awaitPoliteSlot(serviceId)` を通し、同一サービスへの
-  リクエスト**開始**を最低 `MIN_GAP_MS`（既定 300ms）間隔に整える。HTML ページ走査や
-  `post.info` 連打のようなバースト送信を避けるのが主目的。
+  リクエスト**開始**を最低 `MIN_GAP_MS`（既定 2000ms）間隔に整える。HTML ページ走査や
+  `post.info` 連打のようなバースト送信を避けるのが主目的。Fantia の投稿詳細 API などが
+  短い間隔の連続要求を厳しく制限するため、当初の 300ms から 2000ms へ広げた。代わりに、
+  取得済みの投稿は投稿詳細の取得自体を省いて（`completedPostStub`）実行時間を抑えている。
 - **ファイル取得**（`downloadToFile`）は**スロットルを通さない**。代わりに**ユーザ設定の
   並列ダウンロード数**（エンジンのワーカープール）が同時接続数の上限＝負荷の歯止めになる。
-  ここに 300ms ゲートを併用すると並列ワーカーが「概ね 1 本/300ms」に直列化され、並列数設定が
+  ここに間隔のゲートを併用すると並列ワーカーが「概ね 1 本/2 秒」に直列化され、並列数設定が
   事実上無効になってしまうため外している（通常のブラウザも 1 ホストあたり 6 並列程度はかける）。
 - 取得失敗時は指数バックオフで**リトライ間隔を空ける**（`src/main/download/retry.ts`）。盲目的な即時
   再試行はしない。
@@ -34,15 +36,25 @@
 
 - **ローカル完結**: 対象サイト以外の外部サーバへ通信しない。テレメトリ・自動アップロードなし。
   フォントも `@fontsource` でローカル同梱（Google Fonts 等の CDN 依存なし）。CSP も外部許可を撤去。
+  唯一の例外は起動時の新バージョン確認（`src/main/update/check.ts`）で、GitHub の公開 API
+  `repos/ryoctrl/fc-downloader/releases/latest` を読むだけ（利用者の情報は送らない。失敗しても無視する）。
+  新バージョンがあれば通知を出すだけで、自動ダウンロード・自動更新はしない。
 - **Renderer 隔離**: `contextIsolation: true` / `nodeIntegration: false`。
   renderer は Node / Electron API へ直接触れず、`window.api`（型付き IPC・許可制）経由でのみ
   特権操作を行う。
 - **CSP**: renderer の `index.html` に Content-Security-Policy を設定。
 - **WebView の扱い**: `<webview>` は対象サイトの表示専用。`target=_blank` 等の新規ウィンドウは
-  既定の外部ブラウザへ送る（`setWindowOpenHandler` で deny + `openExternal`）。
+  既定の外部ブラウザへ送る（`setWindowOpenHandler` で deny + `openExternal`）。例外として、
+  サインイン用ポップアップ（例: Patreon の「Google でログイン」）と同じサイトのスクリプトによる
+  ポップアップはアプリ内のウィンドウで開く（`src/main/webview/popup.ts` の `keepPopupInApp`）。
+  このウィンドウは開いた WebView と同じセッションを使い、`contextIsolation: true` /
+  `nodeIntegration: false` / `sandbox: true` で作る。
 - **Cookie 隔離**: サービスごとに `persist:<serviceId>` パーティションで分離。クリアも個別。
-- **資格情報**: パスワードはアプリで保持しない。認証はサイトのセッション Cookie のみに依存し、
+- **資格情報**: サイトのパスワードはアプリで保持しない。認証はサイトのセッション Cookie のみに依存し、
   OS のユーザープロファイル下（Electron userData）に格納される。
+- **zip のパスワード**: 解凍に成功したパスワードは、投稿フォルダごとに設定ファイル
+  （userData の settings、`AppSettings.zipPasswords`）へ**平文で**保存する。暗号化はしていない。
+  利用者は投稿詳細の「保存したパスワードを削除」で消せる。
 - **手動 Cookie インポート**: WebView 内でログインを完了できないサービス向けの代替手段。
   利用者が入力するのはセッション Cookie の**値 1 つだけ**で、Cookie 名と保存先ドメインは
   サービスごとにアプリ側で固定している（`src/shared/sessionCookie.ts`）。値は**そのサービスの

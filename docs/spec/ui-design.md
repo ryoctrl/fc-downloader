@@ -15,17 +15,15 @@
 ## レイアウト
 
 ```
-┌───────────────────────────────────────────────────────────────┐
-│ TopBar (46px) — ロゴ / fc-downloader / DL状態 or ストレージ量     │
-├──────┬────────────────────────────────────────────────────────┤
+┌──────┬────────────────────────────────────────────────────────┐
 │ Rail │  Content (screen)                                       │
-│ 72px │                                                         │
+│      │                                                         │
 │ svc  │  service : WebView + 右ダウンロード設定パネル              │
 │ svc  │  progress: 進捗ヒーロー + キュー                          │
 │ ──   │  library : ツリー + グリッド/リスト + フィルタ             │
 │ Lib  │  favorites: お気に入りグリッド                           │
 │ Fav  │  post    : 詳細プレビュー + メタ/タグ/保存パス             │
-│ Set  │  settings: アカウント/ストレージ/ロゴ/一般/About          │
+│ Set  │  settings: アカウント/一括DL/定期DL/保存先/フォルダ名/一般/About │
 └──────┴────────────────────────────────────────────────────────┘
 ```
 
@@ -33,33 +31,42 @@
 
 | 領域 | ファイル |
 | --- | --- |
-| シェル | `App.tsx`（prefs/state/routing/theme）, `components/TopBar.tsx`, `components/Rail.tsx` |
+| シェル | `App.tsx`（prefs/state/routing/theme）, `components/Rail.tsx`（サービス・ダウンロード状況・合計サイズ・画面切り替え） |
 | サービス | `screens/ServiceScreen.tsx`（実 `<webview>` + 設定パネル） |
 | 進捗 | `screens/ProgressScreen.tsx` |
 | ライブラリ | `screens/LibraryScreen.tsx`（ツリー/グリッド/リスト、`PostCard`/`PostRow`/`FilterChip` を export） |
 | お気に入り | `screens/FavoritesScreen.tsx` |
-| 投稿詳細 | `screens/PostDetail.tsx` |
+| 投稿詳細 | `screens/PostDetail.tsx`（プレビュー・ライトボックス・zip 解凍）, `screens/PsdViewer.tsx`（PSD のレイヤー表示・書き出し） |
 | 設定 | `screens/SettingsScreen.tsx` |
 | 共通 | `design/icons.tsx`, `design/primitives.tsx`（Thumb/ServiceMark/StatusBadge/Btn）, `design/context.tsx` |
-| データ/文言 | `design/data.ts`（**モック**）, `design/i18n.ts`（ja/en）, `design/types.ts` |
+| データ | `design/data.ts`（サービスごとの色・マーク）, `design/library.ts`（`LibraryPost`→`ViewPost`）, `design/types.ts` |
+| 文言 | `design/i18n.ts`（ja/en）, `design/locales/zh-CN.ts`（简体中文）, `design/language.ts`（言語の選択肢と OS 言語からの初期値） |
 
 ## 実装上の決定（プロトタイプからの調整）
 
 - **ダウンロード設定パネルのレイアウト**: プロトタイプの right / bottom / overlay のうち、
   既定の **right（右サイドパネル）** のみ実装。bottom/overlay は将来必要なら追加。
-- **ウィンドウ Chrome**: プロトタイプの mac（信号機ボタン）ではなく **plain**（ロゴ + タイトル）を採用。
-  実 Windows アプリで非機能の信号機を出すのを避けるため。
+- **ウィンドウ Chrome**: プロトタイプの mac（信号機ボタン）ではなく OS 標準の枠を使う。
+  プロトタイプの TopBar は撤去し、ダウンロード状況と合計サイズは Rail に移した（PR #36）。
 - **WebView**: プロトタイプはログイン画面/フィードのモックだが、本実装は **実 Electron `<webview>`**
   （`partition="persist:<id>"`）に置換。ログイン Cookie が main 側 DL と共有される。
-- **コンテンツデータ**: `design/data.ts` は **モック**。投稿/クリエイター一覧・お気に入り・進捗の
-  アニメーションはデモ用。M2 で `window.api`（services/creators/posts, viewer:tree, download）へ置換する。
-- **設定の永続化**: prefs（theme/lang/accent/density/viewerView）と brandLogos は現状 **localStorage**。
-  将来 `settings:*` IPC（main 側の `settings.json`）へ寄せる余地あり。
+- **コンテンツデータ**: モックは撤去済み。投稿/クリエイター一覧・進捗はすべて `window.api` の実データ。
+  `design/data.ts` に残るのはサービスごとの表示用の色・マークだけ。
+- **設定の永続化**: prefs（theme/lang/accent/density/viewerView）、お気に入り、クリエイター一覧のキャッシュ、
+  ダウンロード設定の選択、定期実行の最終実行日は **localStorage**。サービスのロゴは同梱（利用者による差し替えは廃止）。
+  保存先・同時数・フォルダ名パターン・定期ダウンロード・zip のパスワードなどは `settings:*` IPC
+  （main 側の `settings.json`）。
+- **表示言語**: 日本語 / English / 简体中文。保存された選択が無ければ OS の言語から選ぶ
+  （`zh-*` は简体中文、それ以外の未対応言語は日本語）。サイトの WebView・クリエイター名・投稿本文・
+  ファイル名は翻訳しない。
 
 ## 実装済み（実データ接続後）
 
 - モック→実データ置換、実メディアプレビュー、進捗の実イベント接続、speed/ETA、
-  失敗再試行、クリエイター表示名、フォントのローカル同梱（完全オフライン）。詳細は roadmap。
+  失敗再試行、クリエイター表示名、フォントのローカル同梱（完全オフライン）。
+- ダウンロード設定パネルの期間指定・「New」表示・クリエイター追加、ダウンロードのキュー表示、
+  zip 解凍、PSD ビューワー、Cookie 貼り付け、定期ダウンロード・自動起動、更新通知のバナー、
+  简体中文対応。詳細は roadmap。
 
 ## 今後
 

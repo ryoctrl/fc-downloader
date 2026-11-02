@@ -1,11 +1,11 @@
 # コントリビューションガイド / Contributing
 
-日本語 | [简体中文](CONTRIBUTING.zh-CN.md)
+日本語 | [English](CONTRIBUTING.en.md) | [简体中文](CONTRIBUTING.zh-CN.md)
 
 fc-downloader への貢献に興味を持っていただきありがとうございます。
 バグ報告・機能要望・プルリクエスト（PR）のいずれも歓迎します。
 
-> English: Issues and PRs in English are welcome too. The steps below apply as-is.
+> English: Issues and PRs in English are welcome too. See the [English guide](CONTRIBUTING.en.md).
 
 参加にあたっては [行動規範（Code of Conduct）](https://github.com/ryoctrl/.github/blob/master/CODE_OF_CONDUCT.md) を守ってください。
 
@@ -34,7 +34,7 @@ CI では secret scan（gitleaks / ggshield）が実行され、検出される�
 
 ## 開発環境
 
-必要なもの: Node.js 20 以上、npm。ネイティブモジュールは使っていないため、Python や MSVC などのビルドツールは不要です。
+必要なもの: Node.js 24（CI と同じバージョン）、npm。ネイティブモジュールは使っていないため、Python や MSVC などのビルドツールは不要です。
 
 ```bash
 npm install        # 依存関係のインストール
@@ -61,6 +61,7 @@ npm run build      # 型チェック + electron-vite build
 - renderer に Node の権限を与えないでください（`contextIsolation: true` / `nodeIntegration: false` を維持し、すべて `window.api` 経由にします）。
 - 調査用のスクリプトは `scripts/_*.cjs`（gitignore 済みの接頭辞）に置き、コミットしないでください。
 - 整形は Prettier（`npm run format`）と `.editorconfig` に従います。
+- **画面の文言**: 新しい文言は 3 言語すべてに追加してください（日本語・英語は `src/renderer/src/design/i18n.ts`、簡体字中国語は `src/renderer/src/design/locales/zh-CN.ts`）。キーとプレースホルダーの一致は `i18n.test.ts` が確認します。
 
 ## プルリクエスト
 

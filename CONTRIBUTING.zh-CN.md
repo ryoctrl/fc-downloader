@@ -1,6 +1,6 @@
 # 贡献指南
 
-[日本語](CONTRIBUTING.md) | 简体中文
+[日本語](CONTRIBUTING.md) | [English](CONTRIBUTING.en.md) | 简体中文
 
 感谢你有兴趣参与 fc-downloader 的开发。欢迎提交错误报告、功能建议和拉取请求（PR）。也欢迎使用英语提交 Issue 或 PR，以下流程同样适用。
 
