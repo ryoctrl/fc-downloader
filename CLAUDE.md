@@ -30,20 +30,30 @@ src/
     services/  Per-site adapters implementing the Service interface
       types.ts     <- the Service contract every site implements
       registry.ts  <- register new services here
-      fantia/      <- MVP adapter (endpoints marked VERIFY:)
-    session/   Per-service Electron session + cookie-aware fetch (net module)
+      fantia/ fanbox/ cien/ patreon/  <- one adapter per site
+    session/   Per-service Electron session + cookie-aware fetch (net module),
+               throttle.ts (per-service politeness gap)
     download/  Download engine (enumerate -> dedup -> fetch w/ concurrency)
-    storage/   layout.ts (paths/dedup key), db.ts (sqlite), settings.ts, viewer.ts
+    storage/   layout.ts (paths/dedup key), db.ts (JSON ledger), settings.ts,
+               viewer.ts, files.ts, thumbnails.ts
+    archive/   zip extraction (incl. ZipCrypto passwords)
+    protocol/  fcfile:// (downloaded media) + fcicon:// handlers
+    webview/   popup routing for the service <webview> (sign-in popups in-app)
+    update/    GitHub release check (banner only, no auto-download)
+    startup/   launch-at-login (OS login item)
     ipc/       Typed ipcMain handlers
     index.ts   App bootstrap
   preload/     contextBridge -> window.api (typed by shared/ipc.ts)
   renderer/    React UI (ported from the design handoff)
-    src/design/    design system: icons, primitives, context, i18n, types,
-                   data.ts (MOCK content — replaced by window.api in M2.5)
-    src/components/ TopBar, Rail (shell)
-    src/screens/   Service, Progress, Library, Favorites, PostDetail, Settings
+    src/design/    design system: icons, primitives, context, types,
+                   i18n.ts (ja/en strings) + locales/zh-CN.ts, language.ts,
+                   data.ts (per-service branding), library.ts (posts -> view)
+    src/components/ Rail (shell: services, downloads, total size, nav)
+    src/screens/   Service, Progress, Library, Favorites, PostDetail,
+                   PsdViewer, Settings
     src/App.tsx    prefs/state/routing/theme; src/theme.css  design tokens
-  shared/      types.ts + ipc.ts  (no Node/DOM imports — used by both sides)
+  shared/      types.ts + ipc.ts, folderPattern.ts, period.ts, sessionCookie.ts
+               (no Node/DOM imports — used by both sides)
 docs/          Spec, ADRs, roadmap (source of truth for design)
   design-handoff/  original Claude Design prototype = visual spec for the UI
 ```
@@ -97,6 +107,11 @@ npm run dist       # package installers via electron-builder
 - Anything depending on a live site's undocumented API is marked `VERIFY:` in
   comments. Treat those as "unverified until tested against the real site with a
   saved fixture." Don't present them as confirmed.
+- **UI text**: every string goes into all three UI languages — `ja` and `en`
+  in `src/renderer/src/design/i18n.ts`, `zh-CN` in `design/locales/zh-CN.ts`.
+  `i18n.test.ts` fails on missing keys or mismatched placeholders. User-facing
+  docs exist in the same three languages (`README.md` / `README.en.md` /
+  `README.zh-CN.md`, same for `CONTRIBUTING`) — update all of them together.
 - Security: `contextIsolation: true`, `nodeIntegration: false`. The renderer
   never gets Node access; everything goes through the typed `window.api`.
 - **Never commit real user data, content identifiers, or credentials.** This is
@@ -117,6 +132,16 @@ library/viewer from the metadata ledger with `fcfile://` media preview + image
 lightbox, speed/ETA, creator names + avatars, bundled service logos, failed-retry,
 offline-bundled fonts, an app icon, and a per-service politeness throttle
 (`session/throttle.ts`). All four MVP adapters are implemented and registered.
+
+Added since: publish-date period filters (last N days / range / "since last
+sync" per creator, `shared/period.ts`), Fantia purchased shop products
+(`services/fantia/purchases.ts`), a "New" badge from the home feed (Fanbox,
+ci-en: `Service.recentPosts`), manual "add creator from page" (Patreon:
+`Service.resolveCreator`), Patreon free memberships, folder-name patterns
+(`shared/folderPattern.ts`), session-cookie paste login (`shared/sessionCookie.ts`),
+zip extraction with remembered passwords, a PSD layer viewer/exporter, daily
+scheduled download, launch at login, a GitHub release check (banner), and the
+UI in ja / en / zh-CN.
 
 **Live-API verification** (each via `scripts/probe-<svc>.cjs`):
 - **Fanbox, Fantia, ci-en** — verified end-to-end (checkAuth → list creators →

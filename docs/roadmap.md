@@ -4,7 +4,7 @@
 
 ## M0. スキャフォールド（完了）
 
-- [x] 技術選定（Electron / React+TS+Vite / better-sqlite3）と ADR
+- [x] 技術選定（Electron / React+TS+Vite / JSON 台帳。当初案の better-sqlite3 は見送り＝ADR 0003）と ADR
 - [x] プロジェクト初期化（electron-vite, tsconfig, lint/format）
 - [x] Service 抽象 / registry / Fantia アダプタ雛形（`VERIFY:` 付き）
 - [x] session/manager（パーティション分離 + Cookie 付き `net` リクエスト）
@@ -21,7 +21,7 @@
 - [x] `npm run lint` をクリーンに
 - [x] `npm run build`（main/preload/renderer）成功を確認
 - [x] vitest 初期テスト（`storage/layout` のパス/サニタイズ）を緑に
-- [ ] `npm run dev` で起動・サイドメニュー・WebView 表示を確認（GUI 手動確認）
+- [x] `npm run dev` で起動・サイドメニュー・WebView 表示を確認（GUI 手動確認）
 
 ## M1.5 デザイン実装（完了）
 
@@ -34,14 +34,16 @@ Claude Design ハンドオフ（`docs/design-handoff/`）を React+TS へ移植�
 - [x] typecheck / lint / build をクリーンに（[ui-design.md](spec/ui-design.md) に決定事項）
 - 注: コンテンツは `design/data.ts` の **モック**。M2 で実データへ置換する（下記）。
 
-## M2. Fantia を実機能化（MVP の核心）
+## M2. Fantia を実機能化（MVP の核心・完了）
 
-- [ ] WebView ログイン → `checkAuth`（`/api/v1/me`）の実検証とフィクスチャ保存
-- [ ] `listCreators`（支援中ファンクラブ列挙）の実装 + テスト
-- [ ] `listPosts`（ファンクラブ投稿のページング）の実装 + テスト
-- [ ] 投稿詳細 → `PostFile` 正規化（種別マッピング・**ファイル URL 解決**）
-- [ ] 実ダウンロード E2E（少数投稿で取得→重複スキップ→再実行が冪等）
-- [ ] レート制御 / リトライ / バックオフ
+実 API での検証は 2026-06-08（M5 の Fantia 行と [service-abstraction.md](spec/service-abstraction.md)）。
+
+- [x] WebView ログイン → `checkAuth`（`/api/v1/me`）の実検証
+- [x] `listCreators`（支援中ファンクラブ列挙）の実装 + テスト
+- [x] `listPosts`（ファンクラブ投稿のページング）の実装 + テスト
+- [x] 投稿詳細 → `PostFile` 正規化（種別マッピング・**ファイル URL 解決**）
+- [x] 実ダウンロード E2E（少数投稿で取得→重複スキップ→再実行が冪等）
+- [x] レート制御 / リトライ / バックオフ（`session/throttle.ts` / `download/retry.ts`）
 
 ## M2.5 UI を実データへ接続（モック置換）
 
@@ -65,7 +67,7 @@ Claude Design ハンドオフ（`docs/design-handoff/`）を React+TS へ移植�
   - [x] **クリエイター表示名**: engine が `listCreators` から creatorId→name を解決し
     `upsertPost` で台帳（`PostRecord.creatorName`）へ保存。`LibraryPost.creatorName`（無ければ
     creatorId フォールバック）→ `ViewPost` で表示。db テスト追加。
-- [ ] 重複スキップ既定値を設定に永続化（`AppSettings` 拡張）
+- [x] 重複スキップなどダウンロード設定の選択を永続化（PR #35。renderer の localStorage）
 - [x] **フォントのローカル同梱**（`@fontsource/ibm-plex-{sans,mono}` の latin サブセットを
   main.tsx で import。index.html の Google Fonts/CSP CDN 許可を撤去＝完全オフライン）
 
@@ -102,7 +104,9 @@ Claude Design ハンドオフ（`docs/design-handoff/`）を React+TS へ移植�
     user-menu リンク）→ 購読クリエイター列挙（/mypage/subscription）→ 記事ページング
     （/creator/<id>/article?page=N）→ 限定公開添付（media.ci-en.jp/private、署名付き
     upload/ オリジナル）DL を **HTTP 200 で通し確認**）
+  - [x] ドメイン移行（`ci-en.dlsite.com`。PR #100）と `/mypage` リニューアル（PR #181）に追従
 - [~] Patreon アダプタ（`src/main/services/patreon/`、正規化テスト付き）
+  - [x] 無料メンバーシップのクリエイターを一覧に含める（ホームのフィード + ページから追加。PR #193）
   - [x] **checkAuth 実 API 検証済み** 2026-06-08（`scripts/probe-patreon.cjs`。
     `/api/current_user` → 200 `{data:{id,type:"user"}}`。current_user の
     memberships/pledges リレーション存在を確認）
@@ -113,10 +117,27 @@ Claude Design ハンドオフ（`docs/design-handoff/`）を React+TS へ移植�
 ## M6. 配布
 
 - [x] electron-builder 設定（Windows NSIS + portable。PR #4）
+- [x] macOS ビルド（universal dmg。PR #66）
 - [x] **アプリアイコン**（`build/icon.svg` → `scripts/gen-icons.mjs`(sharp+png-to-ico) で
   `build/icon.{png,ico}` 生成。electron-builder `win.icon` に設定。`npm run gen:icons` で再生成）
-- [ ] 自動更新（任意・ローカル完結方針と要相談）
+- [~] 自動更新: 新バージョンの**通知のみ**実装（GitHub の最新リリースと比較。PR #70）。
+  自動ダウンロード・自動適用はコード署名が前提のため未着手
 - [ ] コード署名（**外部依存**: 要 OV/EV 証明書。Smart App Control 対応に必須）
+
+## M7. リリース後の機能追加（v1.0.x）
+
+- [x] 全サイト一括ダウンロード（PR #55）・毎日の定期ダウンロード（PR #57）・ログイン時の自動起動（PR #75）
+- [x] ダウンロードのキュー（サービスを順に実行。PR #24）、ログイン切れの検知（PR #56）
+- [x] 台帳とディスクの照合（PR #49）、サムネイルの事前生成（PR #47 / #48）
+- [x] zip 解凍（PR #61）、パスワード付き zip（ZipCrypto・パスワード記憶。PR #171）
+- [x] PSD ビューワー（レイヤー切り替え・PNG/JPG 書き出し・サムネイル。PR #137〜#159）
+- [x] 「New」表示（未取得の新着があるクリエイター。PR #129 / #131）、支援中/フォロー中の区別（PR #112）
+- [x] Fantia 購入済みショップ商品（PR #167 / #218 / #221）
+- [x] 公開日による期間指定（直近 N 日 / 期間。PR #185）と「前回以降」（PR #188）
+- [x] サインイン用ポップアップをアプリ内で開く（PR #189）
+- [x] 保存フォルダ名のパターン設定（PR #196）
+- [x] セッション Cookie の貼り付けによるログイン（PR #199）
+- [x] 简体中文の UI と文書（PR #220）、英語の README / CONTRIBUTING
 
 ## 横断的な技術的負債 / 注意
 

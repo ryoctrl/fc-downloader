@@ -10,14 +10,20 @@
 - [service-abstraction.md](spec/service-abstraction.md) — Service 抽象と新規サイト追加手順
 - [storage-and-dedup.md](spec/storage-and-dedup.md) — 保存レイアウトと重複検知
 - [ipc-contract.md](spec/ipc-contract.md) — main↔renderer の IPC 契約
-- [ui-design.md](spec/ui-design.md) — 画面構成（UI 確定後に更新）
+- [ui-design.md](spec/ui-design.md) — 画面構成・表示言語
 - [security-and-legal.md](spec/security-and-legal.md) — セキュリティと利用前提
 
 ## 意思決定記録 (adr/)
 
 - [0001-desktop-framework.md](adr/0001-desktop-framework.md) — Electron 採用
 - [0002-ui-stack.md](adr/0002-ui-stack.md) — React + TS + Vite 採用
-- [0003-metadata-store.md](adr/0003-metadata-store.md) — better-sqlite3 採用
+- [0003-metadata-store.md](adr/0003-metadata-store.md) — 台帳は JSON ストア（SQLite は将来の選択肢）
+
+## 利用者向け文書の言語
+
+README と CONTRIBUTING は日本語（原文）・英語・简体中文の 3 言語
+（`README.md` / `README.en.md` / `README.zh-CN.md`、`CONTRIBUTING` も同じ）。内容を変えるときは 3 つとも直す。
+`docs/` 以下の設計文書は日本語のみ。
 
 ## 依存パッケージ
 
