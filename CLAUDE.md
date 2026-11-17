@@ -48,8 +48,9 @@ src/
     src/design/    design system: icons, primitives, context, types,
                    i18n.ts (ja/en strings) + locales/zh-CN.ts, language.ts,
                    data.ts (per-service branding), library.ts (posts -> view)
-    src/components/ Rail (shell: services, downloads, total size, nav)
-    src/screens/   Service, Progress, Library, Favorites, PostDetail,
+    src/components/ Rail (shell: services, downloads, total size, nav),
+                    ImageLightbox (shared by library images and post details)
+    src/screens/   Service, Progress, Library, LibraryImages, Favorites, PostDetail,
                    PsdViewer, Settings
     src/App.tsx    prefs/state/routing/theme; src/theme.css  design tokens
   shared/      types.ts + ipc.ts, folderPattern.ts, period.ts, sessionCookie.ts

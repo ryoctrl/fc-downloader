@@ -87,6 +87,8 @@ Downloads appear in the "Library". Open a post from its thumbnail to view images
 your favorites. Use "Extract" for zip files (the password is remembered per post) and "Open PSD" to toggle layers
 and export images.
 
+Use the Images button next to Grid / List to browse images from all filtered posts. Open an image and use the arrow keys to move across posts; Esc closes the lightbox while preserving the image gallery’s filters and scroll position.
+
 #### 3. Settings and automation
 
 In Settings you can hide sites you don't use, run a **download from all sites**, schedule a **daily download**,
