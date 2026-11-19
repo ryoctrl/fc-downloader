@@ -20,7 +20,7 @@
 │      │                                                         │
 │ svc  │  service : WebView + 右ダウンロード設定パネル              │
 │ svc  │  progress: 進捗ヒーロー + キュー                          │
-│ ──   │  library : ツリー + グリッド/リスト + フィルタ             │
+│ ──   │  library : ツリー + グリッド/リスト/画像 + フィルタ             │
 │ Lib  │  favorites: お気に入りグリッド                           │
 │ Fav  │  post    : 詳細プレビュー + メタ/タグ/保存パス             │
 │ Set  │  settings: アカウント/一括DL/定期DL/保存先/フォルダ名/一般/About │
@@ -34,7 +34,7 @@
 | シェル | `App.tsx`（prefs/state/routing/theme）, `components/Rail.tsx`（サービス・ダウンロード状況・合計サイズ・画面切り替え） |
 | サービス | `screens/ServiceScreen.tsx`（実 `<webview>` + 設定パネル） |
 | 進捗 | `screens/ProgressScreen.tsx` |
-| ライブラリ | `screens/LibraryScreen.tsx`（ツリー/グリッド/リスト、`PostCard`/`PostRow`/`FilterChip` を export） |
+| ライブラリ | `screens/LibraryScreen.tsx`、`screens/LibraryImages.tsx`（ツリー/グリッド/リスト/画像、`PostCard`/`PostRow`/`FilterChip` を export） |
 | お気に入り | `screens/FavoritesScreen.tsx` |
 | 投稿詳細 | `screens/PostDetail.tsx`（プレビュー・ライトボックス・zip 解凍）, `screens/PsdViewer.tsx`（PSD のレイヤー表示・書き出し） |
 | 設定 | `screens/SettingsScreen.tsx` |
@@ -71,4 +71,16 @@
 ## 今後
 
 - bottom / overlay レイアウト、アクセント色の設定 UI（必要なら）。
-- ※ 画像ライトボックス（クリックで全画面・矢印/Esc 操作）は実装済み。
+- ※ 画像ライトボックス（`components/ImageLightbox.tsx`、クリックで全画面・矢印/Esc 操作）は投稿詳細とライブラリで共用。
+
+## ライブラリの画像ビュー
+
+グリッド／リストの隣にある画像ボタンで、現在のツリー選択・検索・状態・種別・並び順を
+引き継いだ画像一覧へ切り替える。対象は絞り込まれた投稿内の実画像で、動画・添付ファイルが
+主体の投稿に含まれる画像も表示する。投稿順と各フォルダー内のファイル順は維持する。
+画像をクリックすると投稿をまたいでライトボックスを連続操作でき、閉じても検索条件と
+スクロール位置を維持する。各画像の詳細ボタンと既存の投稿カードは従来の詳細画面へ遷移する。
+
+ファイル一覧は既存の `posts:files` IPC を最大4件ずつ読み取り、絞り込み変更やビュー終了で
+後続の読み取りと古い結果の反映を中止する。サムネイルは60件単位で追加表示し、原寸画像は
+ライトボックスで読み込む。読み取り中・画像なし・読み取り失敗・再読み込みの表示を備える。

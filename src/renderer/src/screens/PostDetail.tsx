@@ -11,6 +11,7 @@ import { useApp } from '../design/context'
 import { bridge } from '../bridge'
 import { ensurePsdThumb } from '../psdCover'
 import { PsdViewer } from './PsdViewer'
+import { ImageLightbox } from '../components/ImageLightbox'
 
 /** Shared base style for the post action buttons (favorite / open in browser /
  *  open folder) so they're visually consistent (same radius, border, height). */
@@ -591,108 +592,6 @@ function Preview({
   )
 }
 
-function Lightbox({
-  images,
-  index,
-  onClose,
-  onNav
-}: {
-  images: LibraryFile[]
-  index: number
-  onClose: () => void
-  onNav: (delta: number) => void
-}) {
-  const img = images[index]
-  if (!img) return null
-  const navButton = (dir: 'L' | 'R'): ReactNode => (
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        onNav(dir === 'L' ? -1 : 1)
-      }}
-      style={{
-        position: 'absolute',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        ...(dir === 'L' ? { left: 18 } : { right: 18 }),
-        width: 44,
-        height: 44,
-        borderRadius: 99,
-        border: 'none',
-        cursor: 'pointer',
-        background: 'rgba(255,255,255,.14)',
-        color: '#fff',
-        display: 'grid',
-        placeItems: 'center'
-      }}
-    >
-      <Icon name={dir === 'L' ? 'arrowL' : 'arrowR'} size={22} />
-    </button>
-  )
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 100,
-        background: 'rgba(0,0,0,.85)',
-        backdropFilter: 'blur(4px)',
-        display: 'grid',
-        placeItems: 'center'
-      }}
-    >
-      <img
-        src={img.url}
-        alt={img.name}
-        onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '92vw', maxHeight: '88vh', borderRadius: 8, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }}
-      />
-      <button
-        onClick={onClose}
-        style={{
-          position: 'absolute',
-          top: 18,
-          right: 18,
-          width: 40,
-          height: 40,
-          borderRadius: 99,
-          border: 'none',
-          cursor: 'pointer',
-          background: 'rgba(255,255,255,.14)',
-          color: '#fff',
-          display: 'grid',
-          placeItems: 'center'
-        }}
-      >
-        <Icon name="x" size={20} />
-      </button>
-      {images.length > 1 && (
-        <>
-          {navButton('L')}
-          {navButton('R')}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 20,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              padding: '5px 12px',
-              borderRadius: 99,
-              background: 'rgba(0,0,0,.5)',
-              color: '#fff',
-              fontSize: 12.5,
-              fontFamily: 'var(--mono)'
-            }}
-          >
-            {index + 1} / {images.length}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 export function PostDetail() {
   const app = useApp()
   const L = app.L
@@ -740,19 +639,6 @@ export function PostDetail() {
     },
     [post?.dirPath, reload, L]
   )
-
-  // Keyboard control while the lightbox is open.
-  useEffect(() => {
-    if (lightboxIndex == null) return
-    const n = images.length
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setLightboxIndex(null)
-      else if (e.key === 'ArrowLeft') setLightboxIndex((i) => (i == null ? i : (i - 1 + n) % n))
-      else if (e.key === 'ArrowRight') setLightboxIndex((i) => (i == null ? i : (i + 1) % n))
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [lightboxIndex, images.length])
 
   if (!post) return null
   const svc = FC.serviceById(post.service)
@@ -897,7 +783,8 @@ export function PostDetail() {
         </div>
       </div>
       {lightboxIndex != null && (
-        <Lightbox
+        <ImageLightbox
+          L={L}
           images={images}
           index={lightboxIndex}
           onClose={() => setLightboxIndex(null)}

@@ -16,6 +16,7 @@ import { libraryTotals, type ViewPost } from '../design/library'
 import { Icon } from '../design/icons'
 import { ServiceMark, StatusBadge, Thumb } from '../design/primitives'
 import { useApp } from '../design/context'
+import { LibraryImages } from './LibraryImages'
 
 function uniq<T>(xs: T[]): T[] {
   return [...new Set(xs)]
@@ -690,7 +691,7 @@ export function LibraryScreen() {
   // (rail button / back) restores it instead of resetting to "all posts".
   const node = app.state.libNode
   const setNode = app.actions.setLibNode
-  const [view, setView] = useState<ViewMode>(app.t.viewerView)
+  const [view, setView] = useState<ViewMode | 'images'>(app.t.viewerView)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('all')
   const [type, setType] = useState('all')
@@ -827,9 +828,13 @@ export function LibraryScreen() {
               {sortDesc ? L.newest : L.oldest}
             </button>
             <div style={{ display: 'flex', background: 'var(--surface-2)', borderRadius: 9, padding: 3 }}>
-              {(['grid', 'list'] as ViewMode[]).map((v) => (
+              {(['grid', 'list', 'images'] as const).map((v) => (
                 <button
                   key={v}
+                  type="button"
+                  title={v === 'grid' ? L.postGrid : v === 'list' ? L.postList : L.libraryImages}
+                  aria-label={v === 'grid' ? L.postGrid : v === 'list' ? L.postList : L.libraryImages}
+                  aria-pressed={view === v}
                   onClick={() => setView(v)}
                   style={{
                     width: 32,
@@ -844,7 +849,7 @@ export function LibraryScreen() {
                     boxShadow: view === v ? 'var(--shadow-sm)' : 'none'
                   }}
                 >
-                  <Icon name={v} size={16} />
+                  <Icon name={v === 'images' ? 'image' : v} size={16} />
                 </button>
               ))}
             </div>
@@ -875,8 +880,12 @@ export function LibraryScreen() {
           </div>
         </div>
         <div
-          onScroll={onScroll}
-          style={{ flex: 1, overflow: 'auto', padding: view === 'grid' ? '18px 20px 28px' : '8px 14px 24px' }}
+          onScroll={view === 'images' ? undefined : onScroll}
+          style={{
+            flex: 1, overflow: 'auto',
+            ...(view === 'images' ? { display: 'flex', flexDirection: 'column' as const } : {}),
+            padding: view === 'images' ? 0 : view === 'grid' ? '18px 20px 28px' : '8px 14px 24px'
+          }}
         >
           {allPosts.length === 0 ? (
             <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>
@@ -892,6 +901,8 @@ export function LibraryScreen() {
                 <div>{L.noResults}</div>
               </div>
             </div>
+          ) : view === 'images' ? (
+            <LibraryImages posts={posts} />
           ) : view === 'grid' ? (
             <div
               style={{
